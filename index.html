@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Prince QR Studio | Professional Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root { --prince-green: #22c55e; }
         .bg-prince-dark { background-color: #050505; }
         .glass { background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
-        .btn-download { transition: all 0.3s ease; border: 1px solid rgba(34, 197, 94, 0.2); }
-        .btn-download:hover { background: var(--prince-green); color: black; border-color: var(--prince-green); shadow: 0 0 15px rgba(34, 197, 94, 0.4); }
+        .btn-download { transition: all 0.3s ease; border: 1px solid rgba(34, 197, 94, 0.2); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .btn-download:hover { background: var(--prince-green); color: black; border-color: var(--prince-green); box-shadow: 0 0 15px rgba(34, 197, 94, 0.4); }
         /* Scrollbar personalizada */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #000; }
@@ -34,7 +35,6 @@
     <main class="container mx-auto p-6 max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8 py-10">
         
         <div class="lg:col-span-5 space-y-6">
-            
             <div class="glass p-8 rounded-[2rem] shadow-2xl">
                 <h3 class="text-green-500 text-[11px] font-black uppercase tracking-[0.4em] mb-6">Editor de Enlace Cloud</h3>
                 <div class="space-y-4">
@@ -64,11 +64,11 @@
                 </div>
 
                 <div class="space-y-4">
-                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Formatos de descarga</p>
+                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Formatos de descarga profesional</p>
                     <div class="grid grid-cols-3 gap-3">
-                        <button onclick="downloadQR('png')" class="btn-download py-3 rounded-xl text-[10px] font-black uppercase tracking-tighter">PNG</button>
-                        <button onclick="downloadQR('jpg')" class="btn-download py-3 rounded-xl text-[10px] font-black uppercase tracking-tighter">JPG</button>
-                        <button id="btnSVG" class="btn-download py-3 rounded-xl text-[10px] font-black uppercase tracking-tighter">SVG (Vector)</button>
+                        <button onclick="downloadFile('png')" class="btn-download py-3 rounded-xl text-[10px] font-black uppercase tracking-tighter">PNG</button>
+                        <button onclick="downloadFile('pdf')" class="btn-download py-3 rounded-xl text-[10px] font-black uppercase tracking-tighter">PDF (Vect)</button>
+                        <button id="btnSVG" class="btn-download py-3 rounded-xl text-[10px] font-black uppercase tracking-tighter">SVG (Master)</button>
                     </div>
                 </div>
             </div>
@@ -80,22 +80,21 @@
                     <h3 class="text-white text-sm font-black uppercase tracking-widest">Base de Datos QR</h3>
                     <p class="text-gray-500 text-[10px] font-medium uppercase mt-1">Sincronizado con Cloudflare KV</p>
                 </div>
-                <button onclick="loadLinks()" class="p-2 hover:bg-white/5 rounded-full transition">
-                    <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <button onclick="loadLinks()" class="p-2 hover:bg-white/5 rounded-full transition text-green-500">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
                 </button>
             </div>
             
             <div class="overflow-y-auto max-h-[700px]">
                 <table class="w-full text-left border-collapse">
-                    <thead class="bg-black/40 text-[9px] font-black uppercase text-gray-500 tracking-widest border-b border-white/5">
+                    <thead class="bg-black/40 text-[9px] font-black uppercase text-gray-600 tracking-widest border-b border-white/5">
                         <tr>
-                            <th class="px-8 py-4">Link / Slug</th>
+                            <th class="px-8 py-4">ID / Slug</th>
                             <th class="px-8 py-4">Destino</th>
                             <th class="px-8 py-4 text-right">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="linksTable" class="divide-y divide-white/5">
-                        </tbody>
+                    <tbody id="linksTable" class="divide-y divide-white/5"></tbody>
                 </table>
             </div>
         </div>
@@ -118,21 +117,15 @@
                 body: JSON.stringify({ slug, target })
             });
 
-            if(res.ok) {
-                renderQR(slug);
-                loadLinks();
-                // Feedback visual de éxito
-                alert("✓ Actualizado en Cloud");
-            }
+            if(res.ok) { renderQR(slug); loadLinks(); alert("✓ Actualizado en Cloud"); }
         }
 
         async function loadLinks() {
             try {
                 const res = await fetch(`${API_BASE}/links`, { headers: { 'Authorization': `Bearer ${currentToken}` } });
                 const data = await res.json();
-                const table = document.getElementById('linksTable');
-                table.innerHTML = data.map(item => `
-                    <tr class="group hover:bg-green-500/[0.02] transition-colors">
+                document.getElementById('linksTable').innerHTML = data.map(item => `
+                    <tr class="group hover:bg-green-500/[0.02] transition">
                         <td class="px-8 py-6">
                             <span class="block text-green-500 font-black text-sm uppercase tracking-tight">/${item.slug}</span>
                             <span class="text-[9px] text-gray-600 font-medium">qr.grupoprince.com/${item.slug}</span>
@@ -156,47 +149,44 @@
         }
 
         function renderQR(s) {
-            const qrCanvas = document.getElementById('qrcode');
-            QRCode.toCanvas(qrCanvas, `https://qr.grupoprince.com/${s}`, { 
-                width: 220, 
-                margin: 2,
-                color: { dark: '#000000', light: '#ffffff' }
+            QRCode.toCanvas(document.getElementById('qrcode'), `https://qr.grupoprince.com/${s}`, { 
+                width: 220, margin: 2, color: { dark: '#000000', light: '#ffffff' }
             });
         }
 
-        function downloadQR(format) {
-            const canvas = document.getElementById("qrcode");
+        function downloadFile(format) {
             const slug = document.getElementById('slug').value || 'qr-prince';
-            const link = document.createElement('a');
-            
-            if(format === 'png' || format === 'jpg') {
-                link.download = `PRINCE-QR-${slug}.${format}`;
-                link.href = canvas.toDataURL(`image/${format === 'png' ? 'png' : 'jpeg'}`, 1.0);
-                link.click();
+            const canvas = document.getElementById("qrcode");
+
+            if(format === 'png') {
+                const a = document.createElement('a');
+                a.download = `PRINCE-QR-${slug}.png`;
+                a.href = canvas.toDataURL("image/png");
+                a.click();
+            } else if(format === 'pdf') {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF({ unit: 'mm', format: [100, 100] });
+                const imgData = canvas.toDataURL("image/png");
+                doc.addImage(imgData, 'PNG', 10, 10, 80, 80);
+                doc.setFontSize(8);
+                doc.text(`PRINCE STUDIO - ID: /${slug}`, 50, 95, { align: 'center' });
+                doc.save(`PRINCE-VECTOR-${slug}.pdf`);
             }
         }
 
-        // Manejo especial para SVG (Vectorial)
         document.getElementById('btnSVG').onclick = function() {
             const slug = document.getElementById('slug').value || 'qr-prince';
-            const text = `https://qr.grupoprince.com/${slug}`;
-            
-            // Generamos un SVG temporal
-            const container = document.createElement('div');
-            QRCode.toString(text, {type:'svg', width: 500}, function (err, svg) {
-                if (err) throw err;
-                const blob = new Blob([svg], {type: 'image/svg+xml'});
+            QRCode.toString(`https://qr.grupoprince.com/${slug}`, {type:'svg', width: 1000, margin: 2}, function (err, svg) {
+                const blob = new Blob([svg], {type: 'image/svg+xml;charset=utf-8'});
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.href = url;
-                a.download = `PRINCE-VECTOR-${slug}.svg`;
-                a.click();
+                a.href = url; a.download = `PRINCE-MASTER-${slug}.svg`; a.click();
                 URL.revokeObjectURL(url);
             });
         };
 
         async function deleteLink(slug) {
-            if(confirm(`¿Deseas eliminar permanentemente /${slug}?`)) {
+            if(confirm(`¿Eliminar /${slug}?`)) {
                 await fetch(`${API_BASE}/links`, {
                     method: 'DELETE',
                     headers: { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
@@ -207,8 +197,6 @@
         }
 
         function logout() { localStorage.clear(); location.reload(); }
-
-        // Carga inicial
         loadLinks();
         renderQR('ejemplo');
     </script>
