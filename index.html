@@ -3,152 +3,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prince QR | Admin Dashboard</title>
+    <title>Prince QR Studio | Premium Access</title>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root { --accent: #0066FF; }
-        .bg-accent { background-color: var(--accent); }
-        .text-accent { color: var(--accent); }
+        :root { --green: #22c55e; }
+        .bg-gradient-prince { background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%); }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen font-sans text-slate-900">
-    <nav class="bg-black text-white p-5 shadow-xl">
-        <div class="container mx-auto flex justify-between items-center">
-            <span class="text-xl font-black tracking-tighter">PRINCE <span class="text-accent">QR</span></span>
-            <button onclick="logout()" class="text-xs uppercase tracking-widest opacity-60 hover:opacity-100 transition">Logout</button>
-        </div>
-    </nav>
+<body class="bg-[#050505] text-white min-h-screen font-sans">
 
-    <main class="container mx-auto py-12 px-6 max-w-5xl">
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
-            
-            <div class="lg:col-span-1 space-y-6">
-                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-                    <h2 class="text-sm font-bold uppercase tracking-widest text-slate-400 mb-6">Generador Dinámico</h2>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="text-xs font-bold text-slate-500 uppercase">Nombre del Enlace (Slug)</label>
-                            <input type="text" id="slug" placeholder="ej: catalogo-2026" class="w-full mt-1 border-b-2 border-slate-100 p-2 focus:border-accent outline-none transition bg-transparent">
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-slate-500 uppercase">URL de Destino</label>
-                            <input type="url" id="target" placeholder="https://..." class="w-full mt-1 border-b-2 border-slate-100 p-2 focus:border-accent outline-none transition bg-transparent">
-                        </div>
-                        <button onclick="saveLink()" class="w-full bg-black text-white py-4 rounded-xl font-bold hover:bg-accent transition-all transform active:scale-95 shadow-lg shadow-blue-200">GUARDAR Y GENERAR</button>
-                    </div>
+    <div id="loginPage" class="flex items-center justify-center min-h-screen bg-gradient-prince px-4">
+        <div class="max-w-md w-full glass p-10 rounded-[2.5rem] shadow-2xl text-center">
+            <div class="mb-8">
+                <h1 class="text-3xl font-black tracking-tighter">PRINCE <span class="text-green-500">.</span> QR</h1>
+                <p class="text-gray-500 text-xs mt-2 uppercase tracking-widest font-bold">Panel de Administración</p>
+            </div>
+            <div class="space-y-4">
+                <input type="password" id="adminPass" placeholder="Contraseña de acceso" 
+                       class="w-full bg-[#111] border border-gray-800 p-4 rounded-2xl focus:border-green-500 outline-none text-center tracking-[0.5em]">
+                <button onclick="handleLogin()" id="loginBtn" 
+                        class="w-full bg-green-500 text-black py-4 rounded-2xl font-black uppercase text-sm tracking-widest hover:bg-green-400 transition shadow-lg shadow-green-900/20">
+                    Entrar al Sistema
+                </button>
+                <button class="text-[10px] text-gray-600 uppercase font-bold hover:text-gray-400">¿Olvidó su contraseña?</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="mainDashboard" class="hidden animate-in fade-in duration-700">
+        <nav class="bg-black border-b border-gray-900 p-6">
+            <div class="container mx-auto flex justify-between items-center">
+                <h2 class="text-xl font-black tracking-tighter uppercase">Prince Studio</h2>
+                <button onclick="logout()" class="text-[10px] font-black text-gray-500 hover:text-red-500 uppercase tracking-widest">Cerrar Sesión</button>
+            </div>
+        </nav>
+
+        <main class="container mx-auto p-6 max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8 py-12">
+            <div class="lg:col-span-4 space-y-6">
+                <div class="glass p-8 rounded-[2rem] space-y-6">
+                    <h3 class="text-green-500 text-[10px] font-black uppercase tracking-[0.3em]">Editor de Enlace</h3>
+                    <input type="text" id="slug" placeholder="ID (ej: catalogo)" class="w-full bg-black border border-gray-800 p-4 rounded-xl focus:border-green-500 outline-none">
+                    <input type="url" id="target" placeholder="URL Destino" class="w-full bg-black border border-gray-800 p-4 rounded-xl focus:border-green-500 outline-none">
+                    <button onclick="saveLink()" class="w-full bg-green-500 text-black p-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-green-400">Actualizar Cloudflare</button>
                 </div>
 
-                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center">
-                    <canvas id="qrcode" class="bg-white p-2"></canvas>
-                    <button id="downloadBtn" style="display:none" onclick="downloadQR()" class="mt-4 text-xs font-bold text-accent uppercase tracking-wider hover:underline">Descargar PNG</button>
+                <div class="glass p-8 rounded-[2rem] text-center">
+                    <div class="bg-white p-4 rounded-2xl inline-block mb-6"><canvas id="qrcode"></canvas></div>
+                    <div class="flex gap-2 justify-center">
+                        <button onclick="downloadQR()" class="text-[10px] font-bold border border-gray-800 px-4 py-2 rounded-lg hover:bg-white hover:text-black">DESCARGAR PNG</button>
+                    </div>
                 </div>
             </div>
 
-            <div class="lg:col-span-2">
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="p-6 border-b border-slate-50">
-                        <h2 class="text-sm font-bold uppercase tracking-widest text-slate-400">Tus Enlaces Activos</h2>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="bg-slate-50 text-slate-400 uppercase text-[10px] font-black">
-                                <tr>
-                                    <th class="px-6 py-4">ID / Link</th>
-                                    <th class="px-6 py-4">Destino Real</th>
-                                    <th class="px-6 py-4 text-center">Acción</th>
-                                </tr>
-                            </thead>
-                            <tbody id="linksTable" class="divide-y divide-slate-100">
-                                </tbody>
-                        </table>
-                    </div>
-                </div>
+            <div class="lg:col-span-8 glass rounded-[2rem] overflow-hidden">
+                <table class="w-full text-left">
+                    <thead class="bg-[#0a0a0a] text-[10px] font-black uppercase text-gray-600 border-b border-gray-800">
+                        <tr><th class="px-8 py-5">Identificador</th><th class="px-8 py-5">Ruta de Destino</th><th class="px-8 py-5 text-right">Acciones</th></tr>
+                    </thead>
+                    <tbody id="linksTable" class="divide-y divide-gray-900"></tbody>
+                </table>
             </div>
-        </div>
-    </main>
+        </main>
+    </div>
 
     <script>
-        const API_BASE = "https://qr.grupoprince.com/api/links";
-        let token = localStorage.getItem('qr_token');
+        const API_BASE = "https://qr.grupoprince.com/api";
+        let currentToken = localStorage.getItem('prince_session');
 
-        // Login Super Admin
-        if (!token) {
-            token = prompt("PRINCE QR SECURITY: Ingrese su Clave de Super Admin");
-            if (token) localStorage.setItem('qr_token', token);
+        if (currentToken) showDashboard();
+
+        async function handleLogin() {
+            const pass = document.getElementById('adminPass').value;
+            const res = await fetch(`${API_BASE}/login`, {
+                method: 'POST',
+                body: JSON.stringify({ password: pass })
+            });
+            if (res.ok) {
+                localStorage.setItem('prince_session', pass);
+                currentToken = pass;
+                showDashboard();
+            } else { alert("Acceso Denegado"); }
+        }
+
+        function showDashboard() {
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('mainDashboard').classList.remove('hidden');
+            loadLinks();
         }
 
         async function saveLink() {
-            const slug = document.getElementById('slug').value.trim();
-            const target = document.getElementById('target').value.trim();
-            if(!slug || !target) return alert("Completa todos los campos");
-            
-            const res = await fetch(API_BASE, {
+            const slug = document.getElementById('slug').value;
+            const target = document.getElementById('target').value;
+            await fetch(`${API_BASE}/links`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                headers: { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ slug, target })
             });
-
-            if(res.ok) {
-                generateQR(slug);
-                loadLinks();
-                document.getElementById('slug').value = "";
-                document.getElementById('target').value = "";
-            } else {
-                alert("Error de autenticación o conexión");
-            }
+            renderQR(slug);
+            loadLinks();
         }
 
-        function generateQR(slug) {
-            const url = `https://qr.grupoprince.com/${slug}`;
-            QRCode.toCanvas(document.getElementById('qrcode'), url, { width: 180, margin: 2, color: { dark: '#000000' } }, function(err) {
-                if (!err) document.getElementById('downloadBtn').style.display = 'block';
-            });
+        async function loadLinks() {
+            const res = await fetch(`${API_BASE}/links`, { headers: { 'Authorization': `Bearer ${currentToken}` } });
+            const data = await res.json();
+            document.getElementById('linksTable').innerHTML = data.map(item => `
+                <tr class="hover:bg-white/5 transition">
+                    <td class="px-8 py-6 font-black text-green-500 uppercase text-sm">/${item.slug}</td>
+                    <td class="px-8 py-6 text-xs text-gray-500 font-mono truncate max-w-xs">${item.url}</td>
+                    <td class="px-8 py-6 text-right space-x-4">
+                        <button onclick="editItem('${item.slug}','${item.url}')" class="text-gray-400 hover:text-white font-bold text-[10px] uppercase">Editar</button>
+                        <button onclick="deleteLink('${item.slug}')" class="text-red-900 hover:text-red-500 font-bold text-[10px] uppercase">Borrar</button>
+                    </td>
+                </tr>`).join('');
+        }
+
+        function editItem(s, u) {
+            document.getElementById('slug').value = s;
+            document.getElementById('target').value = u;
+            renderQR(s);
+        }
+
+        function renderQR(s) {
+            QRCode.toCanvas(document.getElementById('qrcode'), `https://qr.grupoprince.com/${s}`, { width: 180, margin: 1 });
         }
 
         function downloadQR() {
             const canvas = document.getElementById("qrcode");
             const link = document.createElement('a');
-            link.download = `qr-prince-${document.getElementById('slug').value || 'code'}.png`;
+            link.download = `QR-PRINCE-${document.getElementById('slug').value}.png`;
             link.href = canvas.toDataURL();
             link.click();
         }
 
-        async function loadLinks() {
-            try {
-                const res = await fetch(API_BASE, { headers: { 'Authorization': `Bearer ${token}` } });
-                const data = await res.json();
-                const html = data.map(item => `
-                    <tr class="hover:bg-slate-50 transition">
-                        <td class="px-6 py-4">
-                            <span class="block font-bold text-sm text-black">/${item.slug}</span>
-                            <span class="text-[10px] text-slate-400">qr.grupoprince.com/${item.slug}</span>
-                        </td>
-                        <td class="px-6 py-4">
-                            <span class="text-xs text-slate-500 truncate block max-w-[200px]">${item.url}</span>
-                        </td>
-                        <td class="px-6 py-4 text-center">
-                            <button onclick="deleteLink('${item.slug}')" class="text-red-400 hover:text-red-600 font-bold text-[10px] uppercase tracking-tighter">Eliminar</button>
-                        </td>
-                    </tr>
-                `).join('');
-                document.getElementById('linksTable').innerHTML = html;
-            } catch (e) { console.error("Error cargando links"); }
-        }
-
-        async function deleteLink(slug) {
-            if(confirm(`¿Eliminar permanentemente /${slug}?`)) {
-                await fetch(API_BASE, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ slug })
-                });
-                loadLinks();
-            }
-        }
-
-        function logout() { localStorage.removeItem('qr_token'); location.reload(); }
-        loadLinks();
+        function logout() { localStorage.clear(); location.reload(); }
     </script>
 </body>
 </html>
