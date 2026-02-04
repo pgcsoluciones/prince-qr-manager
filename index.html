@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prince QR Studio | Premium Admin</title>
+    <title>Prince QR Studio | Pro Management</title>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -11,76 +11,82 @@
         :root { --green: #22c55e; }
         .glass { background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
         .btn-green { background: var(--green); color: black; font-weight: 900; }
-        .btn-green:hover { background: #16a34a; transform: translateY(-1px); }
-        .btn-outline { border: 1px solid rgba(34, 197, 94, 0.3); color: #999; }
-        .btn-outline:hover { border-color: var(--green); color: white; }
+        .btn-green:hover { background: #16a34a; }
     </style>
 </head>
 <body class="bg-[#050505] text-white min-h-screen font-sans">
 
-    <div id="loginPage" class="flex items-center justify-center min-h-screen px-4">
-        <div class="max-w-md w-full glass p-10 rounded-[2.5rem] shadow-2xl text-center border-green-500/10 border">
-            <div class="mb-10">
-                <h1 class="text-3xl font-black tracking-tighter uppercase">PRINCE <span class="text-green-500">.</span> QR</h1>
-                <p class="text-gray-500 text-[10px] mt-2 uppercase tracking-[0.3em] font-bold">Acceso Administrativo</p>
-            </div>
-            <div class="space-y-4">
-                <input type="password" id="adminPass" placeholder="CONTRASEÑA" class="w-full bg-black border border-gray-800 p-4 rounded-2xl focus:border-green-500 outline-none text-center tracking-[0.6em] text-white">
-                <button onclick="handleLogin()" id="loginBtn" class="w-full btn-green py-4 rounded-2xl uppercase text-sm tracking-widest transition shadow-lg">Entrar al Sistema</button>
-            </div>
+    <div id="loginPage" class="flex items-center justify-center min-h-screen">
+        <div class="max-w-md w-full glass p-10 rounded-[2.5rem] text-center border-green-500/10 border">
+            <h1 class="text-3xl font-black mb-8">PRINCE <span class="text-green-500">.</span> QR</h1>
+            <input type="password" id="adminPass" placeholder="CONTRASEÑA" class="w-full bg-black border border-gray-800 p-4 rounded-2xl text-center outline-none focus:border-green-500 mb-4">
+            <button onclick="handleLogin()" class="w-full btn-green py-4 rounded-2xl uppercase tracking-widest">Entrar</button>
         </div>
     </div>
 
     <div id="mainDashboard" class="hidden">
-        <nav class="border-b border-gray-900 bg-black/50 sticky top-0 z-50 backdrop-blur-md">
-            <div class="container mx-auto px-6 py-4 flex justify-between items-center">
-                <h2 class="text-xl font-black italic uppercase">Prince <span class="text-green-500">Studio</span></h2>
-                <div class="flex gap-4 items-center">
-                    <button onclick="toggleSettings()" class="text-[10px] font-black text-gray-500 hover:text-green-500 uppercase tracking-widest">Ajustes</button>
-                    <button onclick="logout()" class="text-[10px] font-black text-gray-500 hover:text-red-500 uppercase tracking-widest">Cerrar Sesión</button>
-                </div>
+        <nav class="border-b border-gray-900 bg-black/50 sticky top-0 z-50 p-6 flex justify-between items-center">
+            <h2 class="text-xl font-black italic uppercase">Prince <span class="text-green-500">Studio</span></h2>
+            <div class="flex gap-4">
+                <button onclick="toggleSettings()" class="text-[10px] font-bold text-gray-500 hover:text-green-500 uppercase">Ajustes</button>
+                <button onclick="logout()" class="text-[10px] font-bold text-gray-500 hover:text-red-500 uppercase">Salir</button>
             </div>
         </nav>
 
+        <div id="settingsPanel" class="hidden fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4">
+            <div class="glass p-8 rounded-[2rem] max-w-sm w-full space-y-4">
+                <h3 class="text-green-500 font-bold uppercase text-center">Nueva Contraseña</h3>
+                <input type="text" id="newPassword" class="w-full bg-black border border-gray-800 p-4 rounded-xl text-center">
+                <button onclick="updatePassword()" class="w-full btn-green py-3 rounded-xl">GUARDAR</button>
+                <button onclick="toggleSettings()" class="w-full text-xs text-gray-500">Cerrar</button>
+            </div>
+        </div>
+
         <main class="container mx-auto p-6 max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8 py-10">
-            <div class="lg:col-span-5 space-y-6">
-                <div id="settingsPanel" class="hidden glass p-8 rounded-[2.5rem] space-y-6 border-green-500/30 border">
-                    <h3 class="text-green-500 text-[10px] font-black uppercase tracking-[0.4em]">Cambiar Acceso</h3>
-                    <input type="text" id="newPassword" placeholder="Nueva clave sencilla" class="w-full bg-black border border-gray-800 p-4 rounded-xl focus:border-green-500 outline-none text-center">
-                    <button onclick="updatePassword()" class="w-full btn-green p-4 rounded-xl text-xs uppercase tracking-widest">Guardar Nueva Clave</button>
+            <div class="lg:col-span-4 space-y-6">
+                <div class="glass p-8 rounded-[2rem] space-y-4">
+                    <h3 class="text-green-500 text-[10px] font-black uppercase tracking-[0.4em]">Crear Enlace</h3>
+                    <input type="text" id="project" placeholder="Proyecto (ej: Decology Julieta)" class="w-full bg-black border border-gray-800 p-4 rounded-xl text-sm focus:border-green-500 outline-none">
+                    <input type="text" id="slug" placeholder="Identificador (ID)" class="w-full bg-black border border-gray-800 p-4 rounded-xl text-sm focus:border-green-500 outline-none uppercase font-mono">
+                    <textarea id="target" rows="3" placeholder="URL Destino" class="w-full bg-black border border-gray-800 p-4 rounded-xl text-green-500 font-mono text-sm outline-none focus:border-green-500"></textarea>
+                    <button onclick="saveLink()" class="w-full btn-green p-4 rounded-xl text-xs uppercase tracking-widest transition shadow-lg shadow-green-900/20">Sincronizar Cloud</button>
                 </div>
 
-                <div class="glass p-8 rounded-[2.5rem] space-y-6">
-                    <h3 class="text-green-500 text-[10px] font-black uppercase tracking-[0.4em]">Editor de Enlace</h3>
-                    <input type="text" id="slug" placeholder="ID (ej: catalogo)" class="w-full bg-black border border-gray-800 p-4 rounded-xl focus:border-green-500 outline-none font-mono uppercase text-sm">
-                    <textarea id="target" rows="3" placeholder="URL Destino" class="w-full bg-black border border-gray-800 p-4 rounded-xl focus:border-green-500 outline-none text-green-500 font-mono text-sm"></textarea>
-                    <button onclick="saveLink()" class="w-full btn-green p-4 rounded-xl text-xs uppercase tracking-widest">Actualizar Cloud</button>
-                </div>
-
-                <div class="glass p-8 rounded-[2.5rem] text-center">
-                    <div class="bg-white p-6 rounded-3xl inline-block mb-8"><canvas id="qrcode"></canvas></div>
+                <div class="glass p-8 rounded-[2rem] text-center">
+                    <div class="bg-white p-4 rounded-2xl inline-block mb-6"><canvas id="qrcode"></canvas></div>
                     <div class="grid grid-cols-3 gap-2">
-                        <button onclick="downloadQR('png')" class="btn-outline py-3 rounded-xl text-[9px] font-black uppercase">PNG</button>
-                        <button onclick="downloadQR('pdf')" class="btn-outline py-3 rounded-xl text-[9px] font-black uppercase">PDF</button>
-                        <button onclick="downloadSVG()" class="btn-outline py-3 rounded-xl text-[9px] font-black uppercase">SVG</button>
+                        <button onclick="downloadQR('png')" class="border border-gray-800 py-3 rounded-xl text-[9px] font-bold hover:bg-white hover:text-black">PNG</button>
+                        <button onclick="downloadQR('pdf')" class="border border-gray-800 py-3 rounded-xl text-[9px] font-bold hover:bg-white hover:text-black">PDF</button>
+                        <button onclick="downloadSVG()" class="border border-gray-800 py-3 rounded-xl text-[9px] font-bold hover:bg-white hover:text-black">SVG</button>
                     </div>
                 </div>
             </div>
 
-            <div class="lg:col-span-7 glass rounded-[2.5rem] overflow-hidden">
-                <div class="p-8 border-b border-white/5 bg-white/[0.01] flex justify-between items-center">
-                    <h3 class="text-sm font-black uppercase italic">Base de Datos QR</h3>
-                    <button onclick="loadLinks()" class="text-green-500 hover:rotate-180 transition-transform duration-500">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-                    </button>
+            <div class="lg:col-span-8 glass rounded-[2rem] overflow-hidden flex flex-col">
+                <div class="p-6 bg-white/[0.02] border-b border-white/5 flex flex-wrap gap-4 justify-between items-center">
+                    <h3 class="font-black uppercase text-sm">Base de Datos</h3>
+                    <div class="flex gap-2">
+                        <input type="text" id="filterProject" oninput="applyFilters()" placeholder="Filtrar Proyecto..." class="bg-black border border-gray-800 px-4 py-2 rounded-lg text-xs outline-none focus:border-green-500">
+                    </div>
                 </div>
-                <div class="overflow-y-auto max-h-[600px]">
+                <div class="overflow-x-auto">
                     <table class="w-full text-left">
-                        <thead class="bg-black/50 text-[9px] font-black text-gray-600 uppercase border-b border-white/5 tracking-widest">
-                            <tr><th class="px-8 py-5 text-center">ID</th><th class="px-8 py-5 text-center">Destino</th><th class="px-8 py-5 text-right">Acción</th></tr>
+                        <thead class="bg-black text-[9px] font-black uppercase text-gray-500 border-b border-white/5 tracking-widest">
+                            <tr>
+                                <th class="px-6 py-4">Proyecto</th>
+                                <th class="px-6 py-4">ID / Link</th>
+                                <th class="px-6 py-4 text-right">Acción</th>
+                            </tr>
                         </thead>
-                        <tbody id="linksTable" class="divide-y divide-white/5 text-center"></tbody>
+                        <tbody id="linksTable" class="divide-y divide-white/5"></tbody>
                     </table>
+                </div>
+                <div class="p-6 bg-black/20 flex justify-between items-center border-t border-white/5">
+                    <span id="pageInfo" class="text-[10px] text-gray-500 font-bold uppercase">Página 1</span>
+                    <div class="flex gap-2">
+                        <button onclick="prevPage()" class="px-4 py-2 bg-white/5 rounded-lg text-[10px] font-bold hover:bg-green-500 hover:text-black transition">Anterior</button>
+                        <button onclick="nextPage()" class="px-4 py-2 bg-white/5 rounded-lg text-[10px] font-bold hover:bg-green-500 hover:text-black transition">Siguiente</button>
+                    </div>
                 </div>
             </div>
         </main>
@@ -89,93 +95,116 @@
     <script>
         const API_BASE = "https://qr.grupoprince.com/api";
         let currentToken = localStorage.getItem('prince_session');
+        let allLinks = [];
+        let filteredLinks = [];
+        let currentPage = 1;
+        const itemsPerPage = 15;
 
-        window.onload = () => { if (currentToken) showDashboard(); else showLoginPage(); };
+        window.onload = () => { if (currentToken) showDashboard(); };
 
-        function showLoginPage() { document.getElementById('mainDashboard').classList.add('hidden'); document.getElementById('loginPage').classList.remove('hidden'); }
-        function showDashboard() { document.getElementById('loginPage').classList.add('hidden'); document.getElementById('mainDashboard').classList.remove('hidden'); loadLinks(); renderQR('ejemplo'); }
-        function toggleSettings() { document.getElementById('settingsPanel').classList.toggle('hidden'); }
-
-        async function handleLogin() {
+        function handleLogin() {
             const pass = document.getElementById('adminPass').value;
-            const res = await fetch(`${API_BASE}/login`, { method: 'POST', body: JSON.stringify({ password: pass }) });
-            if (res.ok) { localStorage.setItem('prince_session', pass); currentToken = pass; showDashboard(); } else { alert("Acceso Denegado"); }
+            fetch(`${API_BASE}/login`, { method: 'POST', body: JSON.stringify({ password: pass }) })
+            .then(res => res.ok ? (localStorage.setItem('prince_session', pass), currentToken=pass, showDashboard()) : alert("Denegado"));
         }
 
-        async function updatePassword() {
-            const newPassword = document.getElementById('newPassword').value.trim();
-            if(!newPassword) return alert("Ingresa una clave válida");
-            const res = await fetch(`${API_BASE}/settings`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ newPassword })
-            });
-            if(res.ok) { alert("Clave actualizada. Inicia sesión de nuevo."); logout(); }
-        }
-
-        async function saveLink() {
-            const slug = document.getElementById('slug').value.trim();
-            const target = document.getElementById('target').value.trim();
-            if(!slug || !target) return alert("Faltan datos");
-            await fetch(`${API_BASE}/links`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ slug, target })
-            });
-            renderQR(slug); loadLinks(); alert("✓ Actualizado");
+        function showDashboard() {
+            document.getElementById('loginPage').classList.add('hidden');
+            document.getElementById('mainDashboard').classList.remove('hidden');
+            loadLinks();
+            renderQR('ejemplo');
         }
 
         async function loadLinks() {
             const res = await fetch(`${API_BASE}/links`, { headers: { 'Authorization': `Bearer ${currentToken}` } });
-            if (res.status === 401) return logout();
-            const data = await res.json();
-            document.getElementById('linksTable').innerHTML = data.map(item => `
-                <tr class="hover:bg-white/[0.02] transition">
-                    <td class="px-8 py-6 text-green-500 font-black uppercase text-xs">/${item.slug}</td>
-                    <td class="px-8 py-6 text-[10px] text-gray-500 font-mono truncate max-w-[200px] italic">${item.url}</td>
-                    <td class="px-8 py-6 text-right space-x-3 text-center">
-                        <button onclick="editItem('${item.slug}','${item.url}')" class="text-white hover:text-green-500 font-bold text-[9px] uppercase">Editar</button>
-                        <button onclick="deleteLink('${item.slug}')" class="text-red-900 hover:text-red-500 font-bold text-[9px] uppercase">Borrar</button>
-                    </td>
-                </tr>`).join('');
+            allLinks = await res.json();
+            applyFilters();
         }
 
-        function editItem(s, u) { document.getElementById('slug').value = s; document.getElementById('target').value = u; renderQR(s); }
-        function renderQR(s) { QRCode.toCanvas(document.getElementById('qrcode'), `https://qr.grupoprince.com/${s}`, { width: 220, margin: 2 }); }
+        function applyFilters() {
+            const projFilter = document.getElementById('filterProject').value.toLowerCase();
+            filteredLinks = allLinks.filter(l => l.project.toLowerCase().includes(projFilter));
+            currentPage = 1;
+            renderTable();
+        }
+
+        function renderTable() {
+            const start = (currentPage - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const pageItems = filteredLinks.slice(start, end);
+
+            document.getElementById('linksTable').innerHTML = pageItems.map(item => `
+                <tr class="hover:bg-green-500/[0.02] transition">
+                    <td class="px-6 py-4 text-[10px] font-bold text-gray-500 uppercase">${item.project}</td>
+                    <td class="px-6 py-4"><span class="text-green-500 font-black">/${item.slug}</span></td>
+                    <td class="px-6 py-4 text-right space-x-3">
+                        <button onclick="editItem('${item.slug}','${item.url}','${item.project}')" class="text-[9px] font-black uppercase hover:text-white">Editar</button>
+                        <button onclick="deleteLink('${item.slug}')" class="text-[9px] font-black uppercase text-red-900 hover:text-red-500">Borrar</button>
+                    </td>
+                </tr>`).join('');
+            
+            document.getElementById('pageInfo').innerText = `Página ${currentPage} de ${Math.ceil(filteredLinks.length / itemsPerPage) || 1}`;
+        }
+
+        function prevPage() { if(currentPage > 1) { currentPage--; renderTable(); } }
+        function nextPage() { if(currentPage * itemsPerPage < filteredLinks.length) { currentPage++; renderTable(); } }
+
+        async function saveLink() {
+            const data = {
+                slug: document.getElementById('slug').value.trim(),
+                target: document.getElementById('target').value.trim(),
+                project: document.getElementById('project').value.trim() || "General"
+            };
+            await fetch(`${API_BASE}/links`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            renderQR(data.slug); loadLinks();
+        }
+
+        function editItem(s, u, p) {
+            document.getElementById('slug').value = s;
+            document.getElementById('target').value = u;
+            document.getElementById('project').value = p;
+            renderQR(s);
+        }
+
+        function renderQR(s) { QRCode.toCanvas(document.getElementById('qrcode'), `https://qr.grupoprince.com/${s}`, { width: 180, margin: 2 }); }
         
         function downloadQR(format) {
-            const slug = document.getElementById('slug').value || 'qr';
             const canvas = document.getElementById("qrcode");
-            if(format === 'png') {
-                const a = document.createElement('a'); a.download = `QR-${slug}.png`; a.href = canvas.toDataURL(); a.click();
-            } else if(format === 'pdf') {
+            const a = document.createElement('a');
+            if(format === 'pdf') {
                 const doc = new jspdf.jsPDF({ unit: 'mm', format: [100, 100] });
-                doc.addImage(canvas.toDataURL("image/png"), 'PNG', 10, 10, 80, 80);
-                doc.save(`QR-${slug}.pdf`);
+                doc.addImage(canvas.toDataURL(), 'PNG', 10, 10, 80, 80);
+                doc.save(`QR-${document.getElementById('slug').value}.pdf`);
+            } else {
+                a.download = `QR-${document.getElementById('slug').value}.png`;
+                a.href = canvas.toDataURL(); a.click();
             }
         }
 
         function downloadSVG() {
-            const slug = document.getElementById('slug').value || 'qr';
-            QRCode.toString(`https://qr.grupoprince.com/${slug}`, {type:'svg', width: 800}, (err, svg) => {
+            QRCode.toString(`https://qr.grupoprince.com/${document.getElementById('slug').value}`, {type:'svg', width: 800}, (err, svg) => {
                 const blob = new Blob([svg], {type: 'image/svg+xml'});
                 const url = URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href = url; a.download = `QR-${slug}.svg`; a.click();
+                const a = document.createElement('a'); a.href = url; a.download = 'QR.svg'; a.click();
             });
         }
 
-        async function deleteLink(slug) {
-            if(confirm(`¿Eliminar /${slug}?`)) {
-                await fetch(`${API_BASE}/links`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ slug })
-                });
-                loadLinks();
-            }
+        function toggleSettings() { document.getElementById('settingsPanel').classList.toggle('hidden'); }
+        async function updatePassword() {
+            const newPassword = document.getElementById('newPassword').value;
+            await fetch(`${API_BASE}/settings`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ newPassword })
+            });
+            logout();
         }
 
-        function logout() { localStorage.removeItem('prince_session'); currentToken = null; window.location.replace(window.location.origin + window.location.pathname); }
+        function logout() { localStorage.removeItem('prince_session'); location.reload(); }
     </script>
 </body>
 </html>
