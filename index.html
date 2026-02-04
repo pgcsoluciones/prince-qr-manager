@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prince QR | Admin Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root { --accent: #0066FF; }
+        .bg-accent { background-color: var(--accent); }
+        .text-accent { color: var(--accent); }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-900">
+    <nav class="bg-black text-white p-5 shadow-xl">
+        <div class="container mx-auto flex justify-between items-center">
+            <span class="text-xl font-black tracking-tighter">PRINCE <span class="text-accent">QR</span></span>
+            <button onclick="logout()" class="text-xs uppercase tracking-widest opacity-60 hover:opacity-100 transition">Logout</button>
+        </div>
+    </nav>
+
+    <main class="container mx-auto py-12 px-6 max-w-5xl">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
+            
+            <div class="lg:col-span-1 space-y-6">
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+                    <h2 class="text-sm font-bold uppercase tracking-widest text-slate-400 mb-6">Generador Dinámico</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 uppercase">Nombre del Enlace (Slug)</label>
+                            <input type="text" id="slug" placeholder="ej: catalogo-2026" class="w-full mt-1 border-b-2 border-slate-100 p-2 focus:border-accent outline-none transition bg-transparent">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 uppercase">URL de Destino</label>
+                            <input type="url" id="target" placeholder="https://..." class="w-full mt-1 border-b-2 border-slate-100 p-2 focus:border-accent outline-none transition bg-transparent">
+                        </div>
+                        <button onclick="saveLink()" class="w-full bg-black text-white py-4 rounded-xl font-bold hover:bg-accent transition-all transform active:scale-95 shadow-lg shadow-blue-200">GUARDAR Y GENERAR</button>
+                    </div>
+                </div>
+
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center">
+                    <canvas id="qrcode" class="bg-white p-2"></canvas>
+                    <button id="downloadBtn" style="display:none" onclick="downloadQR()" class="mt-4 text-xs font-bold text-accent uppercase tracking-wider hover:underline">Descargar PNG</button>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-6 border-b border-slate-50">
+                        <h2 class="text-sm font-bold uppercase tracking-widest text-slate-400">Tus Enlaces Activos</h2>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 text-slate-400 uppercase text-[10px] font-black">
+                                <tr>
+                                    <th class="px-6 py-4">ID / Link</th>
+                                    <th class="px-6 py-4">Destino Real</th>
+                                    <th class="px-6 py-4 text-center">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="linksTable" class="divide-y divide-slate-100">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_BASE = "https://qr.grupoprince.com/api/links";
+        let token = localStorage.getItem('qr_token');
+
+        // Login Super Admin
+        if (!token) {
+            token = prompt("PRINCE QR SECURITY: Ingrese su Clave de Super Admin");
+            if (token) localStorage.setItem('qr_token', token);
+        }
+
+        async function saveLink() {
+            const slug = document.getElementById('slug').value.trim();
+            const target = document.getElementById('target').value.trim();
+            if(!slug || !target) return alert("Completa todos los campos");
+            
+            const res = await fetch(API_BASE, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ slug, target })
+            });
+
+            if(res.ok) {
+                generateQR(slug);
+                loadLinks();
+                document.getElementById('slug').value = "";
+                document.getElementById('target').value = "";
+            } else {
+                alert("Error de autenticación o conexión");
+            }
+        }
+
+        function generateQR(slug) {
+            const url = `https://qr.grupoprince.com/${slug}`;
+            QRCode.toCanvas(document.getElementById('qrcode'), url, { width: 180, margin: 2, color: { dark: '#000000' } }, function(err) {
+                if (!err) document.getElementById('downloadBtn').style.display = 'block';
+            });
+        }
+
+        function downloadQR() {
+            const canvas = document.getElementById("qrcode");
+            const link = document.createElement('a');
+            link.download = `qr-prince-${document.getElementById('slug').value || 'code'}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+
+        async function loadLinks() {
+            try {
+                const res = await fetch(API_BASE, { headers: { 'Authorization': `Bearer ${token}` } });
+                const data = await res.json();
+                const html = data.map(item => `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="px-6 py-4">
+                            <span class="block font-bold text-sm text-black">/${item.slug}</span>
+                            <span class="text-[10px] text-slate-400">qr.grupoprince.com/${item.slug}</span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="text-xs text-slate-500 truncate block max-w-[200px]">${item.url}</span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <button onclick="deleteLink('${item.slug}')" class="text-red-400 hover:text-red-600 font-bold text-[10px] uppercase tracking-tighter">Eliminar</button>
+                        </td>
+                    </tr>
+                `).join('');
+                document.getElementById('linksTable').innerHTML = html;
+            } catch (e) { console.error("Error cargando links"); }
+        }
+
+        async function deleteLink(slug) {
+            if(confirm(`¿Eliminar permanentemente /${slug}?`)) {
+                await fetch(API_BASE, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ slug })
+                });
+                loadLinks();
+            }
+        }
+
+        function logout() { localStorage.removeItem('qr_token'); location.reload(); }
+        loadLinks();
+    </script>
+</body>
+</html>
