@@ -3,33 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prince QR Studio | Premium Dashboard</title>
+    <title>Prince QR Studio | Premium Admin</title>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root { --prince-green: #22c55e; }
-        .bg-prince-dark { background-color: #050505; }
+        :root { --green: #22c55e; }
         .glass { background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
-        .btn-download { transition: all 0.3s ease; border: 1px solid rgba(34, 197, 94, 0.2); cursor: pointer; display: flex; align-items: center; justify-content: center; }
-        .btn-download:hover { background: var(--prince-green); color: black; border-color: var(--prince-green); box-shadow: 0 0 15px rgba(34, 197, 94, 0.4); }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #000; }
-        ::-webkit-scrollbar-thumb { background: #222; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--prince-green); }
+        .btn-green { background: var(--green); color: black; font-weight: 900; }
+        .btn-green:hover { background: #16a34a; transform: translateY(-1px); }
+        .btn-outline { border: 1px solid rgba(34, 197, 94, 0.3); color: #999; }
+        .btn-outline:hover { border-color: var(--green); color: white; }
     </style>
 </head>
-<body class="bg-black text-gray-200 min-h-screen font-sans">
+<body class="bg-[#050505] text-white min-h-screen font-sans">
 
-    <div id="loginPage" class="flex items-center justify-center min-h-screen px-4 bg-[#050505]">
-        <div class="max-w-md w-full glass p-10 rounded-[2.5rem] shadow-2xl text-center">
-            <div class="mb-8">
+    <div id="loginPage" class="flex items-center justify-center min-h-screen px-4">
+        <div class="max-w-md w-full glass p-10 rounded-[2.5rem] shadow-2xl text-center border-green-500/10 border">
+            <div class="mb-10">
                 <h1 class="text-3xl font-black tracking-tighter uppercase">PRINCE <span class="text-green-500">.</span> QR</h1>
-                <p class="text-gray-500 text-xs mt-2 uppercase tracking-widest font-bold">Acceso Administrativo</p>
+                <p class="text-gray-500 text-[10px] mt-2 uppercase tracking-[0.3em] font-bold">Acceso Administrativo</p>
             </div>
             <div class="space-y-4">
-                <input type="password" id="adminPass" placeholder="Contraseña" class="w-full bg-black border border-gray-800 p-4 rounded-2xl focus:border-green-500 outline-none text-center tracking-[0.5em] text-white">
-                <button onclick="handleLogin()" class="w-full bg-green-500 text-black py-4 rounded-2xl font-black uppercase text-sm tracking-widest hover:bg-green-400 transition shadow-lg shadow-green-900/20">Entrar al Sistema</button>
+                <input type="password" id="adminPass" placeholder="CONTRASEÑA" 
+                       class="w-full bg-black border border-gray-800 p-4 rounded-2xl focus:border-green-500 outline-none text-center tracking-[0.6em] text-white">
+                <button onclick="handleLogin()" id="loginBtn" 
+                        class="w-full btn-green py-4 rounded-2xl uppercase text-sm tracking-widest transition shadow-lg shadow-green-900/10">
+                    Entrar al Sistema
+                </button>
             </div>
         </div>
     </div>
@@ -37,47 +38,43 @@
     <div id="mainDashboard" class="hidden">
         <nav class="border-b border-gray-900 bg-black/50 sticky top-0 z-50 backdrop-blur-md">
             <div class="container mx-auto px-6 py-4 flex justify-between items-center">
-                <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                    <h1 class="text-xl font-bold tracking-tighter uppercase">Prince <span class="text-green-500 underline decoration-2">Studio</span></h1>
-                </div>
-                <button onclick="logout()" class="text-[10px] font-black text-gray-500 hover:text-white uppercase tracking-[0.2em] transition">Cerrar Sesión</button>
+                <h2 class="text-xl font-black tracking-tighter uppercase italic">Prince <span class="text-green-500">Studio</span></h2>
+                <button onclick="logout()" class="text-[10px] font-black text-gray-500 hover:text-red-500 uppercase tracking-widest transition">Cerrar Sesión</button>
             </div>
         </nav>
 
         <main class="container mx-auto p-6 max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-8 py-10">
             <div class="lg:col-span-5 space-y-6">
-                <div class="glass p-8 rounded-[2rem] shadow-2xl">
-                    <h3 class="text-green-500 text-[11px] font-black uppercase tracking-[0.4em] mb-6">Editor de Enlace</h3>
+                <div class="glass p-8 rounded-[2.5rem] space-y-6">
+                    <h3 class="text-green-500 text-[10px] font-black uppercase tracking-[0.4em]">Editor de Enlace Cloud</h3>
                     <div class="space-y-4">
-                        <input type="text" id="slug" placeholder="ID (ej: catalogo)" class="w-full bg-black border border-gray-800 p-4 rounded-xl focus:border-green-500 outline-none transition text-white font-mono">
-                        <textarea id="target" rows="3" placeholder="URL Destino" class="w-full bg-black border border-gray-800 p-4 rounded-xl focus:border-green-500 outline-none transition text-green-500 font-mono text-sm leading-relaxed"></textarea>
-                        <button onclick="saveLink()" class="w-full bg-green-500 text-black p-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-green-400 transition shadow-lg">Guardar y Actualizar Cloud</button>
+                        <input type="text" id="slug" placeholder="ID (ej: catalogo)" class="w-full bg-black border border-gray-800 p-4 rounded-xl focus:border-green-500 outline-none transition font-mono uppercase text-sm">
+                        <textarea id="target" rows="3" placeholder="URL Destino (https://...)" class="w-full bg-black border border-gray-800 p-4 rounded-xl focus:border-green-500 outline-none transition text-green-500 font-mono text-sm"></textarea>
+                        <button onclick="saveLink()" class="w-full btn-green p-4 rounded-xl text-xs uppercase tracking-widest">Actualizar Cloudflare</button>
                     </div>
                 </div>
 
-                <div class="glass p-8 rounded-[2rem] text-center">
-                    <h3 class="text-gray-500 text-[10px] font-black uppercase tracking-[0.3em] mb-6">Previsualización</h3>
+                <div class="glass p-8 rounded-[2.5rem] text-center">
                     <div class="bg-white p-6 rounded-3xl inline-block mb-8"><canvas id="qrcode"></canvas></div>
-                    <div class="grid grid-cols-3 gap-3">
-                        <div onclick="downloadFile('png')" class="btn-download py-3 rounded-xl text-[10px] font-black uppercase">PNG</div>
-                        <div onclick="downloadFile('pdf')" class="btn-download py-3 rounded-xl text-[10px] font-black uppercase">PDF</div>
-                        <div id="btnSVG" class="btn-download py-3 rounded-xl text-[10px] font-black uppercase">SVG</div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="downloadQR('png')" class="btn-outline py-3 rounded-xl text-[9px] font-black uppercase">PNG</button>
+                        <button onclick="downloadQR('pdf')" class="btn-outline py-3 rounded-xl text-[9px] font-black uppercase">PDF (Vect)</button>
+                        <button onclick="downloadSVG()" class="btn-outline py-3 rounded-xl text-[9px] font-black uppercase">SVG</button>
                     </div>
                 </div>
             </div>
 
-            <div class="lg:col-span-7 glass rounded-[2rem] overflow-hidden flex flex-col shadow-2xl">
+            <div class="lg:col-span-7 glass rounded-[2.5rem] overflow-hidden flex flex-col border border-white/5">
                 <div class="p-8 border-b border-white/5 bg-white/[0.01] flex justify-between items-center">
-                    <h3 class="text-white text-sm font-black uppercase tracking-widest">Base de Datos QR</h3>
+                    <h3 class="text-sm font-black uppercase tracking-widest">Base de Datos QR</h3>
                     <button onclick="loadLinks()" class="text-green-500 hover:rotate-180 transition-transform duration-500">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
                     </button>
                 </div>
-                <div class="overflow-y-auto max-h-[700px]">
+                <div class="overflow-y-auto max-h-[600px]">
                     <table class="w-full text-left">
-                        <thead class="bg-black/40 text-[9px] font-black text-gray-600 uppercase tracking-widest border-b border-white/5">
-                            <tr><th class="px-8 py-4">ID</th><th class="px-8 py-4">Destino</th><th class="px-8 py-4 text-right">Acciones</th></tr>
+                        <thead class="bg-black/50 text-[9px] font-black uppercase text-gray-600 tracking-widest border-b border-white/5">
+                            <tr><th class="px-8 py-5">Identificador</th><th class="px-8 py-5">Destino</th><th class="px-8 py-5 text-right">Acción</th></tr>
                         </thead>
                         <tbody id="linksTable" class="divide-y divide-white/5"></tbody>
                     </table>
@@ -90,13 +87,10 @@
         const API_BASE = "https://qr.grupoprince.com/api";
         let currentToken = localStorage.getItem('prince_session');
 
-        // Inicialización corregida para evitar loops
+        // Control de arranque sin bucles
         window.onload = () => {
-            if (currentToken) {
-                showDashboard();
-            } else {
-                showLoginPage();
-            }
+            if (currentToken) showDashboard();
+            else showLoginPage();
         };
 
         function showLoginPage() {
@@ -113,24 +107,15 @@
 
         async function handleLogin() {
             const pass = document.getElementById('adminPass').value;
-            try {
-                const res = await fetch(`${API_BASE}/login`, {
-                    method: 'POST',
-                    body: JSON.stringify({ password: pass })
-                });
-                if (res.ok) {
-                    localStorage.setItem('prince_session', pass);
-                    currentToken = pass;
-                    showDashboard();
-                } else { alert("Contraseña incorrecta"); }
-            } catch (e) { alert("Error de conexión"); }
-        }
-
-        function logout() {
-            // Solución al loop: Limpiar primero, redirigir después de forma limpia
-            localStorage.removeItem('prince_session');
-            currentToken = null;
-            window.location.href = window.location.pathname; // Recarga la página sin historial de sesión
+            const res = await fetch(`${API_BASE}/login`, {
+                method: 'POST',
+                body: JSON.stringify({ password: pass })
+            });
+            if (res.ok) {
+                localStorage.setItem('prince_session', pass);
+                currentToken = pass;
+                showDashboard();
+            } else { alert("Acceso Denegado"); }
         }
 
         async function saveLink() {
@@ -138,12 +123,14 @@
             const target = document.getElementById('target').value.trim();
             if(!slug || !target) return alert("Completa los campos");
 
-            const res = await fetch(`${API_BASE}/links`, {
+            await fetch(`${API_BASE}/links`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ slug, target })
             });
-            if(res.ok) { renderQR(slug); loadLinks(); alert("✓ Sincronizado"); }
+            renderQR(slug);
+            loadLinks();
+            alert("✓ Actualizado en Cloud");
         }
 
         async function loadLinks() {
@@ -152,11 +139,11 @@
             const data = await res.json();
             document.getElementById('linksTable').innerHTML = data.map(item => `
                 <tr class="hover:bg-white/[0.02] transition">
-                    <td class="px-8 py-6 text-green-500 font-black">/${item.slug}</td>
-                    <td class="px-8 py-6 text-[11px] text-gray-500 font-mono truncate max-w-[200px]">${item.url}</td>
-                    <td class="px-8 py-6 text-right space-x-3">
-                        <button onclick="editItem('${item.slug}','${item.url}')" class="text-white hover:text-green-500 font-bold text-[10px] uppercase">Editar</button>
-                        <button onclick="deleteLink('${item.slug}')" class="text-red-900 hover:text-red-500 font-bold text-[10px] uppercase">Borrar</button>
+                    <td class="px-8 py-6 font-black text-green-500 uppercase text-xs">/${item.slug}</td>
+                    <td class="px-8 py-6 text-[10px] text-gray-500 font-mono truncate max-w-[220px] italic">${item.url}</td>
+                    <td class="px-8 py-6 text-right space-x-4">
+                        <button onclick="editItem('${item.slug}','${item.url}')" class="text-white hover:text-green-500 font-bold text-[9px] uppercase">Editar</button>
+                        <button onclick="deleteLink('${item.slug}')" class="text-red-900 hover:text-red-500 font-bold text-[9px] uppercase">Borrar</button>
                     </td>
                 </tr>`).join('');
         }
@@ -172,12 +159,12 @@
             QRCode.toCanvas(document.getElementById('qrcode'), `https://qr.grupoprince.com/${s}`, { width: 220, margin: 2 });
         }
 
-        function downloadFile(format) {
-            const slug = document.getElementById('slug').value || 'qr-prince';
+        function downloadQR(format) {
+            const slug = document.getElementById('slug').value || 'prince-qr';
             const canvas = document.getElementById("qrcode");
             if(format === 'png') {
                 const a = document.createElement('a');
-                a.download = `PRINCE-QR-${slug}.png`;
+                a.download = `QR-${slug}.png`;
                 a.href = canvas.toDataURL("image/png");
                 a.click();
             } else if(format === 'pdf') {
@@ -185,21 +172,21 @@
                 const doc = new jsPDF({ unit: 'mm', format: [100, 100] });
                 doc.addImage(canvas.toDataURL("image/png"), 'PNG', 10, 10, 80, 80);
                 doc.setFontSize(8);
-                doc.text(`PRINCE STUDIO - ID: /${slug}`, 50, 95, { align: 'center' });
-                doc.save(`PRINCE-VECTOR-${slug}.pdf`);
+                doc.text(`PRINCE STUDIO - /${slug}`, 50, 95, { align: 'center' });
+                doc.save(`QR-VECT-${slug}.pdf`);
             }
         }
 
-        document.getElementById('btnSVG').onclick = function() {
-            const slug = document.getElementById('slug').value || 'qr-prince';
-            QRCode.toString(`https://qr.grupoprince.com/${slug}`, {type:'svg', width: 800, margin: 2}, function (err, svg) {
+        function downloadSVG() {
+            const slug = document.getElementById('slug').value || 'prince-qr';
+            QRCode.toString(`https://qr.grupoprince.com/${slug}`, {type:'svg', width: 800, margin: 2}, (err, svg) => {
                 const blob = new Blob([svg], {type: 'image/svg+xml'});
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.href = url; a.download = `PRINCE-MASTER-${slug}.svg`; a.click();
+                a.href = url; a.download = `QR-MASTER-${slug}.svg`; a.click();
                 URL.revokeObjectURL(url);
             });
-        };
+        }
 
         async function deleteLink(slug) {
             if(confirm(`¿Eliminar /${slug}?`)) {
@@ -210,6 +197,12 @@
                 });
                 loadLinks();
             }
+        }
+
+        function logout() {
+            localStorage.removeItem('prince_session');
+            currentToken = null;
+            window.location.replace(window.location.origin + window.location.pathname);
         }
     </script>
 </body>
