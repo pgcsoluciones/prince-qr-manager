@@ -14,21 +14,26 @@
         :root { --green: #22c55e; }
         .glass { background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
         .sidebar-item.active { background: var(--green); color: black; font-weight: 800; border-radius: 12px; }
-        /* Estilo para el logo circular */
         .logo-circle { border: 2px solid var(--green); border-radius: 9999px; overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center; }
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        
+        /* Ajuste para scroll horizontal de carpetas en móvil */
+        @media (max-width: 1024px) {
+            #projectList { flex-direction: row; display: flex; overflow-x: auto; padding-bottom: 10px; gap: 8px; }
+            .sidebar-item { white-space: nowrap; flex-shrink: 0; }
+        }
     </style>
 </head>
 <body class="bg-[#050505] text-white min-h-screen font-sans flex flex-col">
 
-    <div id="loginPage" class="flex items-center justify-center min-h-screen px-4">
-        <div class="max-w-md w-full glass p-10 rounded-[2.5rem] text-center border-green-500/10 border">
+    <div id="loginPage" class="flex items-center justify-center min-h-screen px-4 py-10">
+        <div class="max-w-md w-full glass p-6 md:p-10 rounded-[2.5rem] text-center border-green-500/10 border">
             <div class="mb-10 flex flex-col items-center">
-                <div class="logo-circle w-32 h-32 mb-6">
+                <div class="logo-circle w-24 h-24 md:w-32 md:h-32 mb-6">
                     <img src="https://lh3.googleusercontent.com/d/15g1fT9FuP7hvu4_ds74FpucboRQm4j0d" alt="Prince Logo" class="w-full h-full object-cover scale-110">
                 </div>
-                <h1 class="text-2xl font-black tracking-tighter uppercase italic">PRINCE <span class="text-green-500">STUDIO</span></h1>
+                <h1 class="text-xl md:text-2xl font-black tracking-tighter uppercase italic">PRINCE <span class="text-green-500">STUDIO</span></h1>
                 <p class="text-gray-500 text-[10px] mt-2 uppercase tracking-[0.3em] font-bold">Acceso Administrativo</p>
             </div>
             <div class="space-y-4 text-center">
@@ -38,15 +43,15 @@
         </div>
     </div>
 
-    <div id="mainDashboard" class="hidden flex flex-col h-screen">
-        <nav class="border-b border-gray-900 bg-black/50 p-6 flex justify-between items-center shrink-0">
+    <div id="mainDashboard" class="hidden flex flex-col h-full lg:h-screen">
+        <nav class="border-b border-gray-900 bg-black/50 p-4 md:p-6 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0">
             <div class="flex items-center gap-4">
                 <div class="logo-circle w-10 h-10 border">
                     <img src="https://lh3.googleusercontent.com/d/15g1fT9FuP7hvu4_ds74FpucboRQm4j0d" alt="Logo" class="w-full h-full object-cover">
                 </div>
                 <h2 class="text-xl font-black italic uppercase tracking-tighter">Prince <span class="text-green-500 underline decoration-2">Studio</span></h2>
             </div>
-            <div class="flex gap-6 items-center">
+            <div class="flex gap-4 md:gap-6 items-center">
                 <button onclick="toggleSettings()" class="text-[10px] font-bold text-gray-500 hover:text-green-500 uppercase tracking-widest transition">Ajustes</button>
                 <button onclick="logout()" class="text-[10px] font-bold text-gray-500 hover:text-red-500 uppercase tracking-widest transition">Cerrar Sesión</button>
             </div>
@@ -61,29 +66,32 @@
             </div>
         </div>
 
-        <div class="flex flex-1 overflow-hidden">
-            <aside class="w-72 border-r border-gray-900 bg-black/20 p-6 flex flex-col gap-6 shrink-0 text-center">
+        <div class="flex flex-col lg:flex-row flex-1 overflow-y-auto lg:overflow-hidden">
+            <aside class="w-full lg:w-72 border-b lg:border-r border-gray-900 bg-black/20 p-4 md:p-6 flex flex-col gap-4 shrink-0">
                 <div class="flex justify-between items-center">
                     <h3 class="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em]">Mis Carpetas</h3>
                     <button onclick="createNewProject()" class="text-green-500 text-lg font-bold hover:scale-125 transition">+</button>
                 </div>
-                <div id="projectList" class="flex flex-col gap-2 overflow-y-auto"></div>
+                <div id="projectList" class="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto scrollbar-hide">
+                    </div>
             </aside>
 
-            <main class="flex-1 p-8 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 gap-8 text-center">
+            <main class="flex-1 p-4 md:p-8 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
                 <div class="lg:col-span-4 space-y-6">
-                    <div class="glass p-8 rounded-[2.5rem] space-y-4 border-white/5 border">
+                    <div class="glass p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] space-y-4 border-white/5 border text-center">
                         <div class="flex items-center justify-center gap-2 mb-2">
                             <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                             <h3 class="text-green-500 text-[10px] font-black uppercase tracking-[0.4em]">Carpeta: <span id="activeProjectLabel" class="underline">General</span></h3>
                         </div>
-                        <input type="text" id="slug" placeholder="IDENTIFICADOR (ID)" class="w-full bg-black border border-gray-800 p-4 rounded-xl text-sm focus:border-green-500 outline-none uppercase font-mono tracking-tighter text-white text-center">
+                        <input type="text" id="slug" placeholder="ID DEL QR" class="w-full bg-black border border-gray-800 p-4 rounded-xl text-sm focus:border-green-500 outline-none uppercase font-mono tracking-tighter text-white text-center">
                         <textarea id="target" rows="3" placeholder="URL DESTINO" class="w-full bg-black border border-gray-800 p-4 rounded-xl text-green-500 font-mono text-sm outline-none focus:border-green-500 text-center"></textarea>
-                        <button onclick="saveLink()" class="w-full bg-green-500 text-black p-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-green-900/20 active:scale-95 transition">Sincronizar Cloud</button>
+                        <button onclick="saveLink()" class="w-full bg-green-500 text-black p-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition">Sincronizar</button>
                     </div>
 
-                    <div class="glass p-8 rounded-[2.5rem] text-center border border-white/5">
-                        <div class="bg-white p-4 rounded-2xl inline-block mb-6 shadow-2xl"><canvas id="qrcode"></canvas></div>
+                    <div class="glass p-6 md:p-8 rounded-[2rem] text-center border border-white/5">
+                        <div class="bg-white p-4 rounded-2xl inline-block mb-6 shadow-2xl w-full max-w-[200px] mx-auto">
+                            <canvas id="qrcode" class="w-full h-auto"></canvas>
+                        </div>
                         <div class="grid grid-cols-3 gap-2">
                             <button onclick="downloadFile('png')" class="text-[9px] font-black border border-gray-800 py-3 rounded-xl hover:bg-white hover:text-black uppercase transition">PNG</button>
                             <button onclick="downloadFile('pdf')" class="text-[9px] font-black border border-gray-800 py-3 rounded-xl hover:bg-white hover:text-black uppercase transition">PDF</button>
@@ -92,24 +100,27 @@
                     </div>
                 </div>
 
-                <div class="lg:col-span-8 glass rounded-[2.5rem] flex flex-col overflow-hidden border border-white/5">
-                    <div class="p-6 bg-white/[0.01] border-b border-white/5 flex justify-between items-center px-8">
-                        <h3 id="tableTitle" class="font-black uppercase text-xs tracking-widest italic text-green-500">Cargando base de datos...</h3>
-                        <input type="text" id="searchSlug" oninput="renderTable()" placeholder="Buscar por ID..." class="bg-black border border-gray-800 px-4 py-2 rounded-lg text-[10px] outline-none focus:border-green-500 w-32 text-white text-center">
+                <div class="lg:col-span-8 glass rounded-[2rem] flex flex-col overflow-hidden border border-white/5 mb-10 lg:mb-0">
+                    <div class="p-4 md:p-6 bg-white/[0.01] border-b border-white/5 flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <h3 id="tableTitle" class="font-black uppercase text-xs tracking-widest italic text-green-500 text-center">Cargando base de datos...</h3>
+                        <div class="flex gap-4 items-center w-full sm:w-auto">
+                            <button onclick="downloadFolderPDF()" class="flex-1 sm:flex-none bg-white/5 border border-white/10 px-3 py-2 rounded-lg text-[9px] font-black uppercase text-green-500 hover:bg-green-500 hover:text-black transition">Bajar Carpeta</button>
+                            <input type="text" id="searchSlug" oninput="renderTable()" placeholder="Buscar..." class="flex-1 sm:flex-none bg-black border border-gray-800 px-4 py-2 rounded-lg text-[10px] outline-none focus:border-green-500 text-white text-center">
+                        </div>
                     </div>
-                    <div class="overflow-x-auto h-full">
-                        <table class="w-full text-center">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-center min-w-[600px]">
                             <thead class="bg-black text-[9px] font-black uppercase text-gray-600 tracking-widest border-b border-white/5">
                                 <tr>
-                                    <th class="px-8 py-4">ID / Link Público</th>
-                                    <th class="px-8 py-4">Ruta Destino</th>
-                                    <th class="px-8 py-4">Gestión</th>
+                                    <th class="px-4 py-4">ID / Link Público</th>
+                                    <th class="px-4 py-4">Ruta Destino</th>
+                                    <th class="px-4 py-4">Gestión</th>
                                 </tr>
                             </thead>
                             <tbody id="linksTable" class="divide-y divide-white/5"></tbody>
                         </table>
                     </div>
-                    <div class="p-6 bg-black/40 flex justify-between items-center border-t border-white/5 px-8">
+                    <div class="p-4 md:p-6 bg-black/40 flex justify-between items-center border-t border-white/5 mt-auto">
                         <span id="pageInfo" class="text-[9px] text-gray-500 font-black uppercase tracking-widest">Página 1</span>
                         <div class="flex gap-2">
                             <button onclick="prevPage()" class="px-4 py-2 bg-white/5 rounded-lg text-[9px] font-black uppercase hover:bg-green-500 hover:text-black transition">Ant</button>
@@ -145,28 +156,26 @@
         }
 
         async function loadProjects() {
-            const res = await fetch(`${API_BASE}/projects`, { headers: { 'Authorization': `Bearer ${currentToken}` } });
-            projects = await res.json();
-            renderSidebar();
+            try {
+                const res = await fetch(`${API_BASE}/projects`, { headers: { 'Authorization': `Bearer ${currentToken}` } });
+                projects = await res.json();
+                renderSidebar();
+            } catch(e) { console.error(e); }
         }
 
         function renderSidebar() {
             document.getElementById('projectList').innerHTML = projects.map(p => `
-                <div onclick="setActiveProject('${p}')" class="sidebar-item cursor-pointer px-4 py-3 text-[10px] font-bold uppercase transition flex justify-between group ${activeProject === p ? 'sidebar-item active' : 'text-gray-500 hover:text-white hover:bg-white/5'}">
+                <div onclick="setActiveProject('${p}')" class="sidebar-item cursor-pointer px-4 py-3 text-[10px] font-bold uppercase transition flex justify-between items-center group ${activeProject === p ? 'sidebar-item active' : 'text-gray-500 hover:text-white hover:bg-white/5'}">
                     <span>${p}</span>
-                    ${p !== 'General' ? `<span onclick="deleteProject('${p}')" class="hidden group-hover:block text-red-500 hover:scale-125 transition">×</span>` : ''}
+                    ${p !== 'General' ? `<span onclick="deleteProject('${p}')" class="ml-2 lg:hidden lg:group-hover:block text-red-500 font-bold">×</span>` : ''}
                 </div>`).join('');
         }
 
         async function createNewProject() {
-            const name = prompt("Nombre de la Carpeta (ej: Decology Duarte):");
+            const name = prompt("Nombre de la Carpeta:");
             if (name && !projects.includes(name)) {
                 projects.push(name);
-                await fetch(`${API_BASE}/projects`, { 
-                    method: 'POST', 
-                    body: JSON.stringify({ projects }), 
-                    headers: { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' } 
-                });
+                await fetch(`${API_BASE}/projects`, { method: 'POST', body: JSON.stringify({ projects }), headers: { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' } });
                 renderSidebar();
             }
         }
@@ -191,19 +200,17 @@
             const start = (currentPage - 1) * itemsPerPage;
             const pageItems = filtered.slice(start, start + itemsPerPage);
 
-            document.getElementById('tableTitle').innerText = `${activeProject} (${filtered.length} códigos)`;
+            document.getElementById('tableTitle').innerText = `${activeProject} (${filtered.length})`;
             document.getElementById('linksTable').innerHTML = pageItems.map(item => `
                 <tr class="hover:bg-green-500/[0.02] transition">
-                    <td class="px-8 py-5">
-                        <div class="text-green-500 font-black text-xs uppercase">/${item.slug}</div>
+                    <td class="px-4 py-5">
+                        <div class="text-green-500 font-black text-xs">/${item.slug}</div>
                         <div class="text-[8px] text-gray-600 font-bold uppercase">qr.grupoprince.com/${item.slug}</div>
                     </td>
-                    <td class="px-8 py-5">
-                        <div class="text-[10px] text-gray-500 font-mono italic truncate max-w-[200px] mx-auto">${item.url}</div>
-                    </td>
-                    <td class="px-8 py-5 space-x-4">
-                        <button onclick="editItem('${item.slug}','${item.url}')" class="text-[9px] font-black uppercase text-white hover:text-green-500 transition">Editar</button>
-                        <button onclick="deleteLink('${item.slug}')" class="text-[9px] font-black uppercase text-red-900 hover:text-red-500 transition">Borrar</button>
+                    <td class="px-4 py-5 text-[10px] text-gray-500 font-mono italic truncate max-w-[150px] mx-auto">${item.url}</td>
+                    <td class="px-4 py-5 space-x-2 md:space-x-4">
+                        <button onclick="editItem('${item.slug}','${item.url}')" class="text-[9px] font-black uppercase text-white hover:text-green-500">Editar</button>
+                        <button onclick="deleteLink('${item.slug}')" class="text-[9px] font-black uppercase text-red-900 hover:text-red-500">Borrar</button>
                     </td>
                 </tr>`).join('');
             document.getElementById('pageInfo').innerText = `Página ${currentPage} de ${Math.ceil(filtered.length / itemsPerPage) || 1}`;
@@ -233,6 +240,24 @@
             } else {
                 const a = document.createElement('a'); a.download = `PRINCE-${slug}.png`; a.href = canvas.toDataURL(); a.click();
             }
+        }
+
+        async function downloadFolderPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ unit: 'mm', format: [100, 100] });
+            const linksParaDescargar = allLinks.filter(l => l.project === activeProject);
+            if (linksParaDescargar.length === 0) return alert("No hay códigos");
+
+            for (let i = 0; i < linksParaDescargar.length; i++) {
+                const item = linksParaDescargar[i];
+                const canvas = document.createElement('canvas');
+                await QRCode.toCanvas(canvas, `https://qr.grupoprince.com/${item.slug}`, { width: 300, margin: 2 });
+                if (i > 0) doc.addPage();
+                doc.addImage(canvas.toDataURL("image/png"), 'PNG', 10, 10, 80, 80);
+                doc.setFontSize(10);
+                doc.text(`ID: /${item.slug}`, 50, 95, { align: 'center' });
+            }
+            doc.save(`MASTER-${activeProject}.pdf`);
         }
 
         function downloadSVG() {
