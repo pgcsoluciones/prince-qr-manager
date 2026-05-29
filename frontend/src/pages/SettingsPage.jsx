@@ -3,7 +3,18 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { api } from "../utils/api.js";
 import { toast } from "../components/Toast.jsx";
 
-const TABS = ["General", "Notificaciones", "Integraciones", "Peligroso"];
+const TABS = ["General", "Notificaciones", "Agente IA", "Integraciones", "Peligroso"];
+
+const LLM_OPTIONS = [
+  { id: "claude",  label: "Claude (Anthropic)",   desc: "El más capaz. Usa la clave de la plataforma por defecto." },
+  { id: "openai",  label: "GPT-4o mini (OpenAI)", desc: "Rápido y económico. Requiere tu propia API key." },
+  { id: "gemini",  label: "Gemini Flash (Google)", desc: "Excelente para análisis de texto. Requiere tu propia API key." },
+  { id: "groq",    label: "Llama 3.1 (Groq)",     desc: "Ultra rápido y gratuito con cuota generosa." },
+];
+
+const DEFAULT_PROMPT = `Eres un asistente de operaciones y calidad llamado "Intap". Ayudas a interpretar métricas, checklists y feedback de clientes.
+Siempre respondes en español, de forma clara, directa y accionable.
+Cuando das recomendaciones, las basas en los datos reales del negocio.`;
 
 const TIMEZONES = [
   "America/Mexico_City", "America/Bogota", "America/Lima", "America/Buenos_Aires",
@@ -24,11 +35,36 @@ export default function SettingsPage() {
   const [generalForm, setGeneral]   = useState({ company_name: "", timezone: "UTC", language: "es", logo_url: "" });
   const [notifForm, setNotif]       = useState({ alert_email: "", whatsapp: "", weekly_report: false });
   const [integForm, setInteg]       = useState({ webhook_url: "", api_key: "" });
+  const [aiForm, setAiForm]         = useState({ llm_provider: "claude", llm_api_key: "", system_prompt: DEFAULT_PROMPT, weekly_report_enabled: true });
 
   useEffect(() => {
     (async () => {
       try {
-        const data = await api.get("/api/settings");
+        const [settingsRes, aiRes] = await Promise.all([
+          api.get("/api/settings"),
+          api.get("/api/trace/crm/contacts").catch(() => null), // reuse auth check
+        ]);
+        // Load AI config for the tenant
+        api.get("/api/admin/tenants/me/ai-config").catch(() =>
+          fetch(`${import.meta.env.VITE_API_URL || "https://api.code.intaprd.com"}/api/trace/crm/contacts`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem("qr_token")}` }
+          }).catch(() => null)
+        );
+        // Try to load own AI config via a generic approach
+        try {
+          const aiCfg = await fetch(`${import.meta.env.VITE_API_URL || "https://api.code.intaprd.com"}/api/settings/ai`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem("qr_token")}` }
+          }).then(r => r.ok ? r.json() : null).catch(() => null);
+          if (aiCfg?.config) {
+            setAiForm(f => ({
+              ...f,
+              llm_provider: aiCfg.config.llm_provider || "claude",
+              system_prompt: aiCfg.config.system_prompt || DEFAULT_PROMPT,
+              weekly_report_enabled: aiCfg.config.weekly_report_enabled !== 0,
+            }));
+          }
+        } catch (_) {}
+        const data = settingsRes;
         const s = data.settings || {};
         setSettings(s);
         setGeneral({
@@ -160,6 +196,114 @@ export default function SettingsPage() {
             {saving ? "Guardando..." : "Guardar preferencias"}
           </button>
         </div>
+      )}
+
+      {/* Agente IA */}
+      {activeTab === "Agente IA" && (
+        ["pro","enterprise"].includes(user?.plan) || user?.role === "superadmin" ? (
+          <div className="space-y-6">
+            <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl text-sm text-blue-700">
+              Tu agente IA analiza las métricas de TRACE y genera reportes semanales. Puedes personalizarlo para que se adapte a tu negocio.
+            </div>
+
+            {/* LLM selector */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-3">Modelo de IA</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {LLM_OPTIONS.map(opt => (
+                  <button key={opt.id} onClick={() => setAiForm(f => ({ ...f, llm_provider: opt.id }))}
+                    className={`text-left p-3 rounded-xl border-2 transition-all ${
+                      aiForm.llm_provider === opt.id ? "border-primary bg-primary/5" : "border-slate-200 hover:border-slate-300"
+                    }`}>
+                    <p className="font-medium text-sm text-slate-800">{opt.label}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* API Key propia */}
+            {aiForm.llm_provider !== "claude" && (
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Tu API Key de {aiForm.llm_provider} <span className="text-slate-400">(opcional — si no la pones, usamos la clave de la plataforma)</span>
+                </label>
+                <input type="password" className="input font-mono" placeholder="sk-..."
+                  value={aiForm.llm_api_key}
+                  onChange={e => setAiForm(f => ({ ...f, llm_api_key: e.target.value }))} />
+              </div>
+            )}
+
+            {/* System prompt / personalidad */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Personalidad del agente
+              </label>
+              <p className="text-xs text-slate-500 mb-2">
+                Define cómo se comporta tu agente al generar reportes y responder análisis. Puedes darle un nombre, un tono, y contexto de tu industria.
+              </p>
+              <textarea rows={6} className="input font-mono text-xs resize-y"
+                value={aiForm.system_prompt}
+                onChange={e => setAiForm(f => ({ ...f, system_prompt: e.target.value }))} />
+              <button onClick={() => setAiForm(f => ({ ...f, system_prompt: DEFAULT_PROMPT }))}
+                className="text-xs text-slate-400 hover:text-slate-600 underline mt-1">
+                Restaurar por defecto
+              </button>
+            </div>
+
+            {/* Example prompts */}
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-2">Ejemplos de personalización:</p>
+              <div className="space-y-2">
+                {[
+                  { label: "Hotel", text: "Eres un experto en hospitalidad y atención al huésped. Analiza los datos con enfoque en experiencia del cliente y estándares hoteleros." },
+                  { label: "Restaurante", text: "Eres un consultor de restaurantes. Prioriza la higiene, la satisfacción del comensal y la eficiencia operativa en cocina." },
+                  { label: "Logística", text: "Eres un especialista en última milla y cadena de suministro. Enfócate en tiempos de entrega, incidencias y cumplimiento de SLA." },
+                ].map(ex => (
+                  <button key={ex.label} onClick={() => setAiForm(f => ({ ...f, system_prompt: ex.text }))}
+                    className="w-full text-left p-2.5 rounded-lg border border-slate-200 hover:border-primary hover:bg-primary/5 transition-all">
+                    <span className="text-xs font-medium text-slate-600">{ex.label}: </span>
+                    <span className="text-xs text-slate-500">{ex.text.slice(0, 80)}...</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Weekly report toggle */}
+            <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-slate-200 hover:bg-slate-50">
+              <input type="checkbox" className="w-4 h-4" checked={aiForm.weekly_report_enabled}
+                onChange={e => setAiForm(f => ({ ...f, weekly_report_enabled: e.target.checked }))} />
+              <div>
+                <p className="text-sm font-medium text-slate-700">Reporte semanal automático</p>
+                <p className="text-xs text-slate-400">Cada lunes recibirás un análisis generado por IA con recomendaciones.</p>
+              </div>
+            </label>
+
+            <button onClick={async () => {
+              setSaving(true);
+              try {
+                const payload = { ...aiForm };
+                if (!payload.llm_api_key) delete payload.llm_api_key;
+                await fetch(`${import.meta.env.VITE_API_URL || "https://api.code.intaprd.com"}/api/settings/ai`, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("qr_token")}` },
+                  body: JSON.stringify(payload),
+                });
+                toast("Agente IA configurado correctamente");
+              } catch (e) { toast(e.message, "error"); }
+              finally { setSaving(false); }
+            }} disabled={saving} className="btn-primary">
+              {saving ? "Guardando..." : "Guardar configuración del agente"}
+            </button>
+          </div>
+        ) : (
+          <div className="p-8 text-center">
+            <div className="text-4xl mb-3">🤖</div>
+            <h3 className="font-semibold text-slate-800 mb-1">Agente IA disponible en plan Pro</h3>
+            <p className="text-sm text-slate-500 mb-4">Personaliza tu agente de análisis, elige el modelo de IA y activa reportes semanales automáticos.</p>
+            <button className="btn-primary">Actualizar a Pro</button>
+          </div>
+        )
       )}
 
       {/* Integraciones */}

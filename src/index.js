@@ -1552,6 +1552,37 @@ export default {
         return json({ ok: true, settings: updated });
       }
 
+      // GET /api/settings/ai — tenant gets own AI config
+      if (path === "/api/settings/ai" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const cfg = await env.DB.prepare("SELECT * FROM tenant_ai_config WHERE user_id=?").bind(user.sub).first().catch(() => null);
+        return json({ ok: true, config: cfg || { llm_provider: "claude", weekly_report_enabled: 1 } });
+      }
+
+      // PUT /api/settings/ai — tenant updates own AI config
+      if (path === "/api/settings/ai" && method === "PUT") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        if (!["pro","enterprise","superadmin"].includes(user.plan || user.role)) {
+          return json({ ok: false, error: "El agente IA requiere plan Pro o superior" }, 403);
+        }
+        const body = await request.json();
+        const existing = await env.DB.prepare("SELECT user_id FROM tenant_ai_config WHERE user_id=?").bind(user.sub).first().catch(() => null);
+        if (existing) {
+          await env.DB.prepare(
+            "UPDATE tenant_ai_config SET llm_provider=?, llm_api_key=COALESCE(?,llm_api_key), system_prompt=?, weekly_report_enabled=?, updated_at=datetime('now') WHERE user_id=?"
+          ).bind(body.llm_provider || "claude", body.llm_api_key || null, body.system_prompt || null, body.weekly_report_enabled !== false ? 1 : 0, user.sub).run();
+        } else {
+          await env.DB.prepare(
+            "INSERT INTO tenant_ai_config (user_id, llm_provider, llm_api_key, system_prompt, weekly_report_enabled) VALUES (?,?,?,?,?)"
+          ).bind(user.sub, body.llm_provider || "claude", body.llm_api_key || null, body.system_prompt || null, body.weekly_report_enabled !== false ? 1 : 0).run();
+        }
+        return json({ ok: true });
+      }
+
       // ══════════════════════════════════════════
       // SUPER ADMIN — Tenant management
       // ══════════════════════════════════════════
@@ -1769,16 +1800,95 @@ export default {
 // Weekly AI report generator
 // ──────────────────────────────────────────────
 
+// ── Multi-LLM router ──────────────────────────────────────────────────────────
+// Calls the correct LLM API based on tenant config. Falls back to Claude.
+// Each provider uses its own key: tenant's own key takes priority over platform key.
+async function callLLM({ provider = "claude", apiKey, systemPrompt, userPrompt, maxTokens = 400, env }) {
+  const key = apiKey || env[`${provider.toUpperCase()}_API_KEY`] || env.ANTHROPIC_API_KEY;
+  const sys = systemPrompt || "Eres un asistente analítico experto en operaciones y atención al cliente. Responde siempre en español, de forma clara y accionable.";
+
+  try {
+    if (provider === "claude" || (!apiKey && !env[`${provider.toUpperCase()}_API_KEY`])) {
+      // Anthropic Claude
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: maxTokens,
+          system: sys,
+          messages: [{ role: "user", content: userPrompt }],
+        }),
+      });
+      const data = await res.json();
+      return data.content?.[0]?.text || null;
+    }
+
+    if (provider === "openai") {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          max_tokens: maxTokens,
+          messages: [{ role: "system", content: sys }, { role: "user", content: userPrompt }],
+        }),
+      });
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || null;
+    }
+
+    if (provider === "gemini") {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: sys }] },
+          contents: [{ parts: [{ text: userPrompt }] }],
+          generationConfig: { maxOutputTokens: maxTokens },
+        }),
+      });
+      const data = await res.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    }
+
+    if (provider === "groq") {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
+        body: JSON.stringify({
+          model: "llama-3.1-8b-instant",
+          max_tokens: maxTokens,
+          messages: [{ role: "system", content: sys }, { role: "user", content: userPrompt }],
+        }),
+      });
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || null;
+    }
+
+    // Fallback: Claude
+    return await callLLM({ provider: "claude", apiKey: env.ANTHROPIC_API_KEY, systemPrompt: sys, userPrompt, maxTokens, env });
+  } catch (e) {
+    console.error(`LLM call failed (${provider}):`, e);
+    return null;
+  }
+}
+
 async function generateWeeklyReports(env) {
   try {
-    // Get all pro/enterprise users
     const users = await env.DB.prepare(
       "SELECT id, email, plan FROM users WHERE plan IN ('pro','enterprise') AND is_active=1"
     ).all();
 
     for (const u of users.results) {
       try {
-        // Get their trace points
+        // Load tenant AI config (provider, system_prompt, api_key, enabled flag)
+        const aiCfg = await env.DB.prepare(
+          "SELECT * FROM tenant_ai_config WHERE user_id=?"
+        ).bind(u.id).first().catch(() => null);
+
+        if (aiCfg && !aiCfg.weekly_report_enabled) continue;
+
         const points = await env.DB.prepare(
           "SELECT * FROM trace_points WHERE user_id=? AND is_active=1"
         ).bind(u.id).all();
@@ -1788,66 +1898,50 @@ async function generateWeeklyReports(env) {
         const placeholders = pointIds.map(() => "?").join(",");
         const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-        // Get responses from last 7 days
         const responses = await env.DB.prepare(
           `SELECT * FROM trace_responses WHERE point_id IN (${placeholders}) AND created_at >= ?`
         ).bind(...pointIds, sevenDaysAgo).all();
 
-        // Get open alerts
         const alerts = await env.DB.prepare(
-          "SELECT * FROM trace_alerts WHERE user_id=? AND is_resolved=0 AND created_at >= ?"
-        ).bind(u.id, sevenDaysAgo).all();
+          `SELECT * FROM trace_alerts WHERE point_id IN (${placeholders}) AND is_resolved=0 AND created_at >= ?`
+        ).bind(...pointIds, sevenDaysAgo).all();
 
         const responseCount = responses.results.length;
         const npsScores = responses.results.filter(r => r.nps_score !== null).map(r => r.nps_score);
         const avgNps = npsScores.length ? (npsScores.reduce((a, b) => a + b, 0) / npsScores.length).toFixed(1) : null;
         const alertCount = alerts.results.length;
+        const missedChecklists = alerts.results.filter(a => a.alert_type === "missed_checklist").length;
+        const lowNpsAlerts = alerts.results.filter(a => a.alert_type === "low_nps").length;
 
-        // Count top issues from missed checklists
-        const issueAlerts = alerts.results.filter(a => a.alert_type === "missed_checklist");
+        const userPrompt = `Datos operativos de la semana (${sevenDaysAgo.split("T")[0]} al ${new Date().toISOString().split("T")[0]}):
+- Puntos de control activos: ${points.results.length} (${points.results.map(p => p.name).join(", ")})
+- Total de respuestas recibidas: ${responseCount}
+- NPS promedio: ${avgNps ?? "Sin datos suficientes"}
+- Alertas abiertas: ${alertCount} (${missedChecklists} checklists incompletos, ${lowNpsAlerts} NPS bajos)
 
-        // Build prompt for Claude
-        const prompt = `Eres un analista de calidad. Genera un resumen ejecutivo semanal en español para un gerente de operaciones.
+Genera un reporte ejecutivo de máximo 200 palabras con 3 secciones:
+1. RESUMEN: situación general de la semana
+2. ATENCIÓN: puntos críticos que requieren acción
+3. RECOMENDACIÓN: una acción concreta y prioritaria para la próxima semana`;
 
-Datos de la semana (${sevenDaysAgo.split("T")[0]} al hoy):
-- Puntos de control activos: ${points.results.length}
-- Total de respuestas: ${responseCount}
-- NPS promedio: ${avgNps ?? "Sin datos"}
-- Alertas abiertas: ${alertCount}
-- Alertas por checklist incompleto: ${issueAlerts.length}
+        const provider = aiCfg?.llm_provider || "claude";
+        const reportText = await callLLM({
+          provider,
+          apiKey: aiCfg?.llm_api_key || null,
+          systemPrompt: aiCfg?.system_prompt || null,
+          userPrompt,
+          maxTokens: 500,
+          env,
+        }) || `Reporte TRACE — Semana del ${sevenDaysAgo.split("T")[0]}\nRespuestas: ${responseCount} | NPS: ${avgNps ?? "N/A"} | Alertas: ${alertCount}`;
 
-Puntos de control: ${points.results.map(p => p.name).join(", ")}
-
-Genera un resumen de máximo 200 palabras con: situación general, puntos de atención y una recomendación accionable.`;
-
-        let reportText = `Reporte semanal TRACE\n\nRespuestas: ${responseCount} | NPS: ${avgNps ?? "N/A"} | Alertas: ${alertCount}`;
-
-        if (env.ANTHROPIC_API_KEY) {
-          try {
-            const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "x-api-key": env.ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-              },
-              body: JSON.stringify({
-                model: "claude-haiku-4-5",
-                max_tokens: 400,
-                messages: [{ role: "user", content: prompt }],
-              }),
-            });
-            if (aiRes.ok) {
-              const aiData = await aiRes.json();
-              reportText = aiData.content?.[0]?.text || reportText;
-            }
-          } catch (aiErr) {
-            console.error("AI report error:", aiErr);
-          }
+        // Update token usage (approximate)
+        if (aiCfg) {
+          await env.DB.prepare(
+            "UPDATE tenant_ai_config SET tokens_used_month = tokens_used_month + 500 WHERE user_id=?"
+          ).bind(u.id).run().catch(() => {});
         }
 
-        console.log(`Weekly report generated for ${u.email}:`, reportText.substring(0, 100));
-        // In production, send email via configured email API here
+        console.log(`[TRACE Report][${provider}] ${u.email}: ${reportText.substring(0, 80)}...`);
       } catch (userErr) {
         console.error(`Report error for user ${u.id}:`, userErr);
       }
