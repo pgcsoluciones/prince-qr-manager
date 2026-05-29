@@ -118,18 +118,33 @@ export default {
         }
 
         if (!destination) {
+          // 1. Buscar en D1 (nuevo sistema)
           const record = await env.DB.prepare(
             "SELECT destination_url, is_active FROM short_links WHERE slug = ?"
           ).bind(slug).first();
 
-          if (!record) return new Response("Enlace no encontrado", { status: 404 });
-
-          if (!record.is_active) {
-            ctx.waitUntil(env.QR_CACHE.put(slug, "INACTIVE", { expirationTtl: 3600 }));
-            return new Response("Enlace inactivo", { status: 404 });
+          if (record) {
+            if (!record.is_active) {
+              ctx.waitUntil(env.QR_CACHE.put(slug, "INACTIVE", { expirationTtl: 3600 }));
+              return new Response("Enlace inactivo", { status: 404 });
+            }
+            destination = record.destination_url;
+          } else {
+            // 2. Fallback a QR_LINKS KV (enlaces legacy)
+            const raw = await env.QR_LINKS.get(slug);
+            if (!raw) return new Response("Enlace no encontrado", { status: 404 });
+            try {
+              const kvRecord = JSON.parse(raw);
+              if (kvRecord.is_active === false) {
+                ctx.waitUntil(env.QR_CACHE.put(slug, "INACTIVE", { expirationTtl: 3600 }));
+                return new Response("Enlace inactivo", { status: 404 });
+              }
+              destination = kvRecord.url || kvRecord;
+            } catch {
+              destination = raw;
+            }
           }
 
-          destination = record.destination_url;
           ctx.waitUntil(env.QR_CACHE.put(slug, destination, { expirationTtl: 3600 }));
         }
 
@@ -668,6 +683,66 @@ export default {
         ).bind(max_qr, max_tenants, has_analytics, has_bulk, has_custom_domain, price_usd, plan).run();
 
         return json({ ok: true });
+      }
+
+      // ══════════════════════════════════════════
+      // POST /api/admin/migrate-kv — migrar enlaces legacy KV → D1
+      // Solo superadmin, ejecutar una vez
+      // ══════════════════════════════════════════
+      if (path === "/api/admin/migrate-kv" && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user, "superadmin");
+        if (err) return err;
+
+        const listed = await env.QR_LINKS.list();
+        let migrated = 0, skipped = 0, errors = 0;
+
+        for (const key of listed.keys) {
+          if (key.name.startsWith("__")) { skipped++; continue; }
+
+          // Si ya existe en D1, saltar
+          const existing = await env.DB.prepare(
+            "SELECT slug FROM short_links WHERE slug = ?"
+          ).bind(key.name).first();
+          if (existing) { skipped++; continue; }
+
+          const raw = await env.QR_LINKS.get(key.name);
+          if (!raw) { skipped++; continue; }
+
+          try {
+            let destUrl, project = "General", isActive = true, createdAt = new Date().toISOString();
+            try {
+              const rec = JSON.parse(raw);
+              destUrl   = rec.url || rec.destination_url;
+              project   = rec.project || "General";
+              isActive  = rec.is_active !== false;
+              createdAt = rec.date || rec.created_at || createdAt;
+            } catch {
+              destUrl = raw;
+            }
+
+            if (!destUrl) { skipped++; continue; }
+
+            await env.DB.prepare(
+              `INSERT OR IGNORE INTO short_links (slug, destination_url, user_id, qr_style_json, is_active, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)`
+            ).bind(
+              key.name,
+              destUrl,
+              user.sub,
+              JSON.stringify({ project }),
+              isActive ? 1 : 0,
+              createdAt
+            ).run();
+
+            migrated++;
+          } catch (e) {
+            console.error(`migrate-kv error ${key.name}:`, e);
+            errors++;
+          }
+        }
+
+        return json({ ok: true, migrated, skipped, errors });
       }
 
       // Root

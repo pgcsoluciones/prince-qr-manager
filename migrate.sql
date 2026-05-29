@@ -1,15 +1,8 @@
--- Migración: recrear tablas con el schema SaaS multi-tenant
--- Seguro ejecutar si no hay datos de producción que conservar
+-- Migración segura: solo recrea plan_configs (incompatible) y crea tablas nuevas
+-- Los enlaces existentes en KV NO se tocan
 
--- 1. Borrar tablas con schema incompatible (orden inverso por FK)
-DROP TABLE IF EXISTS qr_analytics;
-DROP TABLE IF EXISTS short_links;
-DROP TABLE IF EXISTS bulk_batches;
-DROP TABLE IF EXISTS projects;
-DROP TABLE IF EXISTS users;
+-- 1. Recrear solo plan_configs (no tiene datos de usuario, solo configuración)
 DROP TABLE IF EXISTS plan_configs;
-
--- 2. Recrear schema completo
 
 CREATE TABLE IF NOT EXISTS plan_configs (
     plan              TEXT PRIMARY KEY,
@@ -26,6 +19,8 @@ INSERT INTO plan_configs (plan, max_qr, max_tenants, has_analytics, has_bulk, ha
 INSERT INTO plan_configs (plan, max_qr, max_tenants, has_analytics, has_bulk, has_custom_domain, price_usd) VALUES ('starter',    50,  0, 1, 0, 0,  9.9);
 INSERT INTO plan_configs (plan, max_qr, max_tenants, has_analytics, has_bulk, has_custom_domain, price_usd) VALUES ('pro',        500, 0, 1, 1, 1, 29.9);
 INSERT INTO plan_configs (plan, max_qr, max_tenants, has_analytics, has_bulk, has_custom_domain, price_usd) VALUES ('enterprise', -1, 20, 1, 1, 1, 99.9);
+
+-- 2. Crear tablas nuevas (IF NOT EXISTS = no toca si ya existen)
 
 CREATE TABLE IF NOT EXISTS users (
     id            TEXT PRIMARY KEY,
@@ -62,9 +57,9 @@ CREATE TABLE IF NOT EXISTS bulk_batches (
 CREATE TABLE IF NOT EXISTS short_links (
     slug            TEXT PRIMARY KEY,
     destination_url TEXT NOT NULL,
-    user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    project_id      TEXT REFERENCES projects(id) ON DELETE SET NULL,
-    batch_id        TEXT REFERENCES bulk_batches(id) ON DELETE SET NULL,
+    user_id         TEXT NOT NULL,
+    project_id      TEXT,
+    batch_id        TEXT,
     qr_style_json   TEXT,
     is_active       INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0,1)),
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -75,9 +70,10 @@ CREATE INDEX IF NOT EXISTS idx_links_user    ON short_links(user_id);
 CREATE INDEX IF NOT EXISTS idx_links_project ON short_links(project_id);
 CREATE INDEX IF NOT EXISTS idx_links_active  ON short_links(is_active);
 
+-- qr_analytics: crear si no existe (conserva datos si ya existe)
 CREATE TABLE IF NOT EXISTS qr_analytics (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    slug       TEXT NOT NULL REFERENCES short_links(slug) ON DELETE CASCADE,
+    slug       TEXT NOT NULL,
     country    TEXT,
     city       TEXT,
     device     TEXT,
