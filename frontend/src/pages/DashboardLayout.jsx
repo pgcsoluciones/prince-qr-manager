@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 
 /* ── Plan display helpers ── */
@@ -220,35 +220,11 @@ function PlanCard({ user }) {
   );
 }
 
-/* ── TRACE sub-nav ── */
-function TraceSubNav({ onNav }) {
-  return (
-    <div className="ml-5 border-l border-slate-100 pl-2 mt-0.5 mb-0.5 space-y-0.5">
-      <NavLink to="/dashboard/trace" end onClick={onNav}
-        className={({ isActive }) => `flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${isActive ? "text-blue-700 bg-blue-50" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"}`}>
-        <Icon name="qr" className="w-3.5 h-3.5" /> Puntos de Control
-      </NavLink>
-      <NavLink to="/dashboard/trace/responses" onClick={onNav}
-        className={({ isActive }) => `flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${isActive ? "text-blue-700 bg-blue-50" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"}`}>
-        <Icon name="chart" className="w-3.5 h-3.5" /> Respuestas
-      </NavLink>
-      <NavLink to="/dashboard/trace/contacts" onClick={onNav}
-        className={({ isActive }) => `flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${isActive ? "text-blue-700 bg-blue-50" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"}`}>
-        <Icon name="contacts" className="w-3.5 h-3.5" /> Contactos CRM
-      </NavLink>
-      <NavLink to="/dashboard/trace/reports" onClick={onNav}
-        className={({ isActive }) => `flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${isActive ? "text-blue-700 bg-blue-50" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"}`}>
-        <Icon name="report" className="w-3.5 h-3.5" /> Reportes
-      </NavLink>
-    </div>
-  );
-}
+/* ── TRACE sub-nav removed — navigation is handled inside TracePage's top bar ── */
 
 /* ── Sidebar inner content (desktop + mobile drawer share this) ── */
 function SidebarContent({ user, isSuperadmin, isEnterprise, onNav, onLogout }) {
   const initial = user?.email?.[0]?.toUpperCase() ?? "?";
-  const location = useLocation();
-  const isOnTrace = location.pathname.startsWith("/dashboard/trace");
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -276,7 +252,6 @@ function SidebarContent({ user, isSuperadmin, isEnterprise, onNav, onLogout }) {
           onClick={onNav}
           badge={!["pro","enterprise"].includes(user?.plan) && user?.role !== "superadmin" ? "Pro" : undefined}
         />
-        {isOnTrace && <TraceSubNav onNav={onNav} />}
         <NavItem to="/dashboard/analytics" iconName="chart"  label="Analíticas" onClick={onNav} />
         <NavItem to="/dashboard/profile"   iconName="user"   label="Mi perfil"  onClick={onNav} />
 

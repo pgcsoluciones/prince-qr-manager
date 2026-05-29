@@ -1,9 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { api } from "../utils/api.js";
 import { toast } from "../components/Toast.jsx";
 import TracePointModal from "../components/TracePointModal.jsx";
+import TraceAutomationsTab from "../components/TraceAutomationsTab.jsx";
+import TraceCRMTab from "../components/TraceCRMTab.jsx";
+import TraceConfigTab from "../components/TraceConfigTab.jsx";
 
 /* ── Helpers ── */
 function timeAgo(dateStr) {
@@ -19,9 +22,9 @@ function timeAgo(dateStr) {
 
 function QRTypeBadge({ type }) {
   const map = {
-    checklist: { label: "Checklist", cls: "bg-emerald-100 text-emerald-700" },
-    survey:    { label: "Encuesta",  cls: "bg-purple-100 text-purple-700" },
-    mixed:     { label: "Mixto",     cls: "bg-blue-100 text-blue-700"   },
+    checklist: { label: "Checklist",  cls: "bg-emerald-100 text-emerald-700" },
+    survey:    { label: "Encuesta",   cls: "bg-purple-100 text-purple-700"  },
+    mixed:     { label: "Mixto",      cls: "bg-blue-100 text-blue-700"      },
   };
   const info = map[type] || map.mixed;
   return (
@@ -31,12 +34,294 @@ function QRTypeBadge({ type }) {
   );
 }
 
-function StatCard({ label, value, sub, color = "text-slate-900" }) {
+/* ── Upgrade prompt ── */
+function UpgradePrompt() {
   return (
-    <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
-      <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-widest mb-1">{label}</p>
-      <p className={`text-2xl font-bold ${color}`}>{value}</p>
-      {sub && <p className="text-[10px] text-slate-400 mt-0.5">{sub}</p>}
+    <div className="max-w-md mx-auto mt-12 text-center px-4">
+      <div className="bg-gradient-to-b from-purple-50 to-white border border-purple-100 rounded-2xl p-8 shadow-sm">
+        <div className="text-5xl mb-4">🎯</div>
+        <h2 className="text-xl font-bold text-slate-900 mb-2">Intap TRACE</h2>
+        <p className="text-sm text-slate-600 mb-1 font-medium">Control, medición y evaluación de operaciones físicas</p>
+        <p className="text-sm text-slate-500 mb-6">
+          Crea puntos de control con checklists y encuestas, vincula QRs físicos y recibe alertas en tiempo real.
+          Disponible en planes <strong>Pro</strong> y <strong>Enterprise</strong>.
+        </p>
+        <a href="/dashboard/profile" className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-colors text-sm">
+          Mejorar a Pro
+        </a>
+      </div>
+    </div>
+  );
+}
+
+/* ── Feature tour ── */
+const TOUR_STEPS = [
+  { title: "Panel de TRACE", body: "Este es tu panel de TRACE. Aquí ves todos tus puntos de control QR físicos.", target: "tour-panel" },
+  { title: "Crear puntos de control", body: "Haz clic en '+ Nuevo punto de control' para crear un QR de control para cualquier área o proceso.", target: "tour-new" },
+  { title: "Checklist o encuesta", body: "Cada punto puede tener un checklist de verificación, una encuesta de satisfacción del cliente (NPS), o ambos.", target: "tour-types" },
+  { title: "Alertas automáticas", body: "Las alertas te avisan cuando algo no se completó a tiempo, cuando la puntuación de satisfacción (NPS) baja, o cuando un checklist queda incompleto.", target: "tour-alerts" },
+  { title: "Sistema CRM", body: "El sistema CRM guarda los contactos de clientes que dejan su correo al responder un QR TRACE. Los puedes filtrar por puntuación de satisfacción.", target: "tour-crm" },
+];
+
+function FeatureTour({ onClose }) {
+  const [step, setStep] = useState(0);
+  const current = TOUR_STEPS[step];
+  const isLast = step === TOUR_STEPS.length - 1;
+
+  return (
+    <div className="fixed bottom-20 right-4 z-50 w-72 bg-white rounded-2xl shadow-2xl border border-blue-200 p-4 animate-fade-in">
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div>
+          <p className="text-[10px] font-semibold text-blue-600 uppercase tracking-widest">
+            Paso {step + 1} de {TOUR_STEPS.length}
+          </p>
+          <p className="font-semibold text-slate-900 text-sm">{current.title}</p>
+        </div>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-sm flex-shrink-0">✕</button>
+      </div>
+      <p className="text-sm text-slate-600 mb-4">{current.body}</p>
+      <div className="flex items-center gap-2">
+        {step > 0 && (
+          <button
+            onClick={() => setStep(s => s - 1)}
+            className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium"
+          >
+            Anterior
+          </button>
+        )}
+        <div className="flex-1 flex justify-center gap-1">
+          {TOUR_STEPS.map((_, i) => (
+            <div key={i} className={`w-1.5 h-1.5 rounded-full ${i === step ? "bg-blue-600" : "bg-slate-200"}`} />
+          ))}
+        </div>
+        {!isLast ? (
+          <button
+            onClick={() => setStep(s => s + 1)}
+            className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+          >
+            Siguiente
+          </button>
+        ) : (
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-colors font-semibold"
+          >
+            Entendido
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Onboarding wizard ── */
+const OBJECTIVES = [
+  { id: "limpieza", label: "Limpieza y sanitización", icon: "🧹" },
+  { id: "atencion", label: "Atención al cliente", icon: "🤝" },
+  { id: "personal", label: "Control de personal", icon: "👤" },
+  { id: "entregas", label: "Entregas y logística", icon: "📦" },
+  { id: "seguridad", label: "Seguridad y accesos", icon: "🔐" },
+  { id: "calidad", label: "Calidad de servicio", icon: "⭐" },
+];
+
+const AUDIENCE_OPTIONS = [
+  { id: "employees", label: "Personal interno", icon: "👥" },
+  { id: "customers", label: "Clientes externos", icon: "🙋" },
+  { id: "both", label: "Ambos", icon: "🔄" },
+];
+
+function OnboardingWizard({ onDismiss, onCreated }) {
+  const [step, setStep] = useState(1);
+  const [objective, setObjective] = useState(null);
+  const [pointName, setPointName] = useState("");
+  const [pointArea, setPointArea] = useState("");
+  const [audience, setAudience] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  async function handleFinish() {
+    if (!pointName.trim()) { toast.error("El nombre del punto es obligatorio"); return; }
+    setSaving(true);
+
+    // Recommend template based on objective
+    const templateMap = {
+      limpieza: "restaurante",
+      atencion: "retail",
+      personal: "oficina",
+      entregas: "logistica",
+      seguridad: "oficina",
+      calidad: "hotel",
+    };
+    const template = templateMap[objective] || "custom";
+    const qrType = audience === "customers" ? "survey" : audience === "employees" ? "checklist" : "mixed";
+
+    try {
+      const data = await api.post("/api/trace/points", {
+        name: pointName.trim(),
+        area: pointArea.trim() || null,
+        template,
+        qr_type: qrType,
+        checklist_items: [],
+        survey_questions: [],
+        alert_config: {},
+      });
+      toast.success("Punto de control creado");
+      onCreated(data.point);
+    } catch (e) {
+      toast.error(e.message || "Error creando punto");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="max-w-lg mx-auto p-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        {/* Progress */}
+        <div className="flex items-center gap-2 mb-6">
+          {[1, 2, 3, 4].map(s => (
+            <div key={s} className="flex items-center gap-2 flex-1">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                s < step ? "bg-green-500 text-white" : s === step ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-400"
+              }`}>{s < step ? "✓" : s}</div>
+              {s < 4 && <div className={`flex-1 h-1 rounded ${s < step ? "bg-green-400" : "bg-slate-100"}`} />}
+            </div>
+          ))}
+        </div>
+
+        {step === 1 && (
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 mb-1">Bienvenido a Intap TRACE</h2>
+            <p className="text-sm text-slate-500 mb-5">Te guiamos en 4 pasos para crear tu primer punto de control QR</p>
+            <p className="text-sm font-semibold text-slate-700 mb-3">Paso 1 de 4: ¿Qué quieres medir o controlar?</p>
+            <div className="grid grid-cols-2 gap-2">
+              {OBJECTIVES.map(o => (
+                <button
+                  key={o.id}
+                  onClick={() => setObjective(o.id)}
+                  className={`flex items-center gap-2 p-3 rounded-xl border-2 text-left text-sm transition-colors ${
+                    objective === o.id
+                      ? "border-blue-600 bg-blue-50 text-blue-700 font-semibold"
+                      : "border-slate-100 hover:border-slate-200 text-slate-600"
+                  }`}
+                >
+                  <span>{o.icon}</span>
+                  <span>{o.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div>
+            <p className="text-sm font-semibold text-slate-700 mb-4">Paso 2 de 4: ¿Dónde estará colocado este QR?</p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-slate-600 mb-1 block">Nombre del punto de control *</label>
+                <input
+                  type="text"
+                  value={pointName}
+                  onChange={e => setPointName(e.target.value)}
+                  placeholder="Ej: Baño planta baja, Recepción, Entrada principal"
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-600 mb-1 block">Área o ubicación (opcional)</label>
+                <input
+                  type="text"
+                  value={pointArea}
+                  onChange={e => setPointArea(e.target.value)}
+                  placeholder="Ej: Piso 2, Zona Norte, Sucursal Centro"
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div>
+            <p className="text-sm font-semibold text-slate-700 mb-4">Paso 3 de 4: ¿Quién interactuará con este QR?</p>
+            <div className="space-y-2">
+              {AUDIENCE_OPTIONS.map(a => (
+                <button
+                  key={a.id}
+                  onClick={() => setAudience(a.id)}
+                  className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-colors ${
+                    audience === a.id
+                      ? "border-blue-600 bg-blue-50 text-blue-700 font-semibold"
+                      : "border-slate-100 hover:border-slate-200 text-slate-600"
+                  }`}
+                >
+                  <span className="text-2xl">{a.icon}</span>
+                  <span className="text-sm">{a.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === 4 && (
+          <div>
+            <p className="text-sm font-semibold text-slate-700 mb-2">Paso 4 de 4: Resumen y creación</p>
+            <p className="text-xs text-slate-500 mb-4">
+              Basándonos en tus respuestas, configuraremos la plantilla más adecuada para tu punto de control.
+            </p>
+            <div className="bg-blue-50 rounded-xl p-4 mb-4 space-y-2">
+              <p className="text-sm"><span className="font-medium text-slate-600">Objetivo:</span> {OBJECTIVES.find(o => o.id === objective)?.label || "—"}</p>
+              <p className="text-sm"><span className="font-medium text-slate-600">Punto:</span> {pointName || "—"}</p>
+              {pointArea && <p className="text-sm"><span className="font-medium text-slate-600">Área:</span> {pointArea}</p>}
+              <p className="text-sm"><span className="font-medium text-slate-600">Usuarios:</span> {AUDIENCE_OPTIONS.find(a => a.id === audience)?.label || "—"}</p>
+            </div>
+            <p className="text-xs text-slate-400">
+              Después de crear el punto podrás personalizar el checklist, las preguntas de la encuesta y configurar alertas automáticas.
+            </p>
+          </div>
+        )}
+
+        {/* Nav buttons */}
+        <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100">
+          <button
+            onClick={onDismiss}
+            className="text-xs text-slate-400 hover:text-slate-600 underline"
+          >
+            Omitir guía e ir al panel
+          </button>
+          <div className="flex gap-2">
+            {step > 1 && (
+              <button
+                onClick={() => setStep(s => s - 1)}
+                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl transition-colors font-medium"
+              >
+                Anterior
+              </button>
+            )}
+            {step < 4 ? (
+              <button
+                onClick={() => {
+                  if (step === 1 && !objective) { toast.error("Selecciona un objetivo"); return; }
+                  if (step === 2 && !pointName.trim()) { toast.error("Ingresa el nombre del punto"); return; }
+                  if (step === 3 && !audience) { toast.error("Selecciona el tipo de usuario"); return; }
+                  setStep(s => s + 1);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors"
+              >
+                Siguiente
+              </button>
+            ) : (
+              <button
+                onClick={handleFinish}
+                disabled={saving}
+                className="px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition-colors disabled:opacity-50"
+              >
+                {saving ? "Creando..." : "Crear punto de control"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -44,9 +329,9 @@ function StatCard({ label, value, sub, color = "text-slate-900" }) {
 /* ── Alert row ── */
 function AlertRow({ alert, onResolve }) {
   const typeMap = {
-    low_nps:          { icon: "📉", label: "NPS bajo",            cls: "text-red-600"    },
-    missed_checklist: { icon: "⚠️", label: "Checklist incompleto", cls: "text-amber-600" },
-    overdue:          { icon: "⏰", label: "Sin escaneo",           cls: "text-orange-600"},
+    low_nps:          { icon: "📉", label: "Puntuación de satisfacción (NPS) baja",  cls: "text-red-600"    },
+    missed_checklist: { icon: "⚠️", label: "Checklist incompleto",                    cls: "text-amber-600" },
+    overdue:          { icon: "⏰", label: "Sin escaneo registrado",                  cls: "text-orange-600"},
   };
   const info = typeMap[alert.alert_type] || { icon: "🔔", label: alert.alert_type, cls: "text-slate-600" };
   return (
@@ -59,209 +344,24 @@ function AlertRow({ alert, onResolve }) {
       </div>
       <button
         onClick={() => onResolve(alert.id)}
+        data-tooltip="Marcar alerta como resuelta"
         className="flex-shrink-0 text-[10px] text-slate-400 hover:text-green-600 border border-slate-200 hover:border-green-300 rounded-md px-2 py-0.5 transition-colors"
       >✓</button>
     </div>
   );
 }
 
-/* ── CRM contact row ── */
-function ContactRow({ contact }) {
-  const npsColor = contact.avg_nps == null ? "text-slate-400"
-    : contact.avg_nps >= 8 ? "text-green-600"
-    : contact.avg_nps >= 6 ? "text-amber-600"
-    : "text-red-600";
-  return (
-    <div className="flex items-center gap-2 py-2.5 border-b border-slate-50 last:border-0">
-      <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
-        {(contact.email || "?")[0].toUpperCase()}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-slate-700 truncate">{contact.email}</p>
-        <p className="text-[10px] text-slate-400">{contact.total_responses} resp · {timeAgo(contact.last_seen)}</p>
-      </div>
-      {contact.avg_nps != null && (
-        <span className={`text-xs font-bold ${npsColor}`}>{Number(contact.avg_nps).toFixed(1)}</span>
-      )}
-    </div>
-  );
-}
-
-/* ── Sidebar point item ── */
-function PointListItem({ point, alertCount, isSelected, onClick }) {
-  return (
-    <button
-      onClick={() => onClick(point)}
-      className={`w-full text-left px-3 py-3 rounded-xl border transition-all mb-1.5 ${
-        isSelected
-          ? "bg-blue-50 border-blue-200 shadow-sm"
-          : "bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50"
-      }`}
-    >
-      <div className="flex items-center justify-between mb-1">
-        <p className="text-sm font-semibold text-slate-900 truncate pr-2">{point.name}</p>
-        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${point.is_active ? "bg-green-400" : "bg-slate-300"}`} />
-      </div>
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <QRTypeBadge type={point.qr_type} />
-        {alertCount > 0 && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
-            {alertCount}
-          </span>
-        )}
-      </div>
-      {point.area && <p className="text-[10px] text-slate-400 mt-1 truncate">📍 {point.area}</p>}
-    </button>
-  );
-}
-
-/* ── NPS trend mini chart (SVG bars) ── */
-function NpsTrendBars({ responses }) {
-  const withNps = responses.filter(r => r.nps_score != null).slice(0, 12).reverse();
-  if (!withNps.length) return <p className="text-xs text-slate-400 py-2">Sin datos de NPS</p>;
-  return (
-    <div className="flex items-end gap-1 h-16">
-      {withNps.map((r, i) => {
-        const h = Math.round((r.nps_score / 10) * 100);
-        const color = r.nps_score >= 8 ? "bg-green-400" : r.nps_score >= 6 ? "bg-amber-400" : "bg-red-400";
-        return (
-          <div key={i} className="flex-1 flex flex-col justify-end" title={`NPS ${r.nps_score}`}>
-            <div className={`${color} rounded-t-sm`} style={{ height: `${h}%` }} />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/* ── Checklist compliance bar ── */
-function ChecklistBar({ responses }) {
-  const withChecklist = responses.filter(r => {
-    try { return Object.keys(JSON.parse(r.checklist_data || "{}")).length > 0; } catch { return false; }
-  });
-  if (!withChecklist.length) return <p className="text-xs text-slate-400 py-2">Sin datos de checklist</p>;
-  const rates = withChecklist.map(r => {
-    try {
-      const data = JSON.parse(r.checklist_data || "{}");
-      const vals = Object.values(data);
-      if (!vals.length) return 0;
-      return vals.filter(Boolean).length / vals.length;
-    } catch { return 0; }
-  });
-  const avg = rates.reduce((a, b) => a + b, 0) / rates.length;
-  const pct = Math.round(avg * 100);
-  const color = pct >= 80 ? "bg-green-500" : pct >= 60 ? "bg-amber-400" : "bg-red-400";
-  return (
-    <div>
-      <div className="flex justify-between text-xs text-slate-500 mb-1">
-        <span>Cumplimiento promedio</span>
-        <span className="font-bold">{pct}%</span>
-      </div>
-      <div className="w-full bg-slate-100 rounded-full h-2.5">
-        <div className={`${color} h-2.5 rounded-full transition-all`} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
-
-/* ── Center panel — point detail ── */
-function PointDetail({ point, onEdit, onDelete }) {
-  const [responses, setResponses] = useState([]);
-  const [loading, setLoading] = useState(true);
+/* ── Point card (for grid view) ── */
+function PointCard({ point, alertCount, onEdit, onDelete }) {
   const navigate = useNavigate();
-
-  useEffect(() => {
-    setLoading(true);
-    api.get(`/api/trace/points/${point.id}/responses?limit=20`)
-      .then(d => setResponses(d.responses || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [point.id]);
-
-  const qrUrl = `https://qr.intaprd.com/${point.id}`;
-
+  const qrUrl = `https://qr.intaprd.com/t/${point.id}`;
   return (
-    <div className="space-y-4">
-      {/* Point header */}
-      <div className="bg-white rounded-xl p-5 border border-slate-100 shadow-sm">
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h2 className="font-bold text-slate-900 text-lg">{point.name}</h2>
-              <div className={`w-2.5 h-2.5 rounded-full ${point.is_active ? "bg-green-400" : "bg-slate-300"}`} />
-            </div>
-            {point.area && <p className="text-sm text-slate-400">📍 {point.area}</p>}
-            <div className="flex gap-2 mt-2 flex-wrap">
-              <QRTypeBadge type={point.qr_type} />
-            </div>
-          </div>
-          <div className="flex gap-2 flex-shrink-0">
-            <button onClick={() => onEdit(point)} className="text-xs px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-lg font-medium transition-colors">Editar</button>
-            <button onClick={() => window.open(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}`, "_blank")} className="text-xs px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg font-medium transition-colors">QR ↗</button>
-            <button onClick={() => onDelete(point)} className="text-xs px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg font-medium transition-colors">Eliminar</button>
-          </div>
-        </div>
-        <div className="text-xs text-slate-400 font-mono">{qrUrl}</div>
-      </div>
-
-      {/* NPS trend */}
-      <div className="bg-white rounded-xl p-5 border border-slate-100 shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Tendencia NPS</h3>
-        {loading ? <div className="h-16 bg-slate-50 rounded animate-pulse" /> : <NpsTrendBars responses={responses} />}
-      </div>
-
-      {/* Checklist compliance */}
-      <div className="bg-white rounded-xl p-5 border border-slate-100 shadow-sm">
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Cumplimiento de Checklist</h3>
-        {loading ? <div className="h-6 bg-slate-50 rounded animate-pulse" /> : <ChecklistBar responses={responses} />}
-      </div>
-
-      {/* Recent responses */}
-      <div className="bg-white rounded-xl p-5 border border-slate-100 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-700">Respuestas recientes</h3>
-          <button
-            onClick={() => navigate(`/dashboard/trace/${point.id}/responses`)}
-            className="text-xs text-blue-600 hover:underline font-medium"
-          >Ver todas →</button>
-        </div>
-        {loading ? (
-          <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-10 bg-slate-50 rounded animate-pulse" />)}</div>
-        ) : responses.length === 0 ? (
-          <p className="text-sm text-slate-400 py-4 text-center">Sin respuestas aún</p>
-        ) : (
-          <div className="space-y-2">
-            {responses.slice(0, 5).map(r => {
-              const npsColor = r.nps_score >= 8 ? "bg-green-100 text-green-700" : r.nps_score >= 6 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
-              return (
-                <div key={r.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg flex-wrap">
-                  <span className="text-[10px] text-slate-400 font-mono">{timeAgo(r.created_at)}</span>
-                  <span className="text-[11px] text-slate-500 capitalize px-2 py-0.5 bg-white rounded-full border border-slate-200">{r.respondent_type}</span>
-                  {r.nps_score != null && (
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${npsColor}`}>NPS {r.nps_score}</span>
-                  )}
-                  {r.contact_email && <span className="text-[11px] text-blue-600 truncate">{r.contact_email}</span>}
-                  <span className="ml-auto text-[10px] text-slate-400">{r.country}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ── Mobile point card ── */
-function MobilePointCard({ point, alertCount, onEdit, onDelete }) {
-  const navigate = useNavigate();
-  const qrUrl = `https://qr.intaprd.com/${point.id}`;
-  return (
-    <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm">
+    <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-semibold text-slate-900 truncate">{point.name}</h3>
+            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${point.is_active ? "bg-green-400" : "bg-slate-300"}`} />
+            <h3 className="font-semibold text-slate-900 text-sm truncate">{point.name}</h3>
             {alertCount > 0 && (
               <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">{alertCount}</span>
             )}
@@ -269,48 +369,241 @@ function MobilePointCard({ point, alertCount, onEdit, onDelete }) {
           {point.area && <p className="text-[11px] text-slate-400 mb-1.5">📍 {point.area}</p>}
           <QRTypeBadge type={point.qr_type} />
         </div>
-        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1 ${point.is_active ? "bg-green-400" : "bg-slate-300"}`} />
       </div>
-      <div className="flex gap-2 flex-wrap">
-        <button onClick={() => navigate(`/dashboard/trace/${point.id}/responses`)} className="text-xs px-2.5 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg font-medium transition-colors">Respuestas</button>
-        <button onClick={() => onEdit(point)} className="text-xs px-2.5 py-1.5 bg-slate-50 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">Editar</button>
-        <button onClick={() => window.open(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}`, "_blank")} className="text-xs px-2.5 py-1.5 bg-slate-50 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">QR ↗</button>
-        <button onClick={() => onDelete(point)} className="text-xs px-2.5 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-medium transition-colors ml-auto">✕</button>
+      <p className="text-[10px] text-slate-400 font-mono truncate mb-3">{qrUrl}</p>
+      <div className="flex gap-1.5 flex-wrap">
+        <button
+          onClick={() => navigate(`/dashboard/trace/${point.id}/responses`)}
+          data-tooltip="Ver todas las respuestas de este punto"
+          className="text-xs px-2.5 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg font-medium transition-colors"
+        >
+          Respuestas
+        </button>
+        <button
+          onClick={() => onEdit(point)}
+          data-tooltip="Editar configuración del punto"
+          className="text-xs px-2.5 py-1.5 bg-slate-50 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors"
+        >
+          Editar
+        </button>
+        <button
+          onClick={() => window.open(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}`, "_blank")}
+          data-tooltip="Descargar código QR para imprimir"
+          className="text-xs px-2.5 py-1.5 bg-slate-50 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors"
+        >
+          QR
+        </button>
+        <button
+          onClick={() => onDelete(point)}
+          data-tooltip="Eliminar este punto de control"
+          className="text-xs px-2.5 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-medium transition-colors ml-auto"
+        >
+          ✕
+        </button>
       </div>
     </div>
   );
 }
 
-/* ── Upgrade prompt ── */
-function UpgradePrompt() {
+/* ── Responses tab ── */
+function ResponsesTab({ points }) {
+  const [responses, setResponses] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get("/api/trace/responses?limit=50")
+      .then(d => setResponses(d.responses || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const pointMap = Object.fromEntries(points.map(p => [p.id, p.name]));
+
+  if (loading) {
+    return <div className="p-5 space-y-2">{[1,2,3,4].map(i => <div key={i} className="h-14 bg-slate-100 rounded-xl animate-pulse" />)}</div>;
+  }
+
   return (
-    <div className="max-w-md mx-auto mt-12 text-center">
-      <div className="bg-gradient-to-b from-purple-50 to-white border border-purple-100 rounded-2xl p-8 shadow-sm">
-        <div className="text-5xl mb-4">🎯</div>
-        <h2 className="text-xl font-bold text-slate-900 mb-2">Intap TRACE</h2>
-        <p className="text-sm text-slate-600 mb-6">
-          Crea puntos de control con checklists y encuestas, vincula QRs físicos y recibe alertas en tiempo real.
-          Disponible en planes <strong>Pro</strong> y <strong>Enterprise</strong>.
+    <div className="p-5">
+      <div className="mb-4">
+        <h2 className="text-base font-bold text-slate-900">Respuestas recibidas</h2>
+        <p className="text-sm text-slate-500 mt-0.5">
+          Revisa cada escaneo y respuesta recibida de tus equipos y clientes en tiempo real
         </p>
-        <a href="/dashboard/profile" className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white font-semibold rounded-xl hover:bg-purple-700 transition-colors text-sm">
-          ⚡ Mejorar a Pro
-        </a>
       </div>
+      {responses.length === 0 ? (
+        <div className="bg-white rounded-xl p-10 text-center border border-slate-100 shadow-sm">
+          <p className="text-3xl mb-3">📋</p>
+          <p className="font-semibold text-slate-700 text-sm">Sin respuestas aún</p>
+          <p className="text-xs text-slate-400 mt-1">Las respuestas aparecerán aquí cuando alguien escanee y complete un QR TRACE</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {responses.map(r => {
+            const npsColor = r.nps_score >= 8 ? "bg-green-100 text-green-700" : r.nps_score >= 6 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
+            return (
+              <div key={r.id} className="bg-white rounded-xl p-3 border border-slate-100 shadow-sm flex items-center gap-3 flex-wrap">
+                <span className="text-xs text-slate-400 font-mono">{timeAgo(r.created_at)}</span>
+                <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">{pointMap[r.point_id] || r.point_id}</span>
+                <span className="text-[11px] text-slate-500 capitalize px-2 py-0.5 bg-white rounded-full border border-slate-200">{r.respondent_type}</span>
+                {r.nps_score != null && (
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${npsColor}`}>
+                    Índice de satisfacción (NPS): {r.nps_score}/10
+                  </span>
+                )}
+                {r.contact_email && <span className="text-[11px] text-blue-600 truncate">{r.contact_email}</span>}
+                <span className="ml-auto text-[10px] text-slate-400">{r.country}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
+
+/* ── Projects tab ── */
+function ProjectsTab() {
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [color, setColor] = useState("#2563eb");
+  const [saving, setSaving] = useState(false);
+
+  async function load() {
+    try {
+      const d = await api.get("/api/trace/projects");
+      setProjects(d.projects || []);
+    } catch (_) {}
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function handleCreate() {
+    if (!name.trim()) { toast.error("El nombre es obligatorio"); return; }
+    setSaving(true);
+    try {
+      await api.post("/api/trace/projects", { name: name.trim(), description: description.trim() || null, color });
+      toast.success("Proyecto TRACE creado");
+      setShowForm(false); setName(""); setDescription(""); setColor("#2563eb");
+      load();
+    } catch (e) { toast.error(e.message); }
+    finally { setSaving(false); }
+  }
+
+  async function handleDelete(id) {
+    if (!confirm("¿Eliminar este proyecto TRACE?")) return;
+    try {
+      await api.delete(`/api/trace/projects/${id}`);
+      setProjects(prev => prev.filter(p => p.id !== id));
+      toast.success("Proyecto eliminado");
+    } catch (e) { toast.error(e.message); }
+  }
+
+  return (
+    <div className="p-5 space-y-5 max-w-2xl">
+      <div>
+        <h2 className="text-base font-bold text-slate-900">Proyectos TRACE</h2>
+        <p className="text-sm text-slate-500 mt-0.5">
+          Organiza tus puntos de control por sucursal, área de negocio o campaña de medición
+        </p>
+      </div>
+
+      {!showForm ? (
+        <button
+          onClick={() => setShowForm(true)}
+          data-tooltip="Crear un nuevo proyecto para organizar puntos de control"
+          className="w-full flex items-center gap-2 px-4 py-3 border-2 border-dashed border-blue-200 rounded-xl text-sm text-blue-600 font-medium hover:border-blue-400 hover:bg-blue-50 transition-colors"
+        >
+          + Nuevo proyecto TRACE
+        </button>
+      ) : (
+        <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-3">
+          <p className="text-sm font-semibold text-slate-800">Nuevo proyecto TRACE</p>
+          <input
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="Nombre del proyecto (Ej: Sucursal Norte, Q3 2025)"
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+          />
+          <input
+            type="text"
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            placeholder="Descripción opcional"
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+          />
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-slate-600">Color del proyecto:</label>
+            <input type="color" value={color} onChange={e => setColor(e.target.value)} className="h-8 w-12 rounded border border-slate-200 cursor-pointer" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setShowForm(false)} className="flex-1 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
+            <button onClick={handleCreate} disabled={saving} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50">
+              {saving ? "Guardando..." : "Crear proyecto"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="space-y-2">{[1,2].map(i => <div key={i} className="h-16 bg-slate-100 rounded-xl animate-pulse" />)}</div>
+      ) : projects.length === 0 ? (
+        <div className="bg-white rounded-xl p-8 text-center border border-slate-100 shadow-sm">
+          <p className="text-slate-400 text-sm">Sin proyectos aún. Crea tu primer proyecto para organizar los puntos de control.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {projects.map(p => (
+            <div key={p.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-3 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-4 h-10 rounded-sm flex-shrink-0" style={{ background: p.color }} />
+                <div>
+                  <p className="font-semibold text-slate-900 text-sm">{p.name}</p>
+                  {p.description && <p className="text-xs text-slate-400">{p.description}</p>}
+                </div>
+              </div>
+              <button
+                onClick={() => handleDelete(p.id)}
+                data-tooltip="Eliminar proyecto"
+                className="text-xs text-red-500 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors"
+              >
+                Eliminar
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Top nav tabs config ── */
+const NAV_TABS = [
+  { id: "puntos",         label: "Puntos de Control",   desc: "Crea QRs físicos para medir, controlar y evaluar operaciones en tiempo real" },
+  { id: "proyectos",      label: "Proyectos TRACE",      desc: "Organiza tus puntos de control por sucursal, área o campaña de medición" },
+  { id: "respuestas",     label: "Respuestas",           desc: "Revisa cada escaneo y respuesta recibida de tus equipos y clientes" },
+  { id: "crm",            label: "Contactos del CRM",    desc: "Gestiona los contactos de clientes que interactuaron con tus QRs de control" },
+  { id: "automatizaciones", label: "Automatizaciones",  desc: "Configura avisos y acciones automáticas cuando algo no se cumple a tiempo" },
+  { id: "configuracion",  label: "Configuración",        desc: "Personaliza la apariencia, notificaciones y plantillas de tu cuenta TRACE" },
+];
 
 /* ── Main page ── */
 export default function TracePage() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [points, setPoints] = useState([]);
   const [alerts, setAlerts] = useState([]);
-  const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingPoint, setEditingPoint] = useState(null);
-  const [selectedPoint, setSelectedPoint] = useState(null);
+  const [activeTab, setActiveTab] = useState("puntos");
+  const [showTour, setShowTour] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const didCheckOnboarding = useRef(false);
 
   const canUseTRACE = ["pro", "enterprise"].includes(user?.plan) || user?.role === "superadmin";
 
@@ -324,14 +617,27 @@ export default function TracePage() {
       const pts = pd.points || [];
       setPoints(pts);
       setAlerts(ad.alerts || []);
-      setSelectedPoint(prev => prev ? pts.find(p => p.id === prev.id) || pts[0] || null : pts[0] || null);
-      api.get("/api/trace/crm/contacts").then(d => setContacts(d.contacts || [])).catch(() => {});
+
+      // Show onboarding wizard if no points and not already shown
+      if (!didCheckOnboarding.current) {
+        didCheckOnboarding.current = true;
+        const dismissed = localStorage.getItem("trace_onboarding_dismissed");
+        if (pts.length === 0 && !dismissed) {
+          setShowOnboarding(true);
+        }
+        // Show tour if not shown before
+        const tourSeen = localStorage.getItem("trace_tour_seen");
+        if (!tourSeen && pts.length > 0) {
+          setShowTour(true);
+          localStorage.setItem("trace_tour_seen", "1");
+        }
+      }
     } catch (e) {
-      toast.error(e.message || "Error cargando datos");
+      toast.error(e.message || "Error cargando datos TRACE");
     } finally {
       setLoading(false);
     }
-  }, [canUseTRACE]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [canUseTRACE]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -347,18 +653,30 @@ export default function TracePage() {
     if (!confirm(`¿Eliminar "${point.name}"? Esta acción no se puede deshacer.`)) return;
     try {
       await api.delete(`/api/trace/points/${point.id}`);
-      setPoints(prev => {
-        const next = prev.filter(p => p.id !== point.id);
-        setSelectedPoint(next[0] || null);
-        return next;
-      });
+      setPoints(prev => prev.filter(p => p.id !== point.id));
       toast.success("Punto eliminado");
     } catch (e) { toast.error(e.message); }
   }
 
   function handleEdit(point) { setEditingPoint(point); setShowModal(true); }
   function handleNew() { setEditingPoint(null); setShowModal(true); }
-  function handleSaved() { setShowModal(false); loadData(); toast.success(editingPoint ? "Punto actualizado" : "Punto creado"); }
+  function handleSaved() {
+    setShowModal(false);
+    loadData();
+    toast.success(editingPoint ? "Punto actualizado" : "Punto de control creado");
+  }
+
+  function handleOnboardingCreated(point) {
+    localStorage.setItem("trace_onboarding_dismissed", "1");
+    setShowOnboarding(false);
+    loadData();
+    toast.success(`Punto "${point.name}" creado. Ahora puedes descargar tu QR.`);
+  }
+
+  function handleOnboardingDismiss() {
+    localStorage.setItem("trace_onboarding_dismissed", "1");
+    setShowOnboarding(false);
+  }
 
   const alertsByPoint = {};
   alerts.forEach(a => { alertsByPoint[a.point_id] = (alertsByPoint[a.point_id] || 0) + 1; });
@@ -367,169 +685,172 @@ export default function TracePage() {
     return <div className="p-4 sm:p-6"><UpgradePrompt /></div>;
   }
 
+  const currentTab = NAV_TABS.find(t => t.id === activeTab);
+
   return (
-    <>
-      {/* ── DESKTOP 3-column layout (md+) ── */}
-      <div className="hidden md:flex" style={{ minHeight: "calc(100vh - 0px)" }}>
-
-        {/* Left sidebar — point list (240px) */}
-        <aside className="w-60 flex-shrink-0 bg-slate-50 border-r border-slate-200 flex flex-col">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-white flex-shrink-0">
+    <div className="flex flex-col min-h-full">
+      {/* ── Module header ── */}
+      <div className="bg-white border-b border-slate-200 flex-shrink-0">
+        <div className="px-5 pt-4 pb-0">
+          <div className="flex items-start justify-between gap-3 mb-3">
             <div>
-              <h1 className="font-bold text-slate-900 text-sm">Intap TRACE</h1>
-              <p className="text-[10px] text-slate-400">{points.length} punto{points.length !== 1 ? "s" : ""}</p>
+              <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                🎯 Intap TRACE
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">Control, medición y evaluación de operaciones físicas</p>
             </div>
-            <button
-              onClick={handleNew}
-              className="w-7 h-7 flex items-center justify-center bg-primary text-white rounded-lg text-lg font-bold hover:bg-primary-dark transition-colors"
-              title="Nuevo punto"
-            >+</button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3">
-            {loading ? (
-              <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-16 bg-white rounded-xl animate-pulse" />)}</div>
-            ) : points.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-3xl mb-2">🎯</p>
-                <p className="text-xs text-slate-400">Sin puntos aún</p>
-                <button onClick={handleNew} className="mt-3 text-xs text-blue-600 hover:underline">+ Crear primero</button>
-              </div>
-            ) : (
-              points.map(p => (
-                <PointListItem
-                  key={p.id}
-                  point={p}
-                  alertCount={alertsByPoint[p.id] || 0}
-                  isSelected={selectedPoint?.id === p.id}
-                  onClick={setSelectedPoint}
-                />
-              ))
-            )}
-          </div>
-        </aside>
-
-        {/* Center — selected point detail (flex-1) */}
-        <main className="flex-1 overflow-y-auto p-5">
-          {selectedPoint ? (
-            <PointDetail
-              key={selectedPoint.id}
-              point={selectedPoint}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full text-center py-20">
-              <p className="text-5xl mb-4">🎯</p>
-              <p className="text-lg font-semibold text-slate-700 mb-1">Selecciona un punto de control</p>
-              <p className="text-sm text-slate-400">O crea uno nuevo con el botón +</p>
-            </div>
-          )}
-        </main>
-
-        {/* Right panel — alerts + CRM (320px) */}
-        <aside className="w-80 flex-shrink-0 bg-white border-l border-slate-200 flex flex-col overflow-hidden">
-          {/* Alerts */}
-          <div className="flex-shrink-0 border-b border-slate-100">
-            <div className="px-4 py-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                <span>🔔</span> Alertas
-              </h2>
+            <div className="flex items-center gap-2 flex-shrink-0">
               {alerts.length > 0 && (
-                <span className="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">{alerts.length}</span>
+                <span className="text-xs font-bold bg-red-100 text-red-600 px-2.5 py-1 rounded-full">
+                  {alerts.length} alerta{alerts.length !== 1 ? "s" : ""}
+                </span>
               )}
-            </div>
-            <div className="px-4 pb-3 max-h-52 overflow-y-auto">
-              {alerts.length === 0 ? (
-                <p className="text-xs text-slate-400 py-2">Sin alertas pendientes ✓</p>
-              ) : (
-                alerts.map(a => <AlertRow key={a.id} alert={a} onResolve={handleResolveAlert} />)
-              )}
-            </div>
-          </div>
-
-          {/* CRM Contacts */}
-          <div className="flex-1 overflow-hidden flex flex-col">
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
-              <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                <span>👥</span> Contactos CRM
-              </h2>
-              <button onClick={() => navigate("/dashboard/trace/contacts")} className="text-[10px] text-blue-600 hover:underline">
-                Ver todos →
+              <button
+                id="tour-new"
+                onClick={handleNew}
+                data-tooltip="Crear un nuevo punto de control QR"
+                className="px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors"
+              >
+                + Nuevo punto de control
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto px-4 py-2">
-              {contacts.length === 0 ? (
-                <p className="text-xs text-slate-400 py-4 text-center">Sin contactos aún</p>
-              ) : (
-                contacts.slice(0, 15).map(c => <ContactRow key={c.id} contact={c} />)
-              )}
-            </div>
           </div>
-        </aside>
-      </div>
 
-      {/* ── MOBILE single-column layout (< md) ── */}
-      <div className="md:hidden p-4 pb-28">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">Intap TRACE</h1>
-            <p className="text-xs text-slate-400">Puntos de control y encuestas</p>
-          </div>
-        </div>
-
-        {/* Stats 2x2 */}
-        <div className="grid grid-cols-2 gap-3 mb-5">
-          <StatCard label="Puntos activos" value={points.filter(p => p.is_active).length} />
-          <StatCard label="Alertas abiertas" value={alerts.length} color={alerts.length > 0 ? "text-red-600" : "text-slate-900"} />
-          <StatCard label="Contactos CRM" value={contacts.length} />
-          <StatCard label="Puntos totales" value={points.length} />
-        </div>
-
-        {/* Point cards */}
-        {loading ? (
-          <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-24 bg-white rounded-xl animate-pulse border border-slate-100" />)}</div>
-        ) : points.length === 0 ? (
-          <div className="bg-white rounded-2xl p-8 text-center border border-slate-100 shadow-sm">
-            <p className="text-4xl mb-3">🎯</p>
-            <p className="font-semibold text-slate-700 mb-1">Sin puntos de control</p>
-            <p className="text-sm text-slate-400 mb-4">Crea tu primer punto TRACE para empezar</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {points.map(p => (
-              <MobilePointCard
-                key={p.id}
-                point={p}
-                alertCount={alertsByPoint[p.id] || 0}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-              />
+          {/* Top navigation tabs */}
+          <div className="flex gap-0 overflow-x-auto" id="tour-panel">
+            {NAV_TABS.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-shrink-0 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === tab.id
+                    ? "border-blue-600 text-blue-700"
+                    : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                }`}
+              >
+                {tab.label}
+              </button>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Tab description */}
+      {currentTab && (
+        <div className="bg-blue-50 border-b border-blue-100 px-5 py-2 flex-shrink-0">
+          <p className="text-xs text-blue-700">{currentTab.desc}</p>
+        </div>
+      )}
+
+      {/* ── Tab content ── */}
+      <div className="flex-1 overflow-auto">
+
+        {/* PUNTOS tab */}
+        {activeTab === "puntos" && (
+          <>
+            {/* Show onboarding if no points */}
+            {!loading && points.length === 0 && showOnboarding ? (
+              <OnboardingWizard onDismiss={handleOnboardingDismiss} onCreated={handleOnboardingCreated} />
+            ) : (
+              <div className="p-5">
+                {/* Alerts summary (if any) */}
+                {alerts.length > 0 && (
+                  <div className="bg-white rounded-xl border border-red-100 shadow-sm p-4 mb-5" id="tour-alerts">
+                    <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                      🔔 Alertas activas
+                      <span className="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">{alerts.length}</span>
+                    </h3>
+                    <div className="max-h-36 overflow-y-auto">
+                      {alerts.slice(0, 5).map(a => <AlertRow key={a.id} alert={a} onResolve={handleResolveAlert} />)}
+                    </div>
+                  </div>
+                )}
+
+                {/* Stats row */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5" id="tour-types">
+                  {[
+                    { label: "Puntos activos", value: points.filter(p => p.is_active).length },
+                    { label: "Puntos totales", value: points.length },
+                    { label: "Alertas abiertas", value: alerts.length, color: alerts.length > 0 ? "text-red-600" : "text-slate-900" },
+                    { label: "Solo checklist", value: points.filter(p => p.qr_type === "checklist").length },
+                  ].map(s => (
+                    <div key={s.label} className="bg-white rounded-xl p-3 shadow-sm border border-slate-100">
+                      <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-widest mb-1">{s.label}</p>
+                      <p className={`text-2xl font-bold ${s.color || "text-slate-900"}`}>{s.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Points grid */}
+                {loading ? (
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {[1,2,3].map(i => <div key={i} className="h-36 bg-white rounded-xl animate-pulse border border-slate-100" />)}
+                  </div>
+                ) : points.length === 0 ? (
+                  <div className="bg-white rounded-2xl p-10 text-center border border-slate-100 shadow-sm">
+                    <p className="text-4xl mb-3">🎯</p>
+                    <p className="font-semibold text-slate-700 mb-1">Sin puntos de control aún</p>
+                    <p className="text-sm text-slate-400 mb-4">Crea tu primer punto TRACE para empezar a medir</p>
+                    <button onClick={handleNew} className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
+                      + Crear primer punto de control
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {points.map(p => (
+                      <PointCard
+                        key={p.id}
+                        point={p}
+                        alertCount={alertsByPoint[p.id] || 0}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
 
-        {/* Mobile alerts */}
-        {alerts.length > 0 && (
-          <div className="mt-4 bg-white rounded-xl border border-slate-100 shadow-sm p-4">
-            <h2 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
-              <span>🔔</span> Alertas abiertas ({alerts.length})
-            </h2>
-            {alerts.slice(0, 5).map(a => <AlertRow key={a.id} alert={a} onResolve={handleResolveAlert} />)}
+        {activeTab === "proyectos" && <ProjectsTab />}
+
+        {activeTab === "respuestas" && <ResponsesTab points={points} />}
+
+        {activeTab === "crm" && (
+          <div id="tour-crm">
+            <TraceCRMTab />
           </div>
         )}
+
+        {activeTab === "automatizaciones" && <TraceAutomationsTab />}
+
+        {activeTab === "configuracion" && <TraceConfigTab />}
       </div>
 
       {/* Mobile FAB */}
-      {canUseTRACE && (
+      {canUseTRACE && activeTab === "puntos" && (
         <button
           onClick={handleNew}
-          className="md:hidden fixed bottom-20 right-4 w-14 h-14 bg-primary text-white rounded-full shadow-lg flex items-center justify-center text-2xl font-bold hover:bg-primary-dark transition-colors z-30"
+          data-tooltip="Nuevo punto de control TRACE"
+          className="sm:hidden fixed bottom-20 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center text-2xl font-bold hover:bg-blue-700 transition-colors z-30"
           aria-label="Nuevo punto TRACE"
         >+</button>
       )}
 
-      {/* Modal */}
+      {/* Feature tour button */}
+      <button
+        onClick={() => setShowTour(t => !t)}
+        data-tooltip="Guía de funciones de TRACE"
+        className="fixed bottom-4 right-4 w-10 h-10 bg-slate-700 text-white rounded-full shadow-lg flex items-center justify-center text-sm font-bold hover:bg-slate-900 transition-colors z-30"
+        aria-label="Abrir guía de funciones"
+      >?</button>
+
+      {showTour && (
+        <FeatureTour onClose={() => { setShowTour(false); localStorage.setItem("trace_tour_seen", "1"); }} />
+      )}
+
+      {/* Point modal */}
       {showModal && (
         <TracePointModal
           point={editingPoint}
@@ -537,6 +858,6 @@ export default function TracePage() {
           onSaved={handleSaved}
         />
       )}
-    </>
+    </div>
   );
 }

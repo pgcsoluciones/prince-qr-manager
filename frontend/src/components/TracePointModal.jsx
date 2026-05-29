@@ -83,6 +83,8 @@ export default function TracePointModal({ point, onClose, onSaved }) {
   const [alertEmail, setAlertEmail] = useState(point?.alert_config?.email || "");
   const [npsThreshold, setNpsThreshold] = useState(point?.alert_config?.nps_threshold ?? 7);
   const [overdueMinutes, setOverdueMinutes] = useState(point?.alert_config?.threshold_minutes ?? 0);
+  const [brandColor, setBrandColor] = useState(point?.brand_color || "#2563eb");
+  const [brandLogo, setBrandLogo] = useState(point?.brand_logo || "");
 
   function applyTemplate(tmpl) {
     setTemplate(tmpl);
@@ -130,6 +132,8 @@ export default function TracePointModal({ point, onClose, onSaved }) {
         nps_threshold: npsThreshold,
         threshold_minutes: overdueMinutes,
       },
+      brand_color: brandColor || "#2563eb",
+      brand_logo: brandLogo.trim() || null,
     };
     try {
       if (isEdit) {
@@ -154,6 +158,7 @@ export default function TracePointModal({ point, onClose, onSaved }) {
     ...(showChecklist ? [{ id: "checklist", label: "Checklist" }] : []),
     ...(showSurvey ? [{ id: "survey", label: "Encuesta" }] : []),
     { id: "alerts", label: "Alertas" },
+    { id: "marca", label: "Marca" },
   ];
 
   // Reset tab if it becomes unavailable
@@ -365,7 +370,7 @@ export default function TracePointModal({ point, onClose, onSaved }) {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Umbral NPS: alertar si NPS es menor a <span className="text-primary font-bold">{npsThreshold}</span>
+                  Umbral de puntuación de satisfacción (NPS): alertar si es menor a <span className="text-primary font-bold">{npsThreshold}</span>
                 </label>
                 <input
                   type="range"
@@ -394,6 +399,64 @@ export default function TracePointModal({ point, onClose, onSaved }) {
                   placeholder="0 = desactivado"
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
+              </div>
+            </div>
+          )}
+
+          {/* === MARCA TAB === */}
+          {tab === "marca" && (
+            <div className="space-y-5">
+              <p className="text-sm text-slate-500">
+                Personaliza cómo se ve la página pública de este punto de control cuando alguien escanea el QR.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Color de marca</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={brandColor}
+                    onChange={e => setBrandColor(e.target.value)}
+                    className="h-10 w-16 rounded-lg border border-slate-200 cursor-pointer"
+                  />
+                  <span className="text-sm font-mono text-slate-600">{brandColor}</span>
+                  <div
+                    className="w-24 h-10 rounded-lg flex items-center justify-center text-white text-xs font-semibold"
+                    style={{ background: brandColor }}
+                  >
+                    Vista previa
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">URL del logotipo (opcional)</label>
+                <input
+                  type="url"
+                  value={brandLogo}
+                  onChange={e => setBrandLogo(e.target.value)}
+                  placeholder="https://tu-empresa.com/logo.png"
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+                {brandLogo && (
+                  <img
+                    src={brandLogo}
+                    alt="Vista previa del logotipo"
+                    className="h-10 mt-2 object-contain rounded border border-slate-100"
+                    onError={e => { e.target.style.display = "none"; }}
+                  />
+                )}
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <p className="text-xs font-semibold text-slate-500 mb-3">Vista previa de cómo verán el QR tus clientes</p>
+                <div className="rounded-xl p-4 text-white text-sm font-semibold" style={{ background: brandColor }}>
+                  {brandLogo ? (
+                    <img src={brandLogo} alt="Logo" className="h-6 mb-2 object-contain" onError={e => { e.target.style.display="none"; }} />
+                  ) : (
+                    <p className="text-xs mb-1 opacity-80">Intap TRACE</p>
+                  )}
+                  <p>{name || "Nombre del punto de control"}</p>
+                </div>
               </div>
             </div>
           )}
