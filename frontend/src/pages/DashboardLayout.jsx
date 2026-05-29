@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 
 /* ── Plan display helpers ── */
@@ -99,6 +99,16 @@ function Icon({ name, className = "w-4 h-4" }) {
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
       </svg>
     ),
+    contacts: (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    ),
+    report: (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
   };
   return icons[name] ?? null;
 }
@@ -194,9 +204,35 @@ function PlanCard({ user }) {
   );
 }
 
+/* ── TRACE sub-nav ── */
+function TraceSubNav({ onNav }) {
+  return (
+    <div className="ml-5 border-l border-slate-100 pl-2 mt-0.5 mb-0.5 space-y-0.5">
+      <NavLink to="/dashboard/trace" end onClick={onNav}
+        className={({ isActive }) => `flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${isActive ? "text-blue-700 bg-blue-50" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"}`}>
+        <Icon name="qr" className="w-3.5 h-3.5" /> Puntos de Control
+      </NavLink>
+      <NavLink to="/dashboard/trace/responses" onClick={onNav}
+        className={({ isActive }) => `flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${isActive ? "text-blue-700 bg-blue-50" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"}`}>
+        <Icon name="chart" className="w-3.5 h-3.5" /> Respuestas
+      </NavLink>
+      <NavLink to="/dashboard/trace/contacts" onClick={onNav}
+        className={({ isActive }) => `flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${isActive ? "text-blue-700 bg-blue-50" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"}`}>
+        <Icon name="contacts" className="w-3.5 h-3.5" /> Contactos CRM
+      </NavLink>
+      <NavLink to="/dashboard/trace/reports" onClick={onNav}
+        className={({ isActive }) => `flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${isActive ? "text-blue-700 bg-blue-50" : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"}`}>
+        <Icon name="report" className="w-3.5 h-3.5" /> Reportes
+      </NavLink>
+    </div>
+  );
+}
+
 /* ── Sidebar inner content (desktop + mobile drawer share this) ── */
 function SidebarContent({ user, isSuperadmin, isEnterprise, onNav, onLogout }) {
   const initial = user?.email?.[0]?.toUpperCase() ?? "?";
+  const location = useLocation();
+  const isOnTrace = location.pathname.startsWith("/dashboard/trace");
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -224,6 +260,7 @@ function SidebarContent({ user, isSuperadmin, isEnterprise, onNav, onLogout }) {
           onClick={onNav}
           badge={!["pro","enterprise"].includes(user?.plan) && user?.role !== "superadmin" ? "Pro" : undefined}
         />
+        {isOnTrace && <TraceSubNav onNav={onNav} />}
         <NavItem to="/dashboard/analytics" iconName="chart"  label="Analíticas" onClick={onNav} />
         <NavItem to="/dashboard/profile"   iconName="user"   label="Mi perfil"  onClick={onNav} />
 
@@ -277,11 +314,10 @@ function SidebarContent({ user, isSuperadmin, isEnterprise, onNav, onLogout }) {
 /* ── Mobile bottom tab bar ── */
 function BottomNav() {
   const tabs = [
-    { to: "/dashboard/links",     icon: "qr",     label: "QRs"      },
-    { to: "/dashboard/shortener", icon: "link",   label: "Links"    },
-    { to: "/dashboard/projects",  icon: "folder", label: "Proyectos"},
-    { to: "/dashboard/analytics", icon: "chart",  label: "Stats"    },
-    { to: "/dashboard/profile",   icon: "user",   label: "Perfil"   },
+    { to: "/dashboard/links",     icon: "qr",     label: "QRs"   },
+    { to: "/dashboard/trace",     icon: "trace",  label: "TRACE" },
+    { to: "/dashboard/analytics", icon: "chart",  label: "Stats" },
+    { to: "/dashboard/profile",   icon: "user",   label: "Perfil"},
   ];
 
   return (

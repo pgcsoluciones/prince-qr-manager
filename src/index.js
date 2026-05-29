@@ -1027,6 +1027,31 @@ export default {
       // ══════════════════════════════════════════
       // SUPERADMIN — Planes
       // ══════════════════════════════════════════
+      // GET /api/admin/stats
+      if (path === "/api/admin/stats" && method === "GET") {
+        const user = await getUser(request, env);
+        const err  = requireAuth(user, "superadmin");
+        if (err) return err;
+        const totalTenants = await env.DB.prepare("SELECT COUNT(*) as c FROM users").first();
+        const activeSubs = await env.DB.prepare("SELECT COUNT(*) as c FROM subscriptions WHERE status='active'").first();
+        const trialSubs = await env.DB.prepare("SELECT COUNT(*) as c FROM subscriptions WHERE status='trial'").first();
+        const mrr = await env.DB.prepare("SELECT SUM(amount_usd) as total FROM subscriptions WHERE status='active' AND billing_cycle='monthly'").first();
+        const sevenDays = new Date(Date.now() + 7 * 86400000).toISOString();
+        const churnRisk = await env.DB.prepare("SELECT COUNT(*) as c FROM subscriptions WHERE status='active' AND current_period_end <= ?").bind(sevenDays).first();
+        const totalLinks = await env.DB.prepare("SELECT COUNT(*) as c FROM short_links").first();
+        return json({
+          ok: true,
+          stats: {
+            total_tenants: totalTenants?.c ?? 0,
+            active_subscriptions: activeSubs?.c ?? 0,
+            trial_subscriptions: trialSubs?.c ?? 0,
+            mrr_usd: mrr?.total ?? 0,
+            churn_risk: churnRisk?.c ?? 0,
+            total_links: totalLinks?.c ?? 0,
+          }
+        });
+      }
+
       if (path === "/api/admin/plans" && method === "GET") {
         const user = await getUser(request, env);
         const err  = requireAuth(user, "superadmin");
@@ -1427,6 +1452,303 @@ export default {
         if (err) return err;
         ctx.waitUntil(generateWeeklyReports(env));
         return json({ ok: true, message: "Generación de reportes iniciada" });
+      }
+
+      // ══════════════════════════════════════════
+      // TEAM — Tenant member management
+      // ══════════════════════════════════════════
+
+      // GET /api/team/members
+      if (path === "/api/team/members" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        if (["operator","viewer"].includes(user.role)) return json({ ok: false, error: "Acceso denegado" }, 403);
+        const result = await env.DB.prepare(
+          "SELECT * FROM tenant_members WHERE tenant_owner_id=? ORDER BY invited_at DESC"
+        ).bind(user.sub).all();
+        return json({ ok: true, members: result.results });
+      }
+
+      // POST /api/team/invite
+      if (path === "/api/team/invite" && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        if (!["owner","admin","enterprise","superadmin"].includes(user.role)) return json({ ok: false, error: "Acceso denegado" }, 403);
+        const { email, role } = await request.json();
+        if (!email) return json({ ok: false, error: "Email requerido" }, 400);
+        const validRoles = ["admin","manager","operator","viewer"];
+        if (!validRoles.includes(role)) return json({ ok: false, error: "Rol inválido" }, 400);
+        const id = uuid();
+        await env.DB.prepare(
+          "INSERT INTO tenant_members (id, tenant_owner_id, email, role, status, invited_by) VALUES (?,?,?,?,?,?)"
+        ).bind(id, user.sub, email.toLowerCase(), role, "pending", user.sub).run();
+        return json({ ok: true, member: { id, email, role, status: "pending" } }, 201);
+      }
+
+      // PATCH /api/team/members/:id
+      if (path.match(/^\/api\/team\/members\/[^/]+$/) && method === "PATCH") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        if (!["owner","admin","enterprise","superadmin"].includes(user.role)) return json({ ok: false, error: "Acceso denegado" }, 403);
+        const memberId = path.split("/api/team/members/")[1];
+        const member = await env.DB.prepare("SELECT * FROM tenant_members WHERE id=? AND tenant_owner_id=?").bind(memberId, user.sub).first();
+        if (!member) return json({ ok: false, error: "Miembro no encontrado" }, 404);
+        const { role, status } = await request.json();
+        if (role) {
+          const validRoles = ["admin","manager","operator","viewer"];
+          if (!validRoles.includes(role)) return json({ ok: false, error: "Rol inválido" }, 400);
+          if (user.role === "admin" && ["owner","admin"].includes(member.role)) return json({ ok: false, error: "No puedes modificar admins" }, 403);
+        }
+        const updates = [];
+        const params = [];
+        if (role) { updates.push("role=?"); params.push(role); }
+        if (status) { updates.push("status=?"); params.push(status); }
+        if (!updates.length) return json({ ok: false, error: "Nada que actualizar" }, 400);
+        params.push(memberId);
+        await env.DB.prepare(`UPDATE tenant_members SET ${updates.join(",")} WHERE id=?`).bind(...params).run();
+        return json({ ok: true });
+      }
+
+      // DELETE /api/team/members/:id
+      if (path.match(/^\/api\/team\/members\/[^/]+$/) && method === "DELETE") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        if (!["owner","enterprise","superadmin"].includes(user.role)) return json({ ok: false, error: "Solo el owner puede revocar" }, 403);
+        const memberId = path.split("/api/team/members/")[1];
+        const member = await env.DB.prepare("SELECT id FROM tenant_members WHERE id=? AND tenant_owner_id=?").bind(memberId, user.sub).first();
+        if (!member) return json({ ok: false, error: "Miembro no encontrado" }, 404);
+        await env.DB.prepare("DELETE FROM tenant_members WHERE id=?").bind(memberId).run();
+        return json({ ok: true });
+      }
+
+      // ══════════════════════════════════════════
+      // SETTINGS — User settings
+      // ══════════════════════════════════════════
+
+      // GET /api/settings
+      if (path === "/api/settings" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const u = await env.DB.prepare("SELECT settings FROM users WHERE id=?").bind(user.sub).first();
+        const settings = u?.settings ? JSON.parse(u.settings) : {};
+        return json({ ok: true, settings });
+      }
+
+      // PUT /api/settings
+      if (path === "/api/settings" && method === "PUT") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const body = await request.json();
+        const u = await env.DB.prepare("SELECT settings FROM users WHERE id=?").bind(user.sub).first();
+        const current = u?.settings ? JSON.parse(u.settings) : {};
+        const updated = { ...current, ...body };
+        await env.DB.prepare("UPDATE users SET settings=? WHERE id=?").bind(JSON.stringify(updated), user.sub).run();
+        return json({ ok: true, settings: updated });
+      }
+
+      // ══════════════════════════════════════════
+      // SUPER ADMIN — Tenant management
+      // ══════════════════════════════════════════
+
+      // GET /api/admin/tenants
+      if (path === "/api/admin/tenants" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user, "superadmin");
+        if (err) return err;
+        const search = url.searchParams.get("search") || "";
+        const plan = url.searchParams.get("plan") || "";
+        const status = url.searchParams.get("status") || "";
+        let query = `SELECT u.id, u.email, u.plan, u.role, u.is_active, u.created_at,
+          (SELECT COUNT(*) FROM short_links sl WHERE sl.user_id=u.id) as qr_count,
+          (SELECT COUNT(*) FROM trace_points tp WHERE tp.user_id=u.id) as trace_points,
+          s.status as sub_status, s.trial_ends_at, s.current_period_end, s.amount_usd
+          FROM users u
+          LEFT JOIN subscriptions s ON s.user_id=u.id
+          WHERE 1=1`;
+        const params = [];
+        if (search) { query += " AND (u.email LIKE ? OR u.id LIKE ?)"; params.push(`%${search}%`, `%${search}%`); }
+        if (plan) { query += " AND u.plan=?"; params.push(plan); }
+        if (status) { query += " AND s.status=?"; params.push(status); }
+        query += " ORDER BY u.created_at DESC LIMIT 100";
+        const result = await env.DB.prepare(query).bind(...params).all();
+        return json({ ok: true, tenants: result.results });
+      }
+
+      // GET /api/admin/tenants/:id
+      if (path.match(/^\/api\/admin\/tenants\/[^/]+$/) && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user, "superadmin");
+        if (err) return err;
+        const tenantId = path.split("/api/admin/tenants/")[1];
+        const tenant = await env.DB.prepare(
+          `SELECT u.*, s.status as sub_status, s.plan as sub_plan, s.trial_ends_at, s.current_period_end, s.amount_usd, s.gateway
+           FROM users u LEFT JOIN subscriptions s ON s.user_id=u.id WHERE u.id=?`
+        ).bind(tenantId).first();
+        if (!tenant) return json({ ok: false, error: "Tenant no encontrado" }, 404);
+        const qrCount = await env.DB.prepare("SELECT COUNT(*) as c FROM short_links WHERE user_id=?").bind(tenantId).first();
+        const traceCount = await env.DB.prepare("SELECT COUNT(*) as c FROM trace_points WHERE user_id=?").bind(tenantId).first();
+        return json({ ok: true, tenant: { ...tenant, qr_count: qrCount?.c, trace_points: traceCount?.c } });
+      }
+
+      // POST /api/admin/tenants/:id/impersonate
+      if (path.match(/^\/api\/admin\/tenants\/[^/]+\/impersonate$/) && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user, "superadmin");
+        if (err) return err;
+        const tenantId = path.split("/api/admin/tenants/")[1].replace("/impersonate", "");
+        const tenant = await env.DB.prepare("SELECT id, email, plan, role FROM users WHERE id=?").bind(tenantId).first();
+        if (!tenant) return json({ ok: false, error: "Tenant no encontrado" }, 404);
+        const secret = env.JWT_SECRET || "changeme-set-in-cloudflare-dashboard";
+        const token = await signToken({ sub: tenant.id, email: tenant.email, plan: tenant.plan, role: tenant.role, impersonated_by: user.sub, exp: Math.floor(Date.now() / 1000) + 3600 }, secret);
+        return json({ ok: true, token, tenant: { id: tenant.id, email: tenant.email } });
+      }
+
+      // GET /api/admin/tenants/:id/subscription
+      if (path.match(/^\/api\/admin\/tenants\/[^/]+\/subscription$/) && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user, "superadmin");
+        if (err) return err;
+        const tenantId = path.split("/api/admin/tenants/")[1].replace("/subscription", "");
+        const sub = await env.DB.prepare("SELECT * FROM subscriptions WHERE user_id=? ORDER BY created_at DESC LIMIT 1").bind(tenantId).first();
+        return json({ ok: true, subscription: sub || null });
+      }
+
+      // PUT /api/admin/tenants/:id/subscription
+      if (path.match(/^\/api\/admin\/tenants\/[^/]+\/subscription$/) && method === "PUT") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user, "superadmin");
+        if (err) return err;
+        const tenantId = path.split("/api/admin/tenants/")[1].replace("/subscription", "");
+        const body = await request.json();
+        const existing = await env.DB.prepare("SELECT id FROM subscriptions WHERE user_id=?").bind(tenantId).first();
+        if (existing) {
+          await env.DB.prepare(
+            "UPDATE subscriptions SET plan=?, status=?, amount_usd=?, billing_cycle=?, updated_at=datetime('now') WHERE user_id=?"
+          ).bind(body.plan || "free", body.status || "active", body.amount_usd || 0, body.billing_cycle || "monthly", tenantId).run();
+        } else {
+          const id = uuid();
+          await env.DB.prepare(
+            "INSERT INTO subscriptions (id, user_id, plan, status, amount_usd, billing_cycle) VALUES (?,?,?,?,?,?)"
+          ).bind(id, tenantId, body.plan || "free", body.status || "active", body.amount_usd || 0, body.billing_cycle || "monthly").run();
+        }
+        if (body.plan) await env.DB.prepare("UPDATE users SET plan=? WHERE id=?").bind(body.plan, tenantId).run();
+        return json({ ok: true });
+      }
+
+      // POST /api/admin/tenants/:id/extend-trial
+      if (path.match(/^\/api\/admin\/tenants\/[^/]+\/extend-trial$/) && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user, "superadmin");
+        if (err) return err;
+        const tenantId = path.split("/api/admin/tenants/")[1].replace("/extend-trial", "");
+        const { days } = await request.json();
+        const d = parseInt(days) || 7;
+        const newEnd = new Date(Date.now() + d * 86400000).toISOString();
+        await env.DB.prepare("UPDATE subscriptions SET trial_ends_at=?, updated_at=datetime('now') WHERE user_id=?").bind(newEnd, tenantId).run();
+        return json({ ok: true, trial_ends_at: newEnd });
+      }
+
+      // POST /api/admin/tenants/:id/suspend
+      if (path.match(/^\/api\/admin\/tenants\/[^/]+\/suspend$/) && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user, "superadmin");
+        if (err) return err;
+        const tenantId = path.split("/api/admin/tenants/")[1].replace("/suspend", "");
+        await env.DB.prepare("UPDATE users SET is_active=0 WHERE id=?").bind(tenantId).run();
+        await env.DB.prepare("UPDATE subscriptions SET status='suspended', updated_at=datetime('now') WHERE user_id=?").bind(tenantId).run();
+        return json({ ok: true });
+      }
+
+      // POST /api/admin/tenants/:id/unsuspend
+      if (path.match(/^\/api\/admin\/tenants\/[^/]+\/unsuspend$/) && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user, "superadmin");
+        if (err) return err;
+        const tenantId = path.split("/api/admin/tenants/")[1].replace("/unsuspend", "");
+        await env.DB.prepare("UPDATE users SET is_active=1 WHERE id=?").bind(tenantId).run();
+        await env.DB.prepare("UPDATE subscriptions SET status='active', updated_at=datetime('now') WHERE user_id=?").bind(tenantId).run();
+        return json({ ok: true });
+      }
+
+      // GET /api/admin/notifications
+      if (path === "/api/admin/notifications" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user, "superadmin");
+        if (err) return err;
+        const result = await env.DB.prepare("SELECT * FROM admin_notifications ORDER BY created_at DESC LIMIT 100").all();
+        return json({ ok: true, notifications: result.results });
+      }
+
+      // POST /api/admin/notifications
+      if (path === "/api/admin/notifications" && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user, "superadmin");
+        if (err) return err;
+        const { title, body: msgBody, segment, channel } = await request.json();
+        if (!title || !msgBody) return json({ ok: false, error: "Título y cuerpo requeridos" }, 400);
+        const id = uuid();
+        await env.DB.prepare(
+          "INSERT INTO admin_notifications (id, title, body, segment, channel, created_by) VALUES (?,?,?,?,?,?)"
+        ).bind(id, title, msgBody, segment || "all", channel || "in_app", user.sub).run();
+        return json({ ok: true, notification: { id, title } }, 201);
+      }
+
+      // POST /api/admin/notifications/:id/send
+      if (path.match(/^\/api\/admin\/notifications\/[^/]+\/send$/) && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user, "superadmin");
+        if (err) return err;
+        const notifId = path.split("/api/admin/notifications/")[1].replace("/send", "");
+        await env.DB.prepare(
+          "UPDATE admin_notifications SET status='sent', sent_at=datetime('now') WHERE id=?"
+        ).bind(notifId).run();
+        return json({ ok: true });
+      }
+
+      // GET /api/admin/tenants/:id/ai-config
+      if (path.match(/^\/api\/admin\/tenants\/[^/]+\/ai-config$/) && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user, "superadmin");
+        if (err) return err;
+        const tenantId = path.split("/api/admin/tenants/")[1].replace("/ai-config", "");
+        const config = await env.DB.prepare("SELECT * FROM tenant_ai_config WHERE user_id=?").bind(tenantId).first();
+        return json({ ok: true, config: config || { user_id: tenantId, llm_provider: "claude", tokens_used_month: 0, max_tokens_month: 50000 } });
+      }
+
+      // PUT /api/admin/tenants/:id/ai-config
+      if (path.match(/^\/api\/admin\/tenants\/[^/]+\/ai-config$/) && method === "PUT") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user, "superadmin");
+        if (err) return err;
+        const tenantId = path.split("/api/admin/tenants/")[1].replace("/ai-config", "");
+        const body = await request.json();
+        const existing = await env.DB.prepare("SELECT user_id FROM tenant_ai_config WHERE user_id=?").bind(tenantId).first();
+        if (existing) {
+          await env.DB.prepare(
+            "UPDATE tenant_ai_config SET llm_provider=?, system_prompt=?, max_tokens_month=?, weekly_report_enabled=?, updated_at=datetime('now') WHERE user_id=?"
+          ).bind(body.llm_provider || "claude", body.system_prompt || null, body.max_tokens_month || 50000, body.weekly_report_enabled !== false ? 1 : 0, tenantId).run();
+        } else {
+          await env.DB.prepare(
+            "INSERT INTO tenant_ai_config (user_id, llm_provider, system_prompt, max_tokens_month, weekly_report_enabled) VALUES (?,?,?,?,?)"
+          ).bind(tenantId, body.llm_provider || "claude", body.system_prompt || null, body.max_tokens_month || 50000, body.weekly_report_enabled !== false ? 1 : 0).run();
+        }
+        return json({ ok: true });
+      }
+
+      // GET /api/admin/tenants/:id/ai-config/usage
+      if (path.match(/^\/api\/admin\/tenants\/[^/]+\/ai-config\/usage$/) && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user, "superadmin");
+        if (err) return err;
+        const tenantId = path.split("/api/admin/tenants/")[1].replace("/ai-config/usage", "");
+        const config = await env.DB.prepare("SELECT tokens_used_month, max_tokens_month FROM tenant_ai_config WHERE user_id=?").bind(tenantId).first();
+        return json({ ok: true, usage: config || { tokens_used_month: 0, max_tokens_month: 50000 } });
       }
 
       // Root
