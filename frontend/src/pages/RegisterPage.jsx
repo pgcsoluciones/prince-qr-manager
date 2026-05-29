@@ -16,7 +16,7 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await register(form.email, form.password);
-      navigate("/dashboard/links");
+      navigate("/onboarding");
     } catch (err) {
       setError(err.message);
     } finally {

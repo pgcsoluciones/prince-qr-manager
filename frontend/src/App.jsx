@@ -13,6 +13,7 @@ import ShortenerPage from "./pages/ShortenerPage.jsx";
 import AdminUsersPage from "./pages/AdminUsersPage.jsx";
 import AdminPlansPage from "./pages/AdminPlansPage.jsx";
 import AdminStatsPage from "./pages/AdminStatsPage.jsx";
+import OnboardingPage from "./pages/OnboardingPage.jsx";
 
 function Spinner() {
   return (
@@ -75,6 +76,11 @@ export default function App() {
               </ProtectedRoute>
             } />
           </Route>
+          <Route path="/onboarding" element={
+            <ProtectedRoute>
+              <OnboardingPage />
+            </ProtectedRoute>
+          } />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </ToastProvider>
