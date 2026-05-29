@@ -94,6 +94,11 @@ function Icon({ name, className = "w-4 h-4" }) {
         <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
       </svg>
     ),
+    trace: (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+      </svg>
+    ),
   };
   return icons[name] ?? null;
 }
@@ -111,7 +116,7 @@ function LogoMark({ size = "md" }) {
 }
 
 /* ── Single nav item ── */
-function NavItem({ to, iconName, label, onClick }) {
+function NavItem({ to, iconName, label, onClick, badge }) {
   return (
     <NavLink
       to={to}
@@ -121,7 +126,12 @@ function NavItem({ to, iconName, label, onClick }) {
       }
     >
       <Icon name={iconName} className="w-[18px] h-[18px] flex-shrink-0" />
-      <span>{label}</span>
+      <span className="flex-1">{label}</span>
+      {badge && (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700">
+          {badge}
+        </span>
+      )}
     </NavLink>
   );
 }
@@ -207,6 +217,13 @@ function SidebarContent({ user, isSuperadmin, isEnterprise, onNav, onLogout }) {
         <NavItem to="/dashboard/links"     iconName="qr"     label="Mis QRs"    onClick={onNav} />
         <NavItem to="/dashboard/shortener" iconName="link"   label="Acortador"  onClick={onNav} />
         <NavItem to="/dashboard/projects"  iconName="folder" label="Proyectos"  onClick={onNav} />
+        <NavItem
+          to="/dashboard/trace"
+          iconName="trace"
+          label="TRACE"
+          onClick={onNav}
+          badge={!["pro","enterprise"].includes(user?.plan) && user?.role !== "superadmin" ? "Pro" : undefined}
+        />
         <NavItem to="/dashboard/analytics" iconName="chart"  label="Analíticas" onClick={onNav} />
         <NavItem to="/dashboard/profile"   iconName="user"   label="Mi perfil"  onClick={onNav} />
 

@@ -6,6 +6,12 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 ENVIRONMENT = "production"
 
+[triggers]
+crons = ["0 8 * * 1"]  # Every Monday at 8am UTC
+
+# Secrets (set via: wrangler secret put ANTHROPIC_API_KEY)
+# ANTHROPIC_API_KEY — Anthropic API key for weekly AI reports
+
 # KV caché de redirecciones rápidas
 [[kv_namespaces]]
 binding = "QR_CACHE"

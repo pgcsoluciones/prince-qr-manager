@@ -14,6 +14,7 @@ import AdminUsersPage from "./pages/AdminUsersPage.jsx";
 import AdminPlansPage from "./pages/AdminPlansPage.jsx";
 import AdminStatsPage from "./pages/AdminStatsPage.jsx";
 import OnboardingPage from "./pages/OnboardingPage.jsx";
+import TracePage from "./pages/TracePage.jsx";
 
 function Spinner() {
   return (
@@ -67,6 +68,7 @@ export default function App() {
             <Route path="shortener" element={<ShortenerPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="projects" element={<ProjectsPage />} />
+            <Route path="trace" element={<TracePage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="tenants" element={
               <ProtectedRoute roles={["enterprise", "superadmin"]}>

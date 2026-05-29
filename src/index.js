@@ -176,6 +176,300 @@ export default {
           "SELECT *, (SELECT COUNT(*) FROM qr_analytics WHERE slug=short_links.slug) as scan_count FROM short_links WHERE slug=?"
         ).bind(slug).first();
 
+        // Check if slug is a trace_point
+        if (!link) {
+          const tracePoint = await env.DB.prepare(
+            "SELECT id, name, area, qr_type, checklist_items, survey_questions FROM trace_points WHERE id=? AND is_active=1"
+          ).bind(slug).first();
+          if (tracePoint) {
+            const checklistItems = JSON.parse(tracePoint.checklist_items || "[]");
+            const surveyQuestions = JSON.parse(tracePoint.survey_questions || "[]");
+            const qrType = tracePoint.qr_type || "mixed";
+
+            const checklistHtml = (qrType === "checklist" || qrType === "mixed") && checklistItems.length > 0 ? `
+              <div class="section">
+                <h2 class="section-title">✅ Checklist de verificación</h2>
+                ${checklistItems.map(item => `
+                  <label class="checklist-item">
+                    <input type="checkbox" name="checklist_${item.id}" id="check_${item.id}" ${item.required ? 'data-required="true"' : ''}>
+                    <span>${item.label}${item.required ? ' <span class="required-badge">*</span>' : ''}</span>
+                  </label>
+                `).join("")}
+              </div>
+            ` : "";
+
+            const surveyHtml = (qrType === "survey" || qrType === "mixed") && surveyQuestions.length > 0 ? `
+              <div class="section">
+                <h2 class="section-title">📋 Encuesta</h2>
+                ${surveyQuestions.map(q => {
+                  if (q.type === "nps") return `
+                    <div class="question" id="q_${q.id}">
+                      <p class="question-label">${q.label}</p>
+                      <div class="nps-buttons">
+                        ${[1,2,3,4,5,6,7,8,9,10].map(n => `<button type="button" class="nps-btn" data-q="${q.id}" data-val="${n}" onclick="selectNPS('${q.id}',${n},this)">${n}</button>`).join("")}
+                      </div>
+                      <div class="nps-labels"><span>Muy malo</span><span>Excelente</span></div>
+                    </div>`;
+                  if (q.type === "rating") return `
+                    <div class="question" id="q_${q.id}">
+                      <p class="question-label">${q.label}</p>
+                      <div class="stars" id="stars_${q.id}">
+                        ${[1,2,3,4,5].map(n => `<span class="star" data-q="${q.id}" data-val="${n}" onclick="selectStar('${q.id}',${n})">★</span>`).join("")}
+                      </div>
+                    </div>`;
+                  if (q.type === "yesno") return `
+                    <div class="question" id="q_${q.id}">
+                      <p class="question-label">${q.label}</p>
+                      <div class="yesno-buttons">
+                        <button type="button" class="yesno-btn" data-q="${q.id}" data-val="yes" onclick="selectYesNo('${q.id}','yes',this)">👍 Sí</button>
+                        <button type="button" class="yesno-btn" data-q="${q.id}" data-val="no" onclick="selectYesNo('${q.id}','no',this)">👎 No</button>
+                      </div>
+                    </div>`;
+                  return `
+                    <div class="question" id="q_${q.id}">
+                      <p class="question-label">${q.label}</p>
+                      <textarea class="text-input" id="text_${q.id}" placeholder="Escribe tu respuesta aquí..." rows="3"></textarea>
+                    </div>`;
+                }).join("")}
+              </div>
+            ` : "";
+
+            const htmlPage = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${tracePoint.name} — Intap TRACE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #f1f5f9; min-height: 100vh; padding: 16px 16px 48px; }
+    .logo-bar { text-align: center; margin-bottom: 16px; display: none; }
+    .logo-bar img { height: 28px; }
+    .logo-text { font-size: 15px; font-weight: 700; color: #2563eb; letter-spacing: -0.3px; }
+    @media (min-width: 640px) {
+      body { display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px 60px; }
+      .page-wrapper { width: 100%; max-width: 560px; }
+      .logo-bar { display: block; }
+    }
+    .container { max-width: 560px; width: 100%; margin: 0 auto; }
+    .header { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border-radius: 16px; padding: 24px; margin-bottom: 16px; }
+    @media (min-width: 640px) { .header { padding: 32px 28px; margin-bottom: 20px; } }
+    .header-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.2); border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 600; margin-bottom: 12px; }
+    .header h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    @media (min-width: 640px) { .header h1 { font-size: 26px; } }
+    .header .area { font-size: 14px; opacity: 0.85; }
+    .card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+    @media (min-width: 640px) { .card { padding: 28px; } }
+    .section-title { font-size: 15px; font-weight: 600; color: #1e293b; margin-bottom: 14px; }
+    .checklist-item { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid #f1f5f9; cursor: pointer; min-height: 44px; }
+    .checklist-item:last-child { border-bottom: none; }
+    .checklist-item input[type=checkbox] { width: 22px; height: 22px; accent-color: #2563eb; cursor: pointer; flex-shrink: 0; }
+    .checklist-item span { font-size: 14px; color: #374151; }
+    .required-badge { color: #ef4444; font-size: 12px; }
+    .question { margin-bottom: 20px; }
+    .question-label { font-size: 14px; font-weight: 500; color: #1e293b; margin-bottom: 12px; }
+    .nps-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+    .nps-btn { min-width: 48px; height: 48px; flex: 1; border: 2px solid #e2e8f0; border-radius: 10px; background: white; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s; color: #374151; min-height: 44px; }
+    @media (min-width: 640px) { .nps-btn { min-width: 44px; flex: none; width: 48px; } }
+    .nps-btn:hover { border-color: #2563eb; color: #2563eb; }
+    .nps-btn.selected { background: #2563eb; border-color: #2563eb; color: white; }
+    .nps-labels { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: #94a3b8; }
+    .stars { display: flex; gap: 8px; }
+    .star { font-size: 36px; cursor: pointer; color: #e2e8f0; transition: color 0.15s; min-height: 44px; display: flex; align-items: center; }
+    .star.selected, .star:hover { color: #f59e0b; }
+    .yesno-buttons { display: flex; gap: 12px; }
+    .yesno-btn { flex: 1; padding: 14px; border: 2px solid #e2e8f0; border-radius: 10px; background: white; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s; min-height: 44px; }
+    .yesno-btn:hover { border-color: #2563eb; }
+    .yesno-btn.selected { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
+    .text-input, .email-input { width: 100%; border: 2px solid #e2e8f0; border-radius: 10px; padding: 14px; font-family: inherit; font-size: 14px; resize: vertical; outline: none; transition: border-color 0.15s; min-height: 44px; }
+    .text-input:focus, .email-input:focus { border-color: #2563eb; }
+    .submit-btn { width: 100%; padding: 18px; background: #2563eb; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; transition: background 0.2s; margin-top: 8px; min-height: 56px; }
+    .submit-btn:hover { background: #1d4ed8; }
+    .submit-btn:disabled { background: #93c5fd; cursor: not-allowed; }
+    .success-card { background: #f0fdf4; border: 2px solid #86efac; border-radius: 16px; padding: 40px 32px; text-align: center; }
+    .success-card .check-anim { font-size: 64px; margin-bottom: 16px; display: block; animation: pop 0.4s cubic-bezier(0.175,0.885,0.32,1.275); }
+    @keyframes pop { 0% { transform: scale(0.3); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    .success-card h2 { color: #166534; font-size: 24px; margin-bottom: 8px; font-weight: 700; }
+    .success-card p { color: #15803d; font-size: 14px; margin-top: 6px; }
+    .success-contact-msg { margin-top: 16px; padding: 10px 16px; background: #dbeafe; border-radius: 10px; color: #1d4ed8; font-size: 13px; font-weight: 500; display: none; }
+    .error-msg { background: #fef2f2; border: 1px solid #fca5a5; border-radius: 8px; padding: 12px; color: #dc2626; font-size: 14px; margin-top: 12px; display: none; }
+    .offline-banner { background: #fef3c7; border: 1px solid #fcd34d; border-radius: 10px; padding: 12px 16px; color: #92400e; font-size: 13px; margin-bottom: 16px; display: none; font-weight: 500; }
+    .section { margin-bottom: 0; }
+    .powered { text-align: center; margin-top: 24px; font-size: 12px; color: #94a3b8; }
+    .powered a { color: #2563eb; text-decoration: none; }
+    .contact-section { margin-top: 4px; }
+    .contact-label { font-size: 13px; font-weight: 500; color: #64748b; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div class="page-wrapper">
+  <div class="logo-bar"><span class="logo-text">🎯 Intap TRACE</span></div>
+  <div class="container">
+    <div id="offlineBanner" class="offline-banner">
+      Sin conexion — tus respuestas se guardaran cuando vuelvas
+    </div>
+
+    <div class="header">
+      <div class="header-badge">🎯 Intap TRACE</div>
+      <h1>${tracePoint.name}</h1>
+      ${tracePoint.area ? `<p class="area">📍 ${tracePoint.area}</p>` : ""}
+    </div>
+
+    <div id="formArea">
+      <form id="traceForm">
+        ${checklistHtml ? `<div class="card">${checklistHtml}</div>` : ""}
+        ${surveyHtml ? `<div class="card">${surveyHtml}</div>` : ""}
+        <div class="card contact-section">
+          <p class="contact-label">¿Quieres que te contactemos? (opcional)</p>
+          <input type="email" id="contactEmail" class="email-input" placeholder="tu@correo.com">
+        </div>
+        <div id="errorMsg" class="error-msg"></div>
+        <button type="submit" class="submit-btn">Enviar respuesta</button>
+      </form>
+    </div>
+
+    <div id="successArea" style="display:none">
+      <div class="success-card">
+        <span class="check-anim">✅</span>
+        <h2>Gracias por tu respuesta</h2>
+        <p>Tu respuesta ha sido registrada correctamente.</p>
+        <div id="contactConfirm" class="success-contact-msg">Te contactaremos pronto</div>
+      </div>
+    </div>
+
+    <p class="powered">Verificacion por <a href="https://code.intaprd.com" target="_blank">Intap Code</a></p>
+  </div>
+  </div>
+
+  <script>
+    const surveyAnswers = {};
+    const API_BASE = 'https://api.code.intaprd.com';
+    const POINT_ID = '${tracePoint.id}';
+    const QUEUE_KEY = 'trace_queue_' + POINT_ID;
+
+    // Offline detection
+    function updateOfflineBanner() {
+      document.getElementById('offlineBanner').style.display = navigator.onLine ? 'none' : 'block';
+    }
+    window.addEventListener('online', () => { updateOfflineBanner(); flushQueue(); });
+    window.addEventListener('offline', updateOfflineBanner);
+    updateOfflineBanner();
+
+    // Auto-detect staff via qr_token
+    const qrToken = localStorage.getItem('qr_token');
+
+    function selectNPS(qId, val, btn) {
+      document.querySelectorAll('[data-q="'+qId+'"]').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      surveyAnswers[qId] = val;
+    }
+
+    function selectStar(qId, val) {
+      const stars = document.querySelectorAll('#stars_'+qId+' .star');
+      stars.forEach((s, i) => s.classList.toggle('selected', i < val));
+      surveyAnswers[qId] = val;
+    }
+
+    function selectYesNo(qId, val, btn) {
+      document.querySelectorAll('[data-q="'+qId+'"]').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      surveyAnswers[qId] = val;
+    }
+
+    async function submitPayload(payload) {
+      const res = await fetch(API_BASE+'/api/trace/public/'+POINT_ID+'/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      return res.json();
+    }
+
+    async function flushQueue() {
+      const raw = localStorage.getItem(QUEUE_KEY);
+      if (!raw) return;
+      const queue = JSON.parse(raw);
+      if (!queue.length) return;
+      for (const item of queue) {
+        try { await submitPayload(item); } catch(e) { return; }
+      }
+      localStorage.removeItem(QUEUE_KEY);
+    }
+
+    // Try flush on load if online
+    if (navigator.onLine) flushQueue();
+
+    document.getElementById('traceForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const btn = document.querySelector('.submit-btn');
+      const errEl = document.getElementById('errorMsg');
+      btn.disabled = true;
+      btn.textContent = 'Enviando...';
+      errEl.style.display = 'none';
+
+      const checklistData = {};
+      document.querySelectorAll('[name^="checklist_"]').forEach(inp => {
+        const id = inp.name.replace('checklist_','');
+        checklistData[id] = inp.checked;
+      });
+
+      const surveyData = {...surveyAnswers};
+      document.querySelectorAll('textarea[id^="text_"]').forEach(ta => {
+        const id = ta.id.replace('text_','');
+        surveyData[id] = ta.value;
+      });
+
+      let npsScore = null;
+      ${surveyQuestions.filter(q => q.type === "nps").map(q => `
+        if (surveyAnswers['${q.id}'] !== undefined) npsScore = surveyAnswers['${q.id}'];
+      `).join("")}
+
+      const contactEmail = document.getElementById('contactEmail').value.trim() || null;
+      const respondentType = qrToken ? 'staff' : 'anonymous';
+
+      const payload = { respondent_type: respondentType, checklist_data: checklistData, survey_data: surveyData, nps_score: npsScore, contact_email: contactEmail };
+
+      if (!navigator.onLine) {
+        // Queue for later
+        const raw = localStorage.getItem(QUEUE_KEY);
+        const queue = raw ? JSON.parse(raw) : [];
+        queue.push(payload);
+        localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+        document.getElementById('formArea').style.display = 'none';
+        document.getElementById('successArea').style.display = 'block';
+        if (contactEmail) document.getElementById('contactConfirm').style.display = 'block';
+        return;
+      }
+
+      try {
+        const data = await submitPayload(payload);
+        if (data.ok) {
+          document.getElementById('formArea').style.display = 'none';
+          document.getElementById('successArea').style.display = 'block';
+          if (contactEmail) document.getElementById('contactConfirm').style.display = 'block';
+        } else {
+          throw new Error(data.error || 'Error al enviar');
+        }
+      } catch(ex) {
+        errEl.textContent = ex.message;
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Enviar respuesta';
+      }
+    });
+  </script>
+</body>
+</html>`;
+
+            return new Response(htmlPage, {
+              status: 200,
+              headers: { "Content-Type": "text/html;charset=UTF-8" },
+            });
+          }
+        }
+
         // Fallback KV legacy
         if (!link) {
           const raw = await env.QR_LINKS.get(slug);
@@ -868,6 +1162,30 @@ export default {
           ).bind(uuid(), pointId, point.user_id, "missed_checklist", "Ítems obligatorios del checklist no completados").run());
         }
 
+        // CRM — UPSERT contact if email provided
+        if (contact_email) {
+          const crmOp = (async () => {
+            const existing = await env.DB.prepare(
+              "SELECT id, total_responses, avg_nps FROM trace_contacts WHERE user_id=? AND email=?"
+            ).bind(point.user_id, contact_email).first();
+            if (existing) {
+              const newTotal = (existing.total_responses || 0) + 1;
+              const newAvg = nps_score !== null && nps_score !== undefined
+                ? (((existing.avg_nps || 0) * (existing.total_responses || 0)) + nps_score) / newTotal
+                : existing.avg_nps;
+              await env.DB.prepare(
+                "UPDATE trace_contacts SET last_seen=datetime('now'), total_responses=?, avg_nps=? WHERE id=?"
+              ).bind(newTotal, newAvg, existing.id).run();
+            } else {
+              await env.DB.prepare(
+                `INSERT INTO trace_contacts (id, user_id, email, total_responses, avg_nps, source_point_id)
+                 VALUES (?,?,?,?,?,?)`
+              ).bind(uuid(), point.user_id, contact_email, 1, nps_score ?? null, pointId).run();
+            }
+          })();
+          alertOps.push(crmOp);
+        }
+
         if (alertOps.length > 0) {
           ctx.waitUntil(Promise.all(alertOps));
         }
@@ -1039,6 +1357,78 @@ export default {
         return json({ ok: true, point: { id, name } }, 201);
       }
 
+      // ══════════════════════════════════════════
+      // TRACE — CRM endpoints
+      // ══════════════════════════════════════════
+
+      // GET /api/trace/crm/contacts
+      if (path === "/api/trace/crm/contacts" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const search = url.searchParams.get("search") || "";
+        const tag = url.searchParams.get("tag") || "";
+        const minNps = url.searchParams.get("min_nps");
+        let query = "SELECT * FROM trace_contacts WHERE user_id=?";
+        const params = [user.sub];
+        if (search) { query += " AND (email LIKE ? OR name LIKE ?)"; params.push(`%${search}%`, `%${search}%`); }
+        if (minNps !== null && minNps !== "") { query += " AND avg_nps >= ?"; params.push(parseFloat(minNps)); }
+        query += " ORDER BY last_seen DESC LIMIT 200";
+        const result = await env.DB.prepare(query).bind(...params).all();
+        let contacts = result.results.map(c => ({ ...c, tags: JSON.parse(c.tags || "[]") }));
+        if (tag) contacts = contacts.filter(c => c.tags.includes(tag));
+        return json({ ok: true, contacts });
+      }
+
+      // GET /api/trace/crm/contacts/:id
+      if (path.match(/^\/api\/trace\/crm\/contacts\/[^/]+$/) && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const contactId = path.split("/api/trace/crm/contacts/")[1];
+        const contact = await env.DB.prepare("SELECT * FROM trace_contacts WHERE id=? AND user_id=?").bind(contactId, user.sub).first();
+        if (!contact) return json({ ok: false, error: "Contacto no encontrado" }, 404);
+        const responses = await env.DB.prepare(
+          "SELECT * FROM trace_responses WHERE contact_email=? ORDER BY created_at DESC LIMIT 100"
+        ).bind(contact.email).all();
+        return json({ ok: true, contact: { ...contact, tags: JSON.parse(contact.tags || "[]") }, responses: responses.results });
+      }
+
+      // PATCH /api/trace/crm/contacts/:id
+      if (path.match(/^\/api\/trace\/crm\/contacts\/[^/]+$/) && method === "PATCH") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const contactId = path.split("/api/trace/crm/contacts/")[1];
+        const contact = await env.DB.prepare("SELECT user_id FROM trace_contacts WHERE id=?").bind(contactId).first();
+        if (!contact) return json({ ok: false, error: "Contacto no encontrado" }, 404);
+        if (contact.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+        const { tags, notes, name, phone } = await request.json();
+        await env.DB.prepare(
+          "UPDATE trace_contacts SET tags=?, notes=?, name=?, phone=? WHERE id=?"
+        ).bind(
+          tags !== undefined ? JSON.stringify(tags) : undefined,
+          notes !== undefined ? notes : undefined,
+          name !== undefined ? name : undefined,
+          phone !== undefined ? phone : undefined,
+          contactId
+        ).run();
+        return json({ ok: true });
+      }
+
+      // ══════════════════════════════════════════
+      // TRACE — Reports
+      // ══════════════════════════════════════════
+
+      // POST /api/trace/report/send — manual trigger (superadmin)
+      if (path === "/api/trace/report/send" && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user, "superadmin");
+        if (err) return err;
+        ctx.waitUntil(generateWeeklyReports(env));
+        return json({ ok: true, message: "Generación de reportes iniciada" });
+      }
+
       // Root
       return json({ ok: true, service: "prince-qr-manager", version: "2.1.0" });
 
@@ -1047,4 +1437,100 @@ export default {
       return json({ ok: false, error: `Error interno: ${e.message}` }, 500);
     }
   },
+
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(generateWeeklyReports(env));
+  },
 };
+
+// ──────────────────────────────────────────────
+// Weekly AI report generator
+// ──────────────────────────────────────────────
+
+async function generateWeeklyReports(env) {
+  try {
+    // Get all pro/enterprise users
+    const users = await env.DB.prepare(
+      "SELECT id, email, plan FROM users WHERE plan IN ('pro','enterprise') AND is_active=1"
+    ).all();
+
+    for (const u of users.results) {
+      try {
+        // Get their trace points
+        const points = await env.DB.prepare(
+          "SELECT * FROM trace_points WHERE user_id=? AND is_active=1"
+        ).bind(u.id).all();
+        if (!points.results.length) continue;
+
+        const pointIds = points.results.map(p => p.id);
+        const placeholders = pointIds.map(() => "?").join(",");
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+        // Get responses from last 7 days
+        const responses = await env.DB.prepare(
+          `SELECT * FROM trace_responses WHERE point_id IN (${placeholders}) AND created_at >= ?`
+        ).bind(...pointIds, sevenDaysAgo).all();
+
+        // Get open alerts
+        const alerts = await env.DB.prepare(
+          "SELECT * FROM trace_alerts WHERE user_id=? AND is_resolved=0 AND created_at >= ?"
+        ).bind(u.id, sevenDaysAgo).all();
+
+        const responseCount = responses.results.length;
+        const npsScores = responses.results.filter(r => r.nps_score !== null).map(r => r.nps_score);
+        const avgNps = npsScores.length ? (npsScores.reduce((a, b) => a + b, 0) / npsScores.length).toFixed(1) : null;
+        const alertCount = alerts.results.length;
+
+        // Count top issues from missed checklists
+        const issueAlerts = alerts.results.filter(a => a.alert_type === "missed_checklist");
+
+        // Build prompt for Claude
+        const prompt = `Eres un analista de calidad. Genera un resumen ejecutivo semanal en español para un gerente de operaciones.
+
+Datos de la semana (${sevenDaysAgo.split("T")[0]} al hoy):
+- Puntos de control activos: ${points.results.length}
+- Total de respuestas: ${responseCount}
+- NPS promedio: ${avgNps ?? "Sin datos"}
+- Alertas abiertas: ${alertCount}
+- Alertas por checklist incompleto: ${issueAlerts.length}
+
+Puntos de control: ${points.results.map(p => p.name).join(", ")}
+
+Genera un resumen de máximo 200 palabras con: situación general, puntos de atención y una recomendación accionable.`;
+
+        let reportText = `Reporte semanal TRACE\n\nRespuestas: ${responseCount} | NPS: ${avgNps ?? "N/A"} | Alertas: ${alertCount}`;
+
+        if (env.ANTHROPIC_API_KEY) {
+          try {
+            const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": env.ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+              },
+              body: JSON.stringify({
+                model: "claude-haiku-4-5",
+                max_tokens: 400,
+                messages: [{ role: "user", content: prompt }],
+              }),
+            });
+            if (aiRes.ok) {
+              const aiData = await aiRes.json();
+              reportText = aiData.content?.[0]?.text || reportText;
+            }
+          } catch (aiErr) {
+            console.error("AI report error:", aiErr);
+          }
+        }
+
+        console.log(`Weekly report generated for ${u.email}:`, reportText.substring(0, 100));
+        // In production, send email via configured email API here
+      } catch (userErr) {
+        console.error(`Report error for user ${u.id}:`, userErr);
+      }
+    }
+  } catch (e) {
+    console.error("Weekly report generation failed:", e);
+  }
+}
