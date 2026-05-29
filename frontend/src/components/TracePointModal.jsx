@@ -116,7 +116,7 @@ export default function TracePointModal({ point, onClose, onSaved }) {
   }
 
   async function handleSave() {
-    if (!name.trim()) { toast.error("El nombre es obligatorio"); return; }
+    if (!name.trim()) { toast("El nombre es obligatorio", "error"); return; }
     setSaving(true);
     const payload = {
       name: name.trim(),
@@ -140,7 +140,7 @@ export default function TracePointModal({ point, onClose, onSaved }) {
         onSaved({ id: data.point.id, ...payload });
       }
     } catch (e) {
-      toast.error(e.message || "Error guardando");
+      toast(e.message || "Error guardando", "error");
     } finally {
       setSaving(false);
     }

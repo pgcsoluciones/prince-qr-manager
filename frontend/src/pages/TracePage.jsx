@@ -234,7 +234,7 @@ export default function TracePage() {
       setPoints(pd.points || []);
       setAlerts(ad.alerts || []);
     } catch (e) {
-      toast.error(e.message || "Error cargando datos");
+      toast(e.message || "Error cargando datos", "error");
     } finally {
       setLoading(false);
     }
@@ -246,9 +246,9 @@ export default function TracePage() {
     try {
       await api.patch(`/api/trace/alerts/${alertId}/resolve`);
       setAlerts(prev => prev.filter(a => a.id !== alertId));
-      toast.success("Alerta resuelta");
+      toast("Alerta resuelta");
     } catch (e) {
-      toast.error(e.message);
+      toast(e.message, "error");
     }
   }
 
@@ -257,9 +257,9 @@ export default function TracePage() {
     try {
       await api.delete(`/api/trace/points/${point.id}`);
       setPoints(prev => prev.filter(p => p.id !== point.id));
-      toast.success("Punto eliminado");
+      toast("Punto eliminado");
     } catch (e) {
-      toast.error(e.message);
+      toast(e.message, "error");
     }
   }
 
@@ -280,7 +280,7 @@ export default function TracePage() {
     } else {
       loadData();
     }
-    toast.success(editingPoint ? "Punto actualizado" : "Punto creado");
+    toast(editingPoint ? "Punto actualizado" : "Punto creado");
   }
 
   // Stats
