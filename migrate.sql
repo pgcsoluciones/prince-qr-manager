@@ -1,9 +1,15 @@
--- Migración segura: solo recrea plan_configs (incompatible) y crea tablas nuevas
--- Los enlaces existentes en KV NO se tocan
+-- Migración limpia SaaS multi-tenant
+-- Los 132 QRs están en KV, NO en D1 → se pueden recrear tablas sin perder datos
 
--- 1. Recrear solo plan_configs (no tiene datos de usuario, solo configuración)
+-- 1. Borrar tablas con schema incompatible (orden correcto por dependencias)
+DROP TABLE IF EXISTS short_links;
+DROP TABLE IF EXISTS bulk_batches;
+DROP TABLE IF EXISTS projects;
+DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS plan_configs;
+-- qr_analytics se conserva si ya existe con datos de escaneo
 
+-- 2. plan_configs
 CREATE TABLE IF NOT EXISTS plan_configs (
     plan              TEXT PRIMARY KEY,
     max_qr            INTEGER NOT NULL,
@@ -20,8 +26,7 @@ INSERT INTO plan_configs (plan, max_qr, max_tenants, has_analytics, has_bulk, ha
 INSERT INTO plan_configs (plan, max_qr, max_tenants, has_analytics, has_bulk, has_custom_domain, price_usd) VALUES ('pro',        500, 0, 1, 1, 1, 29.9);
 INSERT INTO plan_configs (plan, max_qr, max_tenants, has_analytics, has_bulk, has_custom_domain, price_usd) VALUES ('enterprise', -1, 20, 1, 1, 1, 99.9);
 
--- 2. Crear tablas nuevas (IF NOT EXISTS = no toca si ya existen)
-
+-- 3. users
 CREATE TABLE IF NOT EXISTS users (
     id            TEXT PRIMARY KEY,
     email         TEXT UNIQUE NOT NULL,
@@ -37,6 +42,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_enterprise ON users(enterprise_id);
 CREATE INDEX IF NOT EXISTS idx_users_email      ON users(email);
 
+-- 4. projects
 CREATE TABLE IF NOT EXISTS projects (
     id         TEXT PRIMARY KEY,
     user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -46,6 +52,7 @@ CREATE TABLE IF NOT EXISTS projects (
 
 CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
 
+-- 5. bulk_batches
 CREATE TABLE IF NOT EXISTS bulk_batches (
     id          TEXT PRIMARY KEY,
     user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -54,6 +61,7 @@ CREATE TABLE IF NOT EXISTS bulk_batches (
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 6. short_links (sin FK a users para no bloquear migración KV→D1)
 CREATE TABLE IF NOT EXISTS short_links (
     slug            TEXT PRIMARY KEY,
     destination_url TEXT NOT NULL,
@@ -66,11 +74,10 @@ CREATE TABLE IF NOT EXISTS short_links (
     updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_links_user    ON short_links(user_id);
-CREATE INDEX IF NOT EXISTS idx_links_project ON short_links(project_id);
-CREATE INDEX IF NOT EXISTS idx_links_active  ON short_links(is_active);
+CREATE INDEX IF NOT EXISTS idx_links_user   ON short_links(user_id);
+CREATE INDEX IF NOT EXISTS idx_links_active ON short_links(is_active);
 
--- qr_analytics: crear si no existe (conserva datos si ya existe)
+-- 7. qr_analytics (CREATE IF NOT EXISTS — conserva datos previos si existen)
 CREATE TABLE IF NOT EXISTS qr_analytics (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     slug       TEXT NOT NULL,
