@@ -33,10 +33,39 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
 
-.animate-fade-in    { animation: fade-in 0.2s ease-out both; }
-.animate-slide-left { animation: slide-in-left 0.22s ease-out both; }
-.animate-scale-in   { animation: scale-in 0.15s ease-out both; }
+.animate-fade-in      { animation: fade-in 0.2s ease-out both; }
+.animate-slide-left   { animation: slide-in-left 0.22s ease-out both; }
+.animate-scale-in     { animation: scale-in 0.15s ease-out both; }
+.animate-slide-right  { animation: slide-in-right 0.25s ease-out both; }
+
+/* ── Page transitions ── */
+.page-enter { animation: fade-in 0.2s ease-out both; }
+
+/* ── Better focus rings ── */
+*:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+
+/* ── Loading skeleton ── */
+.skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+/* ── Status dots ── */
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.status-dot-green  { background: #22c55e; box-shadow: 0 0 0 2px #dcfce7; }
+.status-dot-red    { background: #ef4444; box-shadow: 0 0 0 2px #fee2e2; }
+.status-dot-yellow { background: #f59e0b; box-shadow: 0 0 0 2px #fef3c7; }
 
 @layer components {
   /* ── Buttons ── */

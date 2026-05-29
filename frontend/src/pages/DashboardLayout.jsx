@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import HelpSystem from "../components/HelpSystem.jsx";
+import KeyboardShortcuts from "../components/KeyboardShortcuts.jsx";
+import Breadcrumbs from "../components/Breadcrumbs.jsx";
 
 /* ── Plan display helpers ── */
 const PLAN_LABELS = {
@@ -340,16 +343,82 @@ function BottomNav() {
           key={tab.to}
           to={tab.to}
           className={({ isActive }) =>
-            `flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors ${
+            `flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-all active:scale-95 ${
               isActive ? "text-primary" : "text-slate-400 hover:text-slate-600"
             }`
           }
         >
-          <Icon name={tab.icon} className="w-5 h-5" />
-          <span>{tab.label}</span>
+          {({ isActive }) => (
+            <>
+              <div className="relative">
+                <Icon name={tab.icon} className="w-5 h-5" />
+                {isActive && (
+                  <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-primary" />
+                )}
+              </div>
+              <span>{tab.label}</span>
+            </>
+          )}
         </NavLink>
       ))}
     </nav>
+  );
+}
+
+/* ── Notification bell ── */
+function NotificationBell() {
+  const [open, setOpen] = useState(false);
+
+  // Placeholder: in a real app fetch unresolved trace_alerts here
+  const alerts = [];
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="relative p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+        aria-label="Notificaciones"
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+        {alerts.length > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+            {alerts.length > 9 ? "9+" : alerts.length}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200 z-50 animate-scale-in"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-4 py-3 border-b border-slate-100">
+            <p className="font-semibold text-slate-900 text-sm">Notificaciones</p>
+          </div>
+          {alerts.length === 0 ? (
+            <div className="px-4 py-6 text-center">
+              <p className="text-slate-400 text-sm">Sin notificaciones nuevas</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-50">
+              {alerts.slice(0, 5).map((a, i) => (
+                <div key={i} className="px-4 py-3 hover:bg-slate-50 transition-colors">
+                  <p className="text-sm text-slate-700">{a.message}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{a.time}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="px-4 py-3 border-t border-slate-100">
+            <a href="/dashboard/trace" className="text-xs text-primary font-medium hover:text-primary-dark transition-colors">
+              Ver todas las alertas →
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -438,20 +507,30 @@ export default function DashboardLayout() {
           >
             <Icon name="menu" className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-1">
             <LogoMark size="sm" />
             <span className="font-bold text-slate-900 text-sm">Intap Code</span>
           </div>
+          <NotificationBell />
         </header>
 
         {/* Page content */}
         <main className="flex-1 overflow-auto pb-20 sm:pb-0">
+          <div className="p-4 sm:p-6 pb-0 sm:pb-0">
+            <Breadcrumbs />
+          </div>
           <Outlet />
         </main>
       </div>
 
       {/* ── Mobile bottom nav ── */}
       <BottomNav />
+
+      {/* ── Global help system ── */}
+      <HelpSystem />
+
+      {/* ── Keyboard shortcuts modal ── */}
+      <KeyboardShortcuts />
     </div>
   );
 }
