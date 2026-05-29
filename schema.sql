@@ -15,10 +15,10 @@ CREATE TABLE IF NOT EXISTS plan_configs (
 );
 
 -- Datos base de planes
-INSERT OR IGNORE INTO plan_configs VALUES ('free',       5,    0, 0, 0, 0, 0,    CURRENT_TIMESTAMP);
-INSERT OR IGNORE INTO plan_configs VALUES ('starter',    50,   0, 1, 0, 0, 9.9,  CURRENT_TIMESTAMP);
-INSERT OR IGNORE INTO plan_configs VALUES ('pro',        500,  0, 1, 1, 1, 29.9, CURRENT_TIMESTAMP);
-INSERT OR IGNORE INTO plan_configs VALUES ('enterprise', -1,  20, 1, 1, 1, 99.9, CURRENT_TIMESTAMP);
+INSERT OR IGNORE INTO plan_configs (plan, max_qr, max_tenants, has_analytics, has_bulk, has_custom_domain, price_usd) VALUES ('free',        5,  0, 0, 0, 0,  0);
+INSERT OR IGNORE INTO plan_configs (plan, max_qr, max_tenants, has_analytics, has_bulk, has_custom_domain, price_usd) VALUES ('starter',    50,  0, 1, 0, 0,  9.9);
+INSERT OR IGNORE INTO plan_configs (plan, max_qr, max_tenants, has_analytics, has_bulk, has_custom_domain, price_usd) VALUES ('pro',        500, 0, 1, 1, 1, 29.9);
+INSERT OR IGNORE INTO plan_configs (plan, max_qr, max_tenants, has_analytics, has_bulk, has_custom_domain, price_usd) VALUES ('enterprise', -1, 20, 1, 1, 1, 99.9);
 
 -- Usuarios
 CREATE TABLE IF NOT EXISTS users (
