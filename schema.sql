@@ -1,47 +1,87 @@
--- Tabla de Usuarios con roles SaaS
+-- ============================================================
+-- prince-qr-manager — Schema completo SaaS multi-tenant
+-- ============================================================
+
+-- Configuración de planes (editable por superadmin)
+CREATE TABLE IF NOT EXISTS plan_configs (
+    plan        TEXT PRIMARY KEY,          -- free | starter | pro | enterprise
+    max_qr      INTEGER NOT NULL,          -- -1 = ilimitado
+    max_tenants INTEGER NOT NULL DEFAULT 0,-- solo enterprise usa >0
+    has_analytics INTEGER NOT NULL DEFAULT 0,
+    has_bulk      INTEGER NOT NULL DEFAULT 0,
+    has_custom_domain INTEGER NOT NULL DEFAULT 0,
+    price_usd   REAL NOT NULL DEFAULT 0,
+    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Datos base de planes
+INSERT OR IGNORE INTO plan_configs VALUES ('free',       5,    0, 0, 0, 0, 0,    CURRENT_TIMESTAMP);
+INSERT OR IGNORE INTO plan_configs VALUES ('starter',    50,   0, 1, 0, 0, 9.9,  CURRENT_TIMESTAMP);
+INSERT OR IGNORE INTO plan_configs VALUES ('pro',        500,  0, 1, 1, 1, 29.9, CURRENT_TIMESTAMP);
+INSERT OR IGNORE INTO plan_configs VALUES ('enterprise', -1,  20, 1, 1, 1, 99.9, CURRENT_TIMESTAMP);
+
+-- Usuarios
 CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY, -- UUID de usuario
-    email TEXT UNIQUE NOT NULL,
+    id            TEXT PRIMARY KEY,
+    email         TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL CHECK(role IN ('superadmin', 'enterprise', 'tenant')),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    role          TEXT NOT NULL DEFAULT 'tenant' CHECK(role IN ('superadmin','enterprise','tenant')),
+    plan          TEXT NOT NULL DEFAULT 'free'   REFERENCES plan_configs(plan),
+    enterprise_id TEXT REFERENCES users(id) ON DELETE SET NULL, -- para tenants
+    is_active     INTEGER NOT NULL DEFAULT 1,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabla para rastrear la carga por lotes de empresas
+CREATE INDEX IF NOT EXISTS idx_users_enterprise ON users(enterprise_id);
+CREATE INDEX IF NOT EXISTS idx_users_email      ON users(email);
+
+-- Proyectos / carpetas de QRs
+CREATE TABLE IF NOT EXISTS projects (
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
+
+-- Lotes de carga masiva
 CREATE TABLE IF NOT EXISTS bulk_batches (
-    id TEXT PRIMARY KEY, -- UUID de lote
-    user_id TEXT NOT NULL,
-    name TEXT NOT NULL,
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
     total_links INTEGER DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Enlaces cortos (con soporte para estilo de QR dinámico y lotes)
+-- Enlaces QR (fuente de verdad en D1; KV_CACHE para redirecciones rápidas)
 CREATE TABLE IF NOT EXISTS short_links (
-    slug TEXT PRIMARY KEY,
+    slug            TEXT PRIMARY KEY,
     destination_url TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    batch_id TEXT, -- Opcional, si pertenece a un lote
-    qr_style_json TEXT, -- Opciones de personalización visual (colores, logo, etc.)
-    is_active INTEGER DEFAULT 1 CHECK(is_active IN (0, 1)),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (batch_id) REFERENCES bulk_batches(id) ON DELETE SET NULL
+    user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    project_id      TEXT REFERENCES projects(id) ON DELETE SET NULL,
+    batch_id        TEXT REFERENCES bulk_batches(id) ON DELETE SET NULL,
+    qr_style_json   TEXT,          -- JSON de personalización visual
+    is_active       INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0,1)),
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Analíticas de escaneo de QRs (inserciones optimizadas de forma diferida)
+CREATE INDEX IF NOT EXISTS idx_links_user    ON short_links(user_id);
+CREATE INDEX IF NOT EXISTS idx_links_project ON short_links(project_id);
+CREATE INDEX IF NOT EXISTS idx_links_active  ON short_links(is_active);
+
+-- Analíticas de escaneos
 CREATE TABLE IF NOT EXISTS qr_analytics (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    slug TEXT NOT NULL,
-    country TEXT,
-    city TEXT,
-    device TEXT,
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug       TEXT NOT NULL REFERENCES short_links(slug) ON DELETE CASCADE,
+    country    TEXT,
+    city       TEXT,
+    device     TEXT,
     user_agent TEXT,
-    scanned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (slug) REFERENCES short_links(slug) ON DELETE CASCADE
+    scanned_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Índice para mejorar el rendimiento de consultas analíticas
 CREATE INDEX IF NOT EXISTS idx_analytics_slug ON qr_analytics(slug);
+CREATE INDEX IF NOT EXISTS idx_analytics_date ON qr_analytics(scanned_at);

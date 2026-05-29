@@ -1,19 +1,22 @@
 name = "prince-qr-manager-backend"
 main = "src/index.js"
 compatibility_date = "2024-05-01"
-node_compat = true
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "production"
 
 # KV caché de redirecciones rápidas
 [[kv_namespaces]]
 binding = "QR_CACHE"
 id = "4a000cd623034898ae4cf2ee1248af8a"
 
-# KV principal — fuente de verdad de enlaces QR
+# KV principal — slugs legacy y meta del sistema
 [[kv_namespaces]]
 binding = "QR_LINKS"
 id = "326ce74a62124ba08f68d864f33c79d7"
 
-# Base de datos D1 — usuarios, analytics, plan_configs
+# Base de datos D1 — usuarios, enlaces, analytics, plan_configs
 [[d1_databases]]
 binding = "DB"
 database_name = "prince-qr-db"
