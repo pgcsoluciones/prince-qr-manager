@@ -1,0 +1,13 @@
+ALTER TABLE trace_responses ADD COLUMN city TEXT;
+ALTER TABLE trace_responses ADD COLUMN region TEXT;
+ALTER TABLE trace_responses ADD COLUMN browser TEXT;
+ALTER TABLE trace_responses ADD COLUMN device_type TEXT;
+ALTER TABLE trace_responses ADD COLUMN os TEXT;
+ALTER TABLE trace_responses ADD COLUMN time_on_page_seconds INTEGER;
+ALTER TABLE trace_responses ADD COLUMN scan_sequence INTEGER DEFAULT 1;
+ALTER TABLE trace_responses ADD COLUMN device_fingerprint TEXT;
+ALTER TABLE trace_responses ADD COLUMN latitude REAL;
+ALTER TABLE trace_responses ADD COLUMN longitude REAL;
+ALTER TABLE trace_responses ADD COLUMN referrer TEXT;
+ALTER TABLE trace_responses ADD COLUMN language TEXT;
+ALTER TABLE trace_responses ADD COLUMN screen_size TEXT;
