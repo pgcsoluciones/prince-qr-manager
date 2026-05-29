@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { api } from "../utils/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import PageHeader from "../components/PageHeader.jsx";
+import { Skeleton } from "../components/Skeleton.jsx";
 
 export default function AnalyticsPage() {
   const { user } = useAuth();
