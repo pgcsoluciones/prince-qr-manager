@@ -1,0 +1,25 @@
+{
+  "name": "prince-qr-manager",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pgcsoluciones/prince-qr-manager.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/pgcsoluciones/prince-qr-manager/issues"
+  },
+  "homepage": "https://github.com/pgcsoluciones/prince-qr-manager#readme",
+  "dependencies": {
+    "@tsndr/cloudflare-worker-jwt": "^3.2.1",
+    "bcryptjs": "^3.0.3"
+  }
+}
