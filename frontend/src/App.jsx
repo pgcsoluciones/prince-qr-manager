@@ -17,11 +17,14 @@ import OnboardingPage from "./pages/OnboardingPage.jsx";
 
 function Spinner() {
   return (
-    <div className="min-h-screen grid place-items-center">
-      <svg className="animate-spin h-8 w-8 text-brand-600" viewBox="0 0 24 24" fill="none">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-      </svg>
+    <div className="min-h-screen grid place-items-center bg-slate-100">
+      <div className="flex flex-col items-center gap-3">
+        <svg className="animate-spin h-8 w-8 text-primary" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+        </svg>
+        <p className="text-sm text-slate-400 font-medium">Cargando…</p>
+      </div>
     </div>
   );
 }
@@ -31,6 +34,16 @@ function ProtectedRoute({ children, roles }) {
   if (loading) return <Spinner />;
   if (!user) return <Navigate to="/login" replace />;
   if (roles && !roles.includes(user.role)) return <Navigate to="/dashboard/links" replace />;
+  return children;
+}
+
+/* Redirect to onboarding if the user hasn't completed it yet */
+function OnboardingGate({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <Spinner />;
+  if (!user) return <Navigate to="/login" replace />;
+  const done = localStorage.getItem("onboarding_done");
+  if (!done) return <Navigate to="/onboarding" replace />;
   return children;
 }
 
@@ -44,9 +57,9 @@ export default function App() {
           <Route
             path="/dashboard"
             element={
-              <ProtectedRoute>
+              <OnboardingGate>
                 <DashboardLayout />
-              </ProtectedRoute>
+              </OnboardingGate>
             }
           >
             <Route index element={<Navigate to="links" replace />} />
