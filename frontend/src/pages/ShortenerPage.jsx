@@ -3,7 +3,7 @@ import { api } from "../utils/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { toast } from "../components/Toast.jsx";
 
-const WORKER = "https://prince-qr-manager-backend.fliaprince.workers.dev";
+const WORKER = "https://qr.intaprd.com";
 
 function copyToClipboard(text) {
   navigator.clipboard.writeText(text).then(() => toast("URL copiada al portapapeles"));

@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || "https://prince-qr-manager-backend.fliaprince.workers.dev";
+const BASE = import.meta.env.VITE_API_URL || "https://api.code.intaprd.com";
 
 function token() {
   return localStorage.getItem("qr_token") || "";

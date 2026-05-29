@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import QRCode from "qrcode";
 
-const WORKER = "https://prince-qr-manager-backend.fliaprince.workers.dev";
+const WORKER = "https://qr.intaprd.com";
 
 export default function QRModal({ slug, onClose }) {
   const canvasRef = useRef(null);

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import QRCodeStyling from "qr-code-styling";
 
-const WORKER = "https://prince-qr-manager-backend.fliaprince.workers.dev";
+const WORKER = "https://qr.intaprd.com";
 
 export default function QRDownloadModal({ slug, styleJson, onClose }) {
   const containerRef = useRef(null);

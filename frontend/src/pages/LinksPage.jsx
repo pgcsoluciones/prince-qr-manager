@@ -7,7 +7,7 @@ import QRDownloadModal from "../components/QRDownloadModal.jsx";
 import BulkImportModal from "../components/BulkImportModal.jsx";
 import { toast } from "../components/Toast.jsx";
 
-const WORKER = "https://prince-qr-manager-backend.fliaprince.workers.dev";
+const WORKER = "https://qr.intaprd.com";
 
 /* ── Type meta ── */
 const TYPE_META = {
