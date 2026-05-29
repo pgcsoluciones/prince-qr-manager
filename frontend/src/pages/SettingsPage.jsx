@@ -3,6 +3,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { api } from "../utils/api.js";
 import { toast } from "../components/Toast.jsx";
 import ImageUpload from "../components/ImageUpload.jsx";
+import PageHeader from "../components/PageHeader.jsx";
 
 const TABS = ["General", "Notificaciones", "Agente IA", "Integraciones", "Peligroso"];
 
@@ -127,7 +128,7 @@ export default function SettingsPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Configuración</h1>
+      <PageHeader title="Configuración" description="Personaliza tu cuenta, notificaciones e integraciones" />
 
       {/* Tabs */}
       <div className="flex gap-1 border-b mb-6 overflow-x-auto">

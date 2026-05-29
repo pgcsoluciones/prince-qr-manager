@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { api } from "../utils/api.js";
 import { toast } from "../components/Toast.jsx";
+import PageHeader from "../components/PageHeader.jsx";
+import { SkeletonCard } from "../components/Skeleton.jsx";
 
 const ROLE_COLORS = {
   owner:    "bg-purple-100 text-purple-700",
@@ -135,15 +137,15 @@ export default function TeamPage() {
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       {showInvite && <InviteModal onClose={() => setShowInvite(false)} onDone={load} />}
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-slate-900">Mi Equipo</h1>
-        {isAdmin && (
+      <PageHeader
+        title="Mi Equipo"
+        description="Gestiona los accesos y roles de los miembros de tu cuenta"
+        actions={isAdmin && (
           <button onClick={() => setShowInvite(true)} className="btn-primary">
             Invitar miembro
           </button>
         )}
-      </div>
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
@@ -165,7 +167,7 @@ export default function TeamPage() {
 
       {/* Member list */}
       {loading ? (
-        <p className="text-slate-400 text-sm">Cargando...</p>
+        <div className="space-y-3">{[...Array(3)].map((_, i) => <SkeletonCard key={i} />)}</div>
       ) : members.length === 0 ? (
         <div className="card p-8 text-center">
           <p className="text-slate-400 text-sm">Sin miembros en el equipo.</p>

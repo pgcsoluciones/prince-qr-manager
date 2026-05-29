@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { api } from "../utils/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { toast } from "../components/Toast.jsx";
+import PageHeader from "../components/PageHeader.jsx";
+import { Skeleton } from "../components/Skeleton.jsx";
 
 const WORKER = "https://qr.intaprd.com";
 
@@ -58,11 +60,8 @@ export default function ShortenerPage() {
   const shortUrl = (s) => `${WORKER}/${s}`;
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Acortador de URLs</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Crea URLs cortas y memorables al instante</p>
-      </div>
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+      <PageHeader title="Acortador de URLs" description="Crea URLs cortas y memorables al instante" />
 
       {/* Creador rápido */}
       <div className="card p-5 mb-6">
@@ -110,11 +109,20 @@ export default function ShortenerPage() {
 
       {/* Lista */}
       {loading ? (
-        <p className="text-gray-400 text-sm">Cargando...</p>
+        <div className="space-y-2">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
+        </div>
       ) : filtered.length === 0 ? (
-        <div className="card p-12 text-center">
-          <p className="text-4xl mb-3">🔗</p>
-          <p className="text-gray-500">Aún no tienes URLs acortadas</p>
+        <div className="card p-16 text-center animate-fade-in">
+          <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto mb-5 shadow-sm">
+            <svg className="w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-bold text-slate-800 mb-1.5">Aún no tienes enlaces acortados</h3>
+          <p className="text-sm text-slate-500 max-w-xs mx-auto">
+            Usa el formulario de arriba para crear tu primer enlace corto y rastreable.
+          </p>
         </div>
       ) : (
         <div className="card overflow-hidden">

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { api } from "../utils/api.js";
 import { toast } from "../components/Toast.jsx";
+import PageHeader from "../components/PageHeader.jsx";
 
 const PLAN_COLORS = {
   free:       "bg-gray-100 text-gray-600",
@@ -32,8 +33,8 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="p-6 max-w-2xl">
-      <h1 className="text-xl font-bold text-gray-900 mb-6">Mi perfil</h1>
+    <div className="p-4 sm:p-6 max-w-2xl">
+      <PageHeader title="Mi perfil" description="Gestiona tu cuenta y plan de suscripción" />
 
       {/* Info */}
       <div className="card p-5 mb-5">

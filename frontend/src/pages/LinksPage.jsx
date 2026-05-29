@@ -6,6 +6,7 @@ import EditQRModal from "../components/EditQRModal.jsx";
 import QRDownloadModal from "../components/QRDownloadModal.jsx";
 import BulkImportModal from "../components/BulkImportModal.jsx";
 import { toast } from "../components/Toast.jsx";
+import PageHeader from "../components/PageHeader.jsx";
 
 const WORKER = "https://qr.intaprd.com";
 
@@ -173,16 +174,16 @@ function EmptyState({ hasFilters, onCreate }) {
       <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto mb-5 shadow-sm">
         <Ico name="qr" className="w-10 h-10 text-primary" />
       </div>
-      <h3 className="text-lg font-bold text-slate-800 mb-1.5">
-        Can't wait to see your QR codes here!
-      </h3>
+      <h3 className="text-lg font-bold text-slate-800 mb-1.5">Aún no tienes códigos QR</h3>
       <p className="text-sm text-slate-500 max-w-xs mx-auto mb-6">
-        Crea tu primer código QR dinámico y comienza a trackear cada escaneo en tiempo real.
+        Crea tu primer código QR dinámico y comienza a trackear cada escaneo en tiempo real. Puedes cambiar el destino cuando quieras sin reimprimir.
       </p>
-      <button onClick={onCreate} className="btn-primary mx-auto">
-        <Ico name="plus" className="w-4 h-4" />
-        Crear mi primer QR
-      </button>
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+        <button onClick={onCreate} className="btn-primary">
+          <Ico name="plus" className="w-4 h-4" />
+          Crear mi primer QR
+        </button>
+      </div>
     </div>
   );
 }
@@ -367,27 +368,25 @@ export default function LinksPage() {
     <div className="p-4 sm:p-6 max-w-[1400px] mx-auto">
 
       {/* ── Page header ── */}
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
-        <div>
-          <h1 className="section-title">Mis QRs</h1>
-          <p className="section-sub">
-            {loading ? "Cargando…" : `${links.length} código${links.length !== 1 ? "s" : ""} QR`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {canBulk && (
-            <button onClick={() => setShowBulk(true)} className="btn-secondary btn-sm gap-1.5">
-              <Ico name="upload" className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Importar CSV</span>
-              <span className="sm:hidden">CSV</span>
+      <PageHeader
+        title="Mis QRs"
+        description={loading ? "Cargando…" : `${links.length} código${links.length !== 1 ? "s" : ""} QR`}
+        actions={
+          <>
+            {canBulk && (
+              <button onClick={() => setShowBulk(true)} className="btn-secondary btn-sm gap-1.5">
+                <Ico name="upload" className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Importar CSV</span>
+                <span className="sm:hidden">CSV</span>
+              </button>
+            )}
+            <button onClick={() => setShowCreate(true)} className="btn-primary">
+              <Ico name="plus" className="w-4 h-4" />
+              Crear QR
             </button>
-          )}
-          <button onClick={() => setShowCreate(true)} className="btn-primary">
-            <Ico name="plus" className="w-4 h-4" />
-            Crear QR
-          </button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* ── Filter / toolbar row ── */}
       <div className="card mb-4 px-4 py-3">

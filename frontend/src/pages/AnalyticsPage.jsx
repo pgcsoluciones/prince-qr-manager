@@ -35,20 +35,29 @@ export default function AnalyticsPage() {
 
   if (!planHasAnalytics) {
     return (
-      <div className="p-6">
-        <h1 className="text-xl font-bold mb-4">Analíticas</h1>
-        <div className="card p-12 text-center">
-          <p className="text-4xl mb-3">📊</p>
-          <p className="text-gray-700 font-medium">Las analíticas están disponibles desde el plan Starter</p>
-          <p className="text-gray-500 text-sm mt-1">Actualiza tu plan para ver estadísticas de escaneos.</p>
+      <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+        <PageHeader title="Estadísticas" description="Visualiza el rendimiento de todos tus QRs" />
+        <div className="card p-16 text-center animate-fade-in">
+          <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto mb-5 shadow-sm">
+            <svg className="w-10 h-10 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-bold text-slate-800 mb-1.5">Estadísticas disponibles desde Starter</h3>
+          <p className="text-sm text-slate-500 max-w-xs mx-auto mb-6">
+            Actualiza tu plan para ver escaneos, ubicaciones y tendencias en tiempo real de todos tus QRs.
+          </p>
+          <a href="/dashboard/profile" className="btn-primary inline-flex mx-auto">
+            Mejorar plan
+          </a>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <h1 className="text-xl font-bold text-gray-900 mb-6">Analíticas</h1>
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+      <PageHeader title="Estadísticas" description="Rendimiento y escaneos de tus códigos QR" />
 
       <div className="card p-5 mb-6">
         <div className="flex gap-3 items-end">
