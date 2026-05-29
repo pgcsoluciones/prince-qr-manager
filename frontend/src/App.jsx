@@ -16,6 +16,15 @@ import AdminStatsPage from "./pages/AdminStatsPage.jsx";
 import OnboardingPage from "./pages/OnboardingPage.jsx";
 import TracePage from "./pages/TracePage.jsx";
 import TraceResponsesPage from "./pages/TraceResponsesPage.jsx";
+import TeamPage from "./pages/TeamPage.jsx";
+import SettingsPage from "./pages/SettingsPage.jsx";
+import AdminLayout from "./pages/AdminLayout.jsx";
+import AdminOverviewPage from "./pages/admin/AdminOverviewPage.jsx";
+import AdminTenantsPage from "./pages/admin/AdminTenantsPage.jsx";
+import AdminTenantDetailPage from "./pages/admin/AdminTenantDetailPage.jsx";
+import AdminNotificationsPage from "./pages/admin/AdminNotificationsPage.jsx";
+import AdminPlansPageNew from "./pages/admin/AdminPlansPage.jsx";
+import AdminAIModelsPage from "./pages/admin/AdminAIModelsPage.jsx";
 
 function Spinner() {
   return (
@@ -72,6 +81,12 @@ export default function App() {
             <Route path="trace" element={<TracePage />} />
             <Route path="trace/:pointId/responses" element={<TraceResponsesPage />} />
             <Route path="profile" element={<ProfilePage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="team" element={
+              <ProtectedRoute roles={["enterprise", "superadmin"]}>
+                <TeamPage />
+              </ProtectedRoute>
+            } />
             <Route path="tenants" element={
               <ProtectedRoute roles={["enterprise", "superadmin"]}>
                 <TenantsPage />
@@ -93,6 +108,22 @@ export default function App() {
               </ProtectedRoute>
             } />
           </Route>
+
+          {/* Super Admin SPA */}
+          <Route path="/admin" element={
+            <ProtectedRoute roles={["superadmin"]}>
+              <AdminLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Navigate to="overview" replace />} />
+            <Route path="overview" element={<AdminOverviewPage />} />
+            <Route path="tenants" element={<AdminTenantsPage />} />
+            <Route path="tenants/:id" element={<AdminTenantDetailPage />} />
+            <Route path="notifications" element={<AdminNotificationsPage />} />
+            <Route path="plans" element={<AdminPlansPageNew />} />
+            <Route path="ai-models" element={<AdminAIModelsPage />} />
+          </Route>
+
           <Route path="/onboarding" element={
             <ProtectedRoute>
               <OnboardingPage />
