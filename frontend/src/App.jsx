@@ -9,6 +9,7 @@ import AnalyticsPage from "./pages/AnalyticsPage.jsx";
 import ProjectsPage from "./pages/ProjectsPage.jsx";
 import TenantsPage from "./pages/TenantsPage.jsx";
 import ProfilePage from "./pages/ProfilePage.jsx";
+import ShortenerPage from "./pages/ShortenerPage.jsx";
 import AdminUsersPage from "./pages/AdminUsersPage.jsx";
 import AdminPlansPage from "./pages/AdminPlansPage.jsx";
 import AdminStatsPage from "./pages/AdminStatsPage.jsx";
@@ -49,6 +50,7 @@ export default function App() {
           >
             <Route index element={<Navigate to="links" replace />} />
             <Route path="links" element={<LinksPage />} />
+            <Route path="shortener" element={<ShortenerPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="projects" element={<ProjectsPage />} />
             <Route path="profile" element={<ProfilePage />} />
