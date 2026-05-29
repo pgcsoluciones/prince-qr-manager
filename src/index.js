@@ -392,11 +392,13 @@ export default {
             "SELECT id, name, area, qr_type, checklist_items, survey_questions, brand_color, brand_logo FROM trace_points WHERE id=? AND is_active=1"
           ).bind(slug).first();
           if (tracePoint) {
-            const checklistItems = JSON.parse(tracePoint.checklist_items || "[]");
-            const surveyQuestions = JSON.parse(tracePoint.survey_questions || "[]");
-            const qrType = tracePoint.qr_type || "mixed";
+            return serveTraceForm(tracePoint);
+          }
+        }
 
-            const checklistHtml = (qrType === "checklist" || qrType === "mixed") && checklistItems.length > 0 ? `
+        // DEAD_CODE_PLACEHOLDER_START — kept for reference only, never reached
+        if (false) {
+          const checklistHtml = (false) && [] ? `
               <div class="section">
                 <h2 class="section-title">✅ Checklist de verificación</h2>
                 ${checklistItems.map(item => `
