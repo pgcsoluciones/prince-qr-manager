@@ -1782,6 +1782,263 @@ export default {
         return json({ ok: true, usage: config || { tokens_used_month: 0, max_tokens_month: 50000 } });
       }
 
+      // ══════════════════════════════════════════
+      // TRACE — Projects (independent from regular QR projects)
+      // ══════════════════════════════════════════
+
+      if (path === "/api/trace/projects" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const result = await env.DB.prepare(
+          "SELECT * FROM trace_projects WHERE user_id=? ORDER BY created_at DESC"
+        ).bind(user.sub).all();
+        return json({ ok: true, projects: result.results });
+      }
+
+      if (path === "/api/trace/projects" && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const { name, description, color } = await request.json();
+        if (!name) return json({ ok: false, error: "Nombre requerido" }, 400);
+        const id = uuid();
+        await env.DB.prepare(
+          "INSERT INTO trace_projects (id, user_id, name, description, color) VALUES (?,?,?,?,?)"
+        ).bind(id, user.sub, name, description || null, color || "#2563eb").run();
+        return json({ ok: true, project: { id, name, description, color } }, 201);
+      }
+
+      if (path.match(/^\/api\/trace\/projects\/[^/]+$/) && method === "PUT") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const projectId = path.split("/api/trace/projects/")[1];
+        const project = await env.DB.prepare("SELECT user_id FROM trace_projects WHERE id=?").bind(projectId).first();
+        if (!project) return json({ ok: false, error: "Proyecto no encontrado" }, 404);
+        if (project.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+        const { name, description, color } = await request.json();
+        await env.DB.prepare(
+          "UPDATE trace_projects SET name=?, description=?, color=? WHERE id=?"
+        ).bind(name, description || null, color || "#2563eb", projectId).run();
+        return json({ ok: true });
+      }
+
+      if (path.match(/^\/api\/trace\/projects\/[^/]+$/) && method === "DELETE") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const projectId = path.split("/api/trace/projects/")[1];
+        const project = await env.DB.prepare("SELECT user_id FROM trace_projects WHERE id=?").bind(projectId).first();
+        if (!project) return json({ ok: false, error: "Proyecto no encontrado" }, 404);
+        if (project.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+        await env.DB.prepare("DELETE FROM trace_projects WHERE id=?").bind(projectId).run();
+        return json({ ok: true });
+      }
+
+      // ══════════════════════════════════════════
+      // TRACE — Automations
+      // ══════════════════════════════════════════
+
+      if (path === "/api/trace/automations" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const result = await env.DB.prepare(
+          "SELECT * FROM trace_automations WHERE user_id=? ORDER BY created_at DESC"
+        ).bind(user.sub).all();
+        return json({ ok: true, automations: result.results.map(a => ({
+          ...a,
+          trigger_value: JSON.parse(a.trigger_value || "{}"),
+          action_config: JSON.parse(a.action_config || "{}"),
+        })) });
+      }
+
+      if (path === "/api/trace/automations" && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const { name, point_id, trigger_type, trigger_value, action_type, action_config, message_template } = await request.json();
+        if (!name || !trigger_type || !action_type) return json({ ok: false, error: "Nombre, trigger y acción requeridos" }, 400);
+        const id = uuid();
+        await env.DB.prepare(
+          `INSERT INTO trace_automations (id, point_id, user_id, name, trigger_type, trigger_value, action_type, action_config, message_template)
+           VALUES (?,?,?,?,?,?,?,?,?)`
+        ).bind(id, point_id || null, user.sub, name, trigger_type,
+          JSON.stringify(trigger_value || {}),
+          action_type,
+          JSON.stringify(action_config || {}),
+          message_template || null
+        ).run();
+        return json({ ok: true, automation: { id, name } }, 201);
+      }
+
+      if (path.match(/^\/api\/trace\/automations\/[^/]+$/) && method === "PUT") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const autoId = path.split("/api/trace/automations/")[1];
+        const auto = await env.DB.prepare("SELECT user_id FROM trace_automations WHERE id=?").bind(autoId).first();
+        if (!auto) return json({ ok: false, error: "Automatización no encontrada" }, 404);
+        if (auto.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+        const { name, point_id, trigger_type, trigger_value, action_type, action_config, message_template } = await request.json();
+        await env.DB.prepare(
+          `UPDATE trace_automations SET name=?, point_id=?, trigger_type=?, trigger_value=?, action_type=?, action_config=?, message_template=? WHERE id=?`
+        ).bind(name, point_id || null, trigger_type,
+          JSON.stringify(trigger_value || {}),
+          action_type,
+          JSON.stringify(action_config || {}),
+          message_template || null, autoId
+        ).run();
+        return json({ ok: true });
+      }
+
+      if (path.match(/^\/api\/trace\/automations\/[^/]+$/) && method === "DELETE") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const autoId = path.split("/api/trace/automations/")[1];
+        const auto = await env.DB.prepare("SELECT user_id FROM trace_automations WHERE id=?").bind(autoId).first();
+        if (!auto) return json({ ok: false, error: "Automatización no encontrada" }, 404);
+        if (auto.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+        await env.DB.prepare("DELETE FROM trace_automations WHERE id=?").bind(autoId).run();
+        return json({ ok: true });
+      }
+
+      if (path.match(/^\/api\/trace\/automations\/[^/]+\/toggle$/) && method === "PATCH") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const autoId = path.split("/api/trace/automations/")[1].replace("/toggle", "");
+        const auto = await env.DB.prepare("SELECT user_id, is_active FROM trace_automations WHERE id=?").bind(autoId).first();
+        if (!auto) return json({ ok: false, error: "Automatización no encontrada" }, 404);
+        if (auto.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+        const newState = auto.is_active ? 0 : 1;
+        await env.DB.prepare("UPDATE trace_automations SET is_active=? WHERE id=?").bind(newState, autoId).run();
+        return json({ ok: true, is_active: newState });
+      }
+
+      // ══════════════════════════════════════════
+      // TRACE — Templates
+      // ══════════════════════════════════════════
+
+      if (path === "/api/trace/templates" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const result = await env.DB.prepare(
+          "SELECT * FROM trace_templates WHERE user_id=? OR is_public=1 ORDER BY created_at DESC"
+        ).bind(user.sub).all();
+        return json({ ok: true, templates: result.results.map(t => ({
+          ...t,
+          checklist_items: JSON.parse(t.checklist_items || "[]"),
+          survey_questions: JSON.parse(t.survey_questions || "[]"),
+        })) });
+      }
+
+      if (path === "/api/trace/templates" && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const { name, industry, brand_color, brand_logo, checklist_items, survey_questions, is_public } = await request.json();
+        if (!name) return json({ ok: false, error: "Nombre requerido" }, 400);
+        const id = uuid();
+        await env.DB.prepare(
+          `INSERT INTO trace_templates (id, user_id, name, industry, brand_color, brand_logo, checklist_items, survey_questions, is_public)
+           VALUES (?,?,?,?,?,?,?,?,?)`
+        ).bind(id, user.sub, name, industry || null, brand_color || "#2563eb", brand_logo || null,
+          JSON.stringify(checklist_items || []),
+          JSON.stringify(survey_questions || []),
+          is_public ? 1 : 0
+        ).run();
+        return json({ ok: true, template: { id, name } }, 201);
+      }
+
+      if (path.match(/^\/api\/trace\/templates\/[^/]+$/) && method === "PUT") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const tmplId = path.split("/api/trace/templates/")[1];
+        const tmpl = await env.DB.prepare("SELECT user_id FROM trace_templates WHERE id=?").bind(tmplId).first();
+        if (!tmpl) return json({ ok: false, error: "Plantilla no encontrada" }, 404);
+        if (tmpl.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+        const { name, industry, brand_color, brand_logo, checklist_items, survey_questions, is_public } = await request.json();
+        await env.DB.prepare(
+          `UPDATE trace_templates SET name=?, industry=?, brand_color=?, brand_logo=?, checklist_items=?, survey_questions=?, is_public=? WHERE id=?`
+        ).bind(name, industry || null, brand_color || "#2563eb", brand_logo || null,
+          JSON.stringify(checklist_items || []),
+          JSON.stringify(survey_questions || []),
+          is_public ? 1 : 0, tmplId
+        ).run();
+        return json({ ok: true });
+      }
+
+      if (path.match(/^\/api\/trace\/templates\/[^/]+$/) && method === "DELETE") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const tmplId = path.split("/api/trace/templates/")[1];
+        const tmpl = await env.DB.prepare("SELECT user_id FROM trace_templates WHERE id=?").bind(tmplId).first();
+        if (!tmpl) return json({ ok: false, error: "Plantilla no encontrada" }, 404);
+        if (tmpl.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+        await env.DB.prepare("DELETE FROM trace_templates WHERE id=?").bind(tmplId).run();
+        return json({ ok: true });
+      }
+
+      // ══════════════════════════════════════════
+      // TRACE — Notification Channels
+      // ══════════════════════════════════════════
+
+      if (path === "/api/trace/channels" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const result = await env.DB.prepare(
+          "SELECT * FROM trace_notification_channels WHERE user_id=? ORDER BY created_at DESC"
+        ).bind(user.sub).all();
+        return json({ ok: true, channels: result.results.map(c => ({
+          ...c, config: JSON.parse(c.config || "{}"),
+        })) });
+      }
+
+      if (path === "/api/trace/channels" && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const { channel_type, config, label } = await request.json();
+        if (!channel_type || !config) return json({ ok: false, error: "Tipo y configuración requeridos" }, 400);
+        const validTypes = ["email", "whatsapp", "slack", "webhook"];
+        if (!validTypes.includes(channel_type)) return json({ ok: false, error: "Tipo de canal inválido" }, 400);
+        const id = uuid();
+        await env.DB.prepare(
+          "INSERT INTO trace_notification_channels (id, user_id, channel_type, config, label) VALUES (?,?,?,?,?)"
+        ).bind(id, user.sub, channel_type, JSON.stringify(config), label || null).run();
+        return json({ ok: true, channel: { id, channel_type, label } }, 201);
+      }
+
+      if (path.match(/^\/api\/trace\/channels\/[^/]+$/) && method === "DELETE") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const channelId = path.split("/api/trace/channels/")[1];
+        const channel = await env.DB.prepare("SELECT user_id FROM trace_notification_channels WHERE id=?").bind(channelId).first();
+        if (!channel) return json({ ok: false, error: "Canal no encontrado" }, 404);
+        if (channel.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+        await env.DB.prepare("DELETE FROM trace_notification_channels WHERE id=?").bind(channelId).run();
+        return json({ ok: true });
+      }
+
+      if (path.match(/^\/api\/trace\/channels\/[^/]+\/test$/) && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const channelId = path.split("/api/trace/channels/")[1].replace("/test", "");
+        const channel = await env.DB.prepare("SELECT * FROM trace_notification_channels WHERE id=? AND user_id=?").bind(channelId, user.sub).first();
+        if (!channel) return json({ ok: false, error: "Canal no encontrado" }, 404);
+        // Simulated test — in production this would call the actual notification service
+        return json({ ok: true, message: "Notificación de prueba enviada (simulado)" });
+      }
+
       // Root
       return json({ ok: true, service: "prince-qr-manager", version: "2.1.0" });
 
