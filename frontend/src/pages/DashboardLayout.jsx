@@ -55,9 +55,10 @@ export default function DashboardLayout() {
 
         {/* Nav */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          <NavItem to="/dashboard/links"    icon="🔗" label="Mis QRs" />
-          <NavItem to="/dashboard/projects" icon="📁" label="Proyectos" />
+          <NavItem to="/dashboard/links"     icon="🔗" label="Mis QRs" />
+          <NavItem to="/dashboard/projects"  icon="📁" label="Proyectos" />
           <NavItem to="/dashboard/analytics" icon="📊" label="Analíticas" />
+          <NavItem to="/dashboard/profile"   icon="👤" label="Mi perfil" />
           {isEnterprise && (
             <NavItem to="/dashboard/tenants" icon="🏢" label="Tenants" />
           )}

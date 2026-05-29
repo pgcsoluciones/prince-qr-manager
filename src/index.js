@@ -218,6 +218,29 @@ export default {
       }
 
       // ══════════════════════════════════════════
+      // POST /api/auth/change-password
+      // ══════════════════════════════════════════
+      if (path === "/api/auth/change-password" && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+
+        const { current_password, new_password } = await request.json();
+        if (!current_password || !new_password) return json({ ok: false, error: "Faltan campos" }, 400);
+        if (new_password.length < 6) return json({ ok: false, error: "Contraseña mínima 6 caracteres" }, 400);
+
+        const dbUser = await env.DB.prepare("SELECT password_hash FROM users WHERE id=?").bind(user.sub).first();
+        if (!dbUser) return json({ ok: false, error: "Usuario no encontrado" }, 404);
+
+        const ok = await bcrypt.compare(current_password, dbUser.password_hash);
+        if (!ok) return json({ ok: false, error: "Contraseña actual incorrecta" }, 401);
+
+        const hash = await bcrypt.hash(new_password, 10);
+        await env.DB.prepare("UPDATE users SET password_hash=?, updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(hash, user.sub).run();
+        return json({ ok: true });
+      }
+
+      // ══════════════════════════════════════════
       // GET /api/auth/me
       // ══════════════════════════════════════════
       if (path === "/api/auth/me" && method === "GET") {
