@@ -3,287 +3,639 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prince Studio | QR Manager</title>
-    
-    <link rel="icon" type="image/png" href="https://lh3.googleusercontent.com/d/1B_yjf2Rur5d6bhlDZ_zWk87SRZ8Oxy56">
-
+    <title>Prince QR | SaaS Control Panel</title>
+    <!-- Cargamos biblioteca de códigos QR en Canvas -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Cargamos Vanilla CSS y Tailwind para una estética premium ultra cuidada -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root { --green: #22c55e; }
-        .glass { background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
-        .sidebar-item.active { background: var(--green); color: black; font-weight: 800; border-radius: 12px; }
-        .logo-circle { border: 2px solid var(--green); border-radius: 9999px; overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center; }
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
-        
-        /* Ajuste para scroll horizontal de carpetas en móvil */
-        @media (max-width: 1024px) {
-            #projectList { flex-direction: row; display: flex; overflow-x: auto; padding-bottom: 10px; gap: 8px; }
-            .sidebar-item { white-space: nowrap; flex-shrink: 0; }
+        :root {
+            --accent: #2563eb;
+            --accent-glow: rgba(37, 99, 235, 0.15);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
     </style>
 </head>
-<body class="bg-[#050505] text-white min-h-screen font-sans flex flex-col">
-
-    <div id="loginPage" class="flex items-center justify-center min-h-screen px-4 py-10">
-        <div class="max-w-md w-full glass p-6 md:p-10 rounded-[2.5rem] text-center border-green-500/10 border">
-            <div class="mb-10 flex flex-col items-center">
-                <div class="logo-circle w-24 h-24 md:w-32 md:h-32 mb-6">
-                    <img src="https://lh3.googleusercontent.com/d/15g1fT9FuP7hvu4_ds74FpucboRQm4j0d" alt="Prince Logo" class="w-full h-full object-cover scale-110">
-                </div>
-                <h1 class="text-xl md:text-2xl font-black tracking-tighter uppercase italic">PRINCE <span class="text-green-500">STUDIO</span></h1>
-                <p class="text-gray-500 text-[10px] mt-2 uppercase tracking-[0.3em] font-bold">Acceso Administrativo</p>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-900 custom-scrollbar">
+    
+    <!-- Navbar Premium -->
+    <nav class="bg-slate-900 text-white py-4 px-6 sticky top-0 z-40 shadow-md">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <span class="text-xl font-black tracking-wider text-white">
+                    PRINCE <span class="text-blue-500">QR</span>
+                </span>
+                <span class="bg-blue-500/20 text-blue-400 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border border-blue-500/30">
+                    SaaS Enterprise
+                </span>
             </div>
-            <div class="space-y-4 text-center">
-                <input type="password" id="adminPass" placeholder="CONTRASEÑA" class="w-full bg-black border border-gray-800 p-4 rounded-2xl text-center outline-none focus:border-green-500 mb-4 tracking-widest text-white">
-                <button onclick="handleLogin()" class="w-full bg-green-500 text-black py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-green-400 transition shadow-lg shadow-green-900/20">Entrar</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="mainDashboard" class="hidden flex flex-col h-full lg:h-screen">
-        <nav class="border-b border-gray-900 bg-black/50 p-4 md:p-6 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0">
             <div class="flex items-center gap-4">
-                <div class="logo-circle w-10 h-10 border">
-                    <img src="https://lh3.googleusercontent.com/d/15g1fT9FuP7hvu4_ds74FpucboRQm4j0d" alt="Logo" class="w-full h-full object-cover">
-                </div>
-                <h2 class="text-xl font-black italic uppercase tracking-tighter">Prince <span class="text-green-500 underline decoration-2">Studio</span></h2>
-            </div>
-            <div class="flex gap-4 md:gap-6 items-center">
-                <button onclick="toggleSettings()" class="text-[10px] font-bold text-gray-500 hover:text-green-500 uppercase tracking-widest transition">Ajustes</button>
-                <button onclick="logout()" class="text-[10px] font-bold text-gray-500 hover:text-red-500 uppercase tracking-widest transition">Cerrar Sesión</button>
-            </div>
-        </nav>
-
-        <div id="settingsPanel" class="hidden fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
-            <div class="glass p-8 rounded-[2rem] max-w-sm w-full space-y-4 text-center border border-green-500/20">
-                <h3 class="text-green-500 font-black uppercase text-xs tracking-widest">Cambiar Acceso</h3>
-                <input type="text" id="newPassword" placeholder="Nueva clave" class="w-full bg-black border border-gray-800 p-4 rounded-xl text-center outline-none text-white">
-                <button onclick="updatePassword()" class="w-full bg-green-500 text-black py-3 rounded-xl font-bold uppercase text-[10px]">Guardar</button>
-                <button onclick="toggleSettings()" class="w-full text-[9px] text-gray-600 uppercase font-bold">Cancelar</button>
+                <button onclick="openBulkModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider px-4 py-2 rounded-xl transition shadow-lg shadow-blue-500/20 flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+                    Carga Masiva (Bulk)
+                </button>
+                <button onclick="logout()" class="text-xs uppercase tracking-wider font-semibold opacity-70 hover:opacity-100 transition py-2 px-3 border border-slate-700 rounded-xl hover:bg-slate-800">
+                    Cerrar Sesión
+                </button>
             </div>
         </div>
+    </nav>
 
-        <div class="flex flex-col lg:flex-row flex-1 overflow-y-auto lg:overflow-hidden">
-            <aside class="w-full lg:w-72 border-b lg:border-r border-gray-900 bg-black/20 p-4 md:p-6 flex flex-col gap-4 shrink-0">
-                <div class="flex justify-between items-center">
-                    <h3 class="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em]">Mis Carpetas</h3>
-                    <button onclick="createNewProject()" class="text-green-500 text-lg font-bold hover:scale-125 transition">+</button>
+    <!-- Main Workspace Container -->
+    <main class="max-w-7xl mx-auto py-8 px-6">
+        
+        <!-- Pantalla de carga (Loader) -->
+        <div id="mainLoader" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white">
+            <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mb-4"></div>
+            <p class="text-sm font-bold uppercase tracking-widest text-slate-300">Procesando base de datos...</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- Panel Lateral Izquierdo (Creación y Vista de QR) -->
+            <div class="lg:col-span-1 space-y-6">
+                
+                <!-- Caja de Creación -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4">Generador Individual</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Carpeta / Proyecto</label>
+                            <select id="projectSelect" class="w-full mt-1 border border-slate-200 rounded-lg p-2.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-xs bg-slate-50">
+                                <option value="General">General</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nombre del Enlace (Slug)</label>
+                            <input type="text" id="slug" placeholder="ej: menu-digital" class="w-full mt-1 border border-slate-200 rounded-lg p-2.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-xs bg-slate-50">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">URL de Destino Real</label>
+                            <input type="url" id="target" placeholder="https://..." class="w-full mt-1 border border-slate-200 rounded-lg p-2.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-xs bg-slate-50">
+                        </div>
+                        <button onclick="saveLink()" class="w-full bg-slate-900 text-white py-3 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-blue-600 transition shadow-lg active:scale-98">
+                            Guardar y Generar
+                        </button>
+                    </div>
                 </div>
-                <div id="projectList" class="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-y-auto scrollbar-hide">
-                    </div>
-            </aside>
 
-            <main class="flex-1 p-4 md:p-8 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
-                <div class="lg:col-span-4 space-y-6">
-                    <div class="glass p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] space-y-4 border-white/5 border text-center">
-                        <div class="flex items-center justify-center gap-2 mb-2">
-                            <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                            <h3 class="text-green-500 text-[10px] font-black uppercase tracking-[0.4em]">Carpeta: <span id="activeProjectLabel" class="underline">General</span></h3>
-                        </div>
-                        <input type="text" id="slug" placeholder="ID DEL QR" class="w-full bg-black border border-gray-800 p-4 rounded-xl text-sm focus:border-green-500 outline-none uppercase font-mono tracking-tighter text-white text-center">
-                        <textarea id="target" rows="3" placeholder="URL DESTINO" class="w-full bg-black border border-gray-800 p-4 rounded-xl text-green-500 font-mono text-sm outline-none focus:border-green-500 text-center"></textarea>
-                        <button onclick="saveLink()" class="w-full bg-green-500 text-black p-4 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition">Sincronizar</button>
+                <!-- Visor QR Interactivo -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-center text-center">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 w-full">Código QR Generado</h2>
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 flex items-center justify-center">
+                        <canvas id="qrcode" class="bg-white p-1"></canvas>
                     </div>
+                    <button id="downloadBtn" style="display:none" onclick="downloadQR()" class="mt-4 text-xs font-bold text-blue-600 uppercase tracking-wider hover:underline flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Descargar PNG
+                    </button>
+                </div>
 
-                    <div class="glass p-6 md:p-8 rounded-[2rem] text-center border border-white/5">
-                        <div class="bg-white p-4 rounded-2xl inline-block mb-6 shadow-2xl w-full max-w-[200px] mx-auto">
-                            <canvas id="qrcode" class="w-full h-auto"></canvas>
-                        </div>
-                        <div class="grid grid-cols-3 gap-2">
-                            <button onclick="downloadFile('png')" class="text-[9px] font-black border border-gray-800 py-3 rounded-xl hover:bg-white hover:text-black uppercase transition">PNG</button>
-                            <button onclick="downloadFile('pdf')" class="text-[9px] font-black border border-gray-800 py-3 rounded-xl hover:bg-white hover:text-black uppercase transition">PDF</button>
-                            <button onclick="downloadSVG()" class="text-[9px] font-black border border-gray-800 py-3 rounded-xl hover:bg-white hover:text-black uppercase transition">SVG</button>
-                        </div>
+                <!-- Panel de Analíticas Avanzadas -->
+                <div id="analyticsPanel" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center justify-between">
+                        <span>Métricas de Enlace</span>
+                        <span id="activeAnalyticsSlug" class="text-blue-500 font-mono text-[10px]"></span>
+                    </h2>
+                    <div id="analyticsContent" class="space-y-4 text-xs">
+                        <p class="text-slate-400 text-center py-4 italic">Selecciona un enlace en la tabla para ver métricas.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel Central/Derecho (Tabla y Listado de Enlaces) -->
+            <div class="lg:col-span-2 space-y-6">
+                
+                <!-- Buscador e Informes Rápidos -->
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center justify-between">
+                    <div class="relative flex-1 min-w-[200px]">
+                        <input type="text" id="tableSearch" onkeyup="filterLinks()" placeholder="Buscar slug o destino..." class="w-full border border-slate-200 rounded-lg pl-9 pr-4 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-xs bg-slate-50">
+                        <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Filtrar Proyecto:</span>
+                        <select id="projectFilter" onchange="filterLinks()" class="border border-slate-200 rounded-lg p-2 focus:border-blue-500 outline-none text-xs bg-slate-50">
+                            <option value="ALL">Todos los Proyectos</option>
+                        </select>
                     </div>
                 </div>
 
-                <div class="lg:col-span-8 glass rounded-[2rem] flex flex-col overflow-hidden border border-white/5 mb-10 lg:mb-0">
-                    <div class="p-4 md:p-6 bg-white/[0.01] border-b border-white/5 flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <h3 id="tableTitle" class="font-black uppercase text-xs tracking-widest italic text-green-500 text-center">Cargando base de datos...</h3>
-                        <div class="flex gap-4 items-center w-full sm:w-auto">
-                            <button onclick="downloadFolderPDF()" class="flex-1 sm:flex-none bg-white/5 border border-white/10 px-3 py-2 rounded-lg text-[9px] font-black uppercase text-green-500 hover:bg-green-500 hover:text-black transition">Bajar Carpeta</button>
-                            <input type="text" id="searchSlug" oninput="renderTable()" placeholder="Buscar..." class="flex-1 sm:flex-none bg-black border border-gray-800 px-4 py-2 rounded-lg text-[10px] outline-none focus:border-green-500 text-white text-center">
-                        </div>
+                <!-- Tabla de Enlaces D1 -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+                        <h2 class="text-sm font-bold uppercase tracking-widest text-slate-800">Enlaces Activos en Producción</h2>
+                        <span id="linksCounter" class="bg-slate-100 text-slate-600 font-mono text-xs px-2.5 py-1 rounded-full border border-slate-200/50">
+                            0 enlaces
+                        </span>
                     </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-center min-w-[600px]">
-                            <thead class="bg-black text-[9px] font-black uppercase text-gray-600 tracking-widest border-b border-white/5">
+                    
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-slate-50 border-b border-slate-100 text-slate-400 uppercase text-[10px] font-bold tracking-wider">
                                 <tr>
-                                    <th class="px-4 py-4">ID / Link Público</th>
-                                    <th class="px-4 py-4">Ruta Destino</th>
-                                    <th class="px-4 py-4">Gestión</th>
+                                    <th class="px-6 py-4">Slug / Proyecto</th>
+                                    <th class="px-6 py-4">URL de Redirección</th>
+                                    <th class="px-6 py-4 text-center">Estado</th>
+                                    <th class="px-6 py-4 text-center">Acciones</th>
                                 </tr>
                             </thead>
-                            <tbody id="linksTable" class="divide-y divide-white/5"></tbody>
+                            <tbody id="linksTable" class="divide-y divide-slate-100 text-xs">
+                                <!-- Filas de enlaces creados dinámicamente -->
+                            </tbody>
                         </table>
                     </div>
-                    <div class="p-4 md:p-6 bg-black/40 flex justify-between items-center border-t border-white/5 mt-auto">
-                        <span id="pageInfo" class="text-[9px] text-gray-500 font-black uppercase tracking-widest">Página 1</span>
-                        <div class="flex gap-2">
-                            <button onclick="prevPage()" class="px-4 py-2 bg-white/5 rounded-lg text-[9px] font-black uppercase hover:bg-green-500 hover:text-black transition">Ant</button>
-                            <button onclick="nextPage()" class="px-4 py-2 bg-white/5 rounded-lg text-[9px] font-black uppercase hover:bg-green-500 hover:text-black transition">Sig</button>
-                        </div>
-                    </div>
                 </div>
-            </main>
+            </div>
+        </div>
+    </main>
+
+    <!-- MODAL ENTERPRISE: Carga Masiva (Bulk Upload) -->
+    <div id="bulkModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 overflow-hidden transform transition-all duration-300">
+            <div class="bg-slate-900 text-white p-5 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="text-md font-bold tracking-tight text-white">Módulo Carga Masiva CSV</span>
+                    <span class="bg-blue-500 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded text-white tracking-widest">BULK</span>
+                </div>
+                <button onclick="closeBulkModal()" class="text-slate-400 hover:text-white transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Nombre del Lote (Proyecto / Carpeta)</label>
+                    <input type="text" id="bulkBatchName" placeholder="ej: Lote-Restaurante-Mayo" class="w-full border border-slate-200 rounded-lg p-2.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-xs bg-slate-50">
+                </div>
+                
+                <div>
+                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Pega tus Datos en Formato CSV (un enlace por línea)</label>
+                    <textarea id="bulkCsvData" rows="6" placeholder="slug-enlace-1,https://www.destino1.com&#10;slug-enlace-2,https://www.destino2.com" class="w-full border border-slate-200 rounded-lg p-3 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-xs bg-slate-50 font-mono"></textarea>
+                    <p class="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
+                        * Estructura requerida: <code class="bg-slate-100 px-1 py-0.5 rounded font-mono text-[9px]">slug,url_de_redireccion</code>. Asegúrate de que no haya espacios extras.
+                    </p>
+                </div>
+                
+                <div class="flex gap-3 justify-end pt-2">
+                    <button onclick="closeBulkModal()" class="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">
+                        Cancelar
+                    </button>
+                    <button onclick="processBulkUpload()" class="px-5 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs uppercase tracking-wider hover:bg-blue-700 transition shadow-lg shadow-blue-500/25">
+                        Procesar Subida
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
+    <!-- JS de Aplicación Unificado (SaaS - Día 4) -->
     <script>
-        const API_BASE = "https://qr.grupoprince.com/api";
-        let currentToken = localStorage.getItem('prince_session');
-        let allLinks = [], projects = ["General"], activeProject = "General";
-        let currentPage = 1;
-        const itemsPerPage = 15;
+        // URL base de producción libre de sufijos /api
+        const API_BASE = "https://prince-qr-manager-backend.fliaprince.workers.dev/api";
+        
+        let token = localStorage.getItem('qr_token');
+        let rawLinks = []; 
+        let rawProjects = [];
 
-        window.onload = () => { if (currentToken) showDashboard(); };
-
-        function handleLogin() {
-            const pass = document.getElementById('adminPass').value;
-            fetch(`${API_BASE}/login`, { method: 'POST', body: JSON.stringify({ password: pass }) })
-            .then(res => res.ok ? (localStorage.setItem('prince_session', pass), currentToken=pass, showDashboard()) : alert("Acceso Denegado"));
+        // Seguridad de Acceso Administrativo
+        if (!token) {
+            token = prompt("PRINCE QR SECURITY: Ingrese su Clave de Administrador");
+            if (token) {
+                localStorage.setItem('qr_token', token);
+            } else {
+                alert("Acceso denegado. Se requiere un token de acceso válido.");
+            }
         }
 
-        async function showDashboard() {
-            document.getElementById('loginPage').classList.add('hidden');
-            document.getElementById('mainDashboard').classList.remove('hidden');
-            await loadProjects();
-            await loadLinks();
-            renderQR('ejemplo');
+        // Utilidad: Control visual de alerta en UI
+        function showNotification(message, isError = false) {
+            const statusClass = isError ? "bg-red-500 text-white" : "bg-green-500 text-white";
+            const notification = document.createElement("div");
+            notification.className = `fixed bottom-5 right-5 px-5 py-3 rounded-xl shadow-xl z-50 text-xs font-bold uppercase tracking-wider ${statusClass} animate-bounce`;
+            notification.innerText = message;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 4000);
         }
 
+        // 1. CARGAR PROYECTOS DESDE EL BACKEND
         async function loadProjects() {
             try {
-                const res = await fetch(`${API_BASE}/projects`, { headers: { 'Authorization': `Bearer ${currentToken}` } });
-                projects = await res.json();
-                renderSidebar();
-            } catch(e) { console.error(e); }
-        }
-
-        function renderSidebar() {
-            document.getElementById('projectList').innerHTML = projects.map(p => `
-                <div onclick="setActiveProject('${p}')" class="sidebar-item cursor-pointer px-4 py-3 text-[10px] font-bold uppercase transition flex justify-between items-center group ${activeProject === p ? 'sidebar-item active' : 'text-gray-500 hover:text-white hover:bg-white/5'}">
-                    <span>${p}</span>
-                    ${p !== 'General' ? `<span onclick="deleteProject('${p}')" class="ml-2 lg:hidden lg:group-hover:block text-red-500 font-bold">×</span>` : ''}
-                </div>`).join('');
-        }
-
-        async function createNewProject() {
-            const name = prompt("Nombre de la Carpeta:");
-            if (name && !projects.includes(name)) {
-                projects.push(name);
-                await fetch(`${API_BASE}/projects`, { method: 'POST', body: JSON.stringify({ projects }), headers: { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' } });
-                renderSidebar();
+                const res = await fetch(`${API_BASE}/projects`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!res.ok) throw new Error("La base de datos D1 no respondió correctamente al obtener proyectos.");
+                
+                const data = await res.json();
+                rawProjects = Array.isArray(data) ? data : ["General"];
+                
+                const selectElement = document.getElementById('projectSelect');
+                const filterElement = document.getElementById('projectFilter');
+                
+                let selectHtml = "";
+                let filterHtml = '<option value="ALL">Todos los Proyectos</option>';
+                
+                rawProjects.forEach(proj => {
+                    selectHtml += `<option value="${proj}">${proj}</option>`;
+                    filterHtml += `<option value="${proj}">${proj}</option>`;
+                });
+                
+                selectElement.innerHTML = selectHtml;
+                filterElement.innerHTML = filterHtml;
+            } catch (e) {
+                console.error("Error de Red / Cloudflare Projects:", e);
+                showNotification("Fallo de red en Cloudflare al cargar carpetas/proyectos.", true);
+                rawProjects = ["General"];
             }
         }
 
-        function setActiveProject(p) {
-            activeProject = p;
-            document.getElementById('activeProjectLabel').innerText = p;
-            currentPage = 1;
-            renderSidebar();
-            renderTable();
-        }
-
+        // 2. CARGAR ENLACES ACTIVOS DESDE EL BACKEND
         async function loadLinks() {
-            const res = await fetch(`${API_BASE}/links`, { headers: { 'Authorization': `Bearer ${currentToken}` } });
-            allLinks = await res.json();
-            renderTable();
+            toggleLoader(true);
+            try {
+                const res = await fetch(`${API_BASE}/links`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!res.ok) throw new Error("Fallo al conectar con la base de datos D1 al obtener enlaces.");
+                
+                const data = await res.json();
+                rawLinks = Array.isArray(data) ? data : [];
+                
+                renderTable(rawLinks);
+                document.getElementById('linksCounter').innerText = `${rawLinks.length} enlaces`;
+            } catch (e) {
+                console.error("Error de Red / Cloudflare Links:", e);
+                showNotification("Fallo en Cloudflare Workers al obtener el listado de enlaces.", true);
+                renderTable([]);
+            } finally {
+                toggleLoader(false);
+            }
         }
 
-        function renderTable() {
-            const search = document.getElementById('searchSlug').value.toLowerCase();
-            const filtered = allLinks.filter(l => l.project === activeProject && l.slug.toLowerCase().includes(search));
-            const start = (currentPage - 1) * itemsPerPage;
-            const pageItems = filtered.slice(start, start + itemsPerPage);
+        // 3. RENDERIZACIÓN DE LA TABLA DE ENLACES
+        function renderTable(linksArray) {
+            const tableBody = document.getElementById('linksTable');
+            
+            if (linksArray.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="px-6 py-8 text-center text-slate-400 italic">
+                            No hay códigos QR configurados en la base de datos relacional.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
 
-            document.getElementById('tableTitle').innerText = `${activeProject} (${filtered.length})`;
-            document.getElementById('linksTable').innerHTML = pageItems.map(item => `
-                <tr class="hover:bg-green-500/[0.02] transition">
-                    <td class="px-4 py-5">
-                        <div class="text-green-500 font-black text-xs">/${item.slug}</div>
-                        <div class="text-[8px] text-gray-600 font-bold uppercase">qr.grupoprince.com/${item.slug}</div>
-                    </td>
-                    <td class="px-4 py-5 text-[10px] text-gray-500 font-mono italic truncate max-w-[150px] mx-auto">${item.url}</td>
-                    <td class="px-4 py-5 space-x-2 md:space-x-4">
-                        <button onclick="editItem('${item.slug}','${item.url}')" class="text-[9px] font-black uppercase text-white hover:text-green-500">Editar</button>
-                        <button onclick="deleteLink('${item.slug}')" class="text-[9px] font-black uppercase text-red-900 hover:text-red-500">Borrar</button>
-                    </td>
-                </tr>`).join('');
-            document.getElementById('pageInfo').innerText = `Página ${currentPage} de ${Math.ceil(filtered.length / itemsPerPage) || 1}`;
+            const html = linksArray.map(item => {
+                const isChecked = item.is_active === 1 ? 'checked' : '';
+                const displayClass = item.is_active === 1 ? 'text-black' : 'text-slate-400 line-through';
+                const projectTag = item.project || "General";
+                
+                return `
+                    <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+                        <td class="px-6 py-4">
+                            <span class="block font-bold text-slate-800 text-sm ${displayClass}">/q/${item.slug}</span>
+                            <span class="bg-slate-100 text-slate-500 text-[9px] px-2 py-0.5 rounded font-semibold border border-slate-200/50 mt-1 inline-block">
+                                ${projectTag}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <a href="${item.url}" target="_blank" class="text-blue-500 font-medium hover:underline block max-w-[240px] truncate">
+                                ${item.url}
+                            </a>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <label class="relative inline-flex items-center cursor-pointer justify-center">
+                                <input type="checkbox" value="" class="sr-only peer" ${isChecked} onchange="toggleLinkStatus('${item.slug}', this.checked)">
+                                <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </td>
+                        <td class="px-6 py-4 text-center space-x-3">
+                            <button onclick="viewAnalytics('${item.slug}')" class="text-slate-600 hover:text-blue-600 font-bold text-[10px] uppercase tracking-wider transition">
+                                Métricas
+                            </button>
+                            <button onclick="triggerQR('${item.slug}')" class="text-slate-600 hover:text-black font-bold text-[10px] uppercase tracking-wider transition">
+                                Ver QR
+                            </button>
+                            <button onclick="deleteLink('${item.slug}')" class="text-red-400 hover:text-red-600 font-bold text-[10px] uppercase tracking-wider transition">
+                                Eliminar
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            tableBody.innerHTML = html;
         }
 
-        function prevPage() { if(currentPage > 1) { currentPage--; renderTable(); } }
-        function nextPage() { if(currentPage * itemsPerPage < allLinks.filter(l => l.project === activeProject).length) { currentPage++; renderTable(); } }
-
+        // 4. GUARDAR ENLACE QR INDIVIDUAL EN CLOUDFLARE
         async function saveLink() {
-            const data = { slug: document.getElementById('slug').value.trim().toLowerCase(), target: document.getElementById('target').value.trim(), project: activeProject };
-            if(!data.slug || !data.target) return alert("Faltan datos");
-            await fetch(`${API_BASE}/links`, { method: 'POST', headers: { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-            renderQR(data.slug); loadLinks(); alert("✓ Sincronizado");
-        }
+            const slug = document.getElementById('slug').value.trim();
+            const target = document.getElementById('target').value.trim();
+            const project = document.getElementById('projectSelect').value;
 
-        function editItem(s, u) { document.getElementById('slug').value = s; document.getElementById('target').value = u; renderQR(s); window.scrollTo({top:0, behavior:'smooth'}); }
-        function renderQR(s) { QRCode.toCanvas(document.getElementById('qrcode'), `https://qr.grupoprince.com/${s}`, { width: 160, margin: 1 }); }
+            if (!slug || !target) {
+                return showNotification("Por favor ingresa todos los campos requeridos.", true);
+            }
 
-        function downloadFile(format) {
-            const canvas = document.getElementById("qrcode");
-            const slug = document.getElementById('slug').value || 'qr';
-            if(format === 'pdf') {
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF({ unit: 'mm', format: [100, 100] });
-                doc.addImage(canvas.toDataURL(), 'PNG', 10, 10, 80, 80);
-                doc.save(`PRINCE-${slug}.pdf`);
-            } else {
-                const a = document.createElement('a'); a.download = `PRINCE-${slug}.png`; a.href = canvas.toDataURL(); a.click();
+            toggleLoader(true);
+            try {
+                const res = await fetch(`${API_BASE}/links`, {
+                    method: 'POST',
+                    headers: { 
+                        'Authorization': `Bearer ${token}`, 
+                        'Content-Type': 'application/json' 
+                    },
+                    body: JSON.stringify({ slug, target, project })
+                });
+
+                if (res.ok) {
+                    triggerQR(slug);
+                    await loadProjects();
+                    await loadLinks();
+                    document.getElementById('slug').value = "";
+                    document.getElementById('target').value = "";
+                    showNotification("Enlace guardado en D1 y KV caché.");
+                } else {
+                    const err = await res.json();
+                    showNotification(`Error: ${err.error || 'Operación no permitida'}`, true);
+                }
+            } catch (e) {
+                showNotification("Fallo de red en Cloudflare al guardar enlace.", true);
+            } finally {
+                toggleLoader(false);
             }
         }
 
-        async function downloadFolderPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ unit: 'mm', format: [100, 100] });
-            const linksParaDescargar = allLinks.filter(l => l.project === activeProject);
-            if (linksParaDescargar.length === 0) return alert("No hay códigos");
-
-            for (let i = 0; i < linksParaDescargar.length; i++) {
-                const item = linksParaDescargar[i];
-                const canvas = document.createElement('canvas');
-                await QRCode.toCanvas(canvas, `https://qr.grupoprince.com/${item.slug}`, { width: 300, margin: 2 });
-                if (i > 0) doc.addPage();
-                doc.addImage(canvas.toDataURL("image/png"), 'PNG', 10, 10, 80, 80);
-                doc.setFontSize(10);
-                doc.text(`ID: /${item.slug}`, 50, 95, { align: 'center' });
-            }
-            doc.save(`MASTER-${activeProject}.pdf`);
-        }
-
-        function downloadSVG() {
-            const slug = document.getElementById('slug').value || 'qr';
-            QRCode.toString(`https://qr.grupoprince.com/${slug}`, {type:'svg', width: 800}, (err, svg) => {
-                const blob = new Blob([svg], {type: 'image/svg+xml'});
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href = url; a.download = `PRINCE-${slug}.svg`; a.click();
-            });
-        }
-
-        function toggleSettings() { document.getElementById('settingsPanel').classList.toggle('hidden'); }
-        async function updatePassword() {
-            const newPassword = document.getElementById('newPassword').value;
-            await fetch(`${API_BASE}/settings`, { method: 'POST', headers: { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ newPassword }) });
-            logout();
-        }
-
-        async function deleteLink(slug) {
-            if(confirm(`¿Eliminar permanentemente /${slug}?`)) {
-                await fetch(`${API_BASE}/links`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${currentToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ slug }) });
+        // 5. MODIFICAR ESTADO ACTIVO/INACTIVO
+        async function toggleLinkStatus(slug, isActive) {
+            const statusInt = isActive ? 1 : 0;
+            try {
+                const res = await fetch(`${API_BASE}/links/toggle`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ slug, is_active: statusInt })
+                });
+                
+                if (res.ok) {
+                    showNotification(`Estado de /q/${slug} actualizado.`);
+                } else {
+                    throw new Error("No se pudo cambiar el estado en Cloudflare.");
+                }
+            } catch (e) {
+                console.error("Fallo de red en toggle:", e);
+                showNotification("Fallo al actualizar el estado en Cloudflare KV/D1.", true);
                 loadLinks();
             }
         }
 
-        function logout() { localStorage.removeItem('prince_session'); location.reload(); }
+        // 6. CARGAR ANALÍTICAS INDIVIDUALES DEL SLUG
+        async function viewAnalytics(slug) {
+            const slugSpan = document.getElementById('activeAnalyticsSlug');
+            const contentDiv = document.getElementById('analyticsContent');
+            
+            slugSpan.innerText = `/q/${slug}`;
+            contentDiv.innerHTML = `
+                <div class="flex items-center justify-center py-4">
+                    <div class="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent"></div>
+                </div>
+            `;
+
+            try {
+                const res = await fetch(`${API_BASE}/analytics/summary?slug=${slug}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!res.ok) throw new Error("Error en respuesta métrica.");
+                const data = await res.json();
+                
+                if (data.ok) {
+                    const s = data.summary;
+                    
+                    let countriesHtml = s.top_countries.length > 0 
+                        ? s.top_countries.map(c => `
+                            <div class="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-100">
+                                <span class="font-bold text-slate-700">${c.country}</span>
+                                <span class="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full">${c.count} escaneos</span>
+                            </div>
+                          `).join('')
+                        : '<p class="text-slate-400 italic text-[11px] text-center">Sin escaneos por país</p>';
+                        
+                    let devicesHtml = s.devices_distribution.length > 0
+                        ? s.devices_distribution.map(d => `
+                            <div class="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-100">
+                                <span class="font-bold text-slate-700">${d.device}</span>
+                                <span class="bg-slate-200 text-slate-800 text-[10px] font-bold px-2 py-0.5 rounded-full">${d.count} u.</span>
+                            </div>
+                          `).join('')
+                        : '<p class="text-slate-400 italic text-[11px] text-center">Sin escaneos por dispositivo</p>';
+
+                    contentDiv.innerHTML = `
+                        <div class="text-center py-3 bg-blue-50 rounded-xl border border-blue-100/50">
+                            <span class="text-[10px] uppercase font-bold text-blue-600 block tracking-widest">Escaneos Totales</span>
+                            <span class="text-2xl font-black text-blue-800">${s.total_scans}</span>
+                        </div>
+                        <div class="space-y-2">
+                            <h3 class="font-bold text-[10px] uppercase tracking-wider text-slate-400">Top 5 Países</h3>
+                            ${countriesHtml}
+                        </div>
+                        <div class="space-y-2">
+                            <h3 class="font-bold text-[10px] uppercase tracking-wider text-slate-400">Dispositivos</h3>
+                            ${devicesHtml}
+                        </div>
+                    `;
+                } else {
+                    contentDiv.innerHTML = `<p class="text-red-500 text-center">Error al cargar datos métricos.</p>`;
+                }
+            } catch (e) {
+                contentDiv.innerHTML = `<p class="text-red-500 text-center">Fallo de red en analíticas.</p>`;
+                showNotification("No se pudieron consultar las analíticas desde Cloudflare.", true);
+            }
+        }
+
+        // 7. GENERACIÓN VISUAL DE QR
+        function triggerQR(slug) {
+            const url = `https://qr.grupoprince.com/q/${slug}`;
+            QRCode.toCanvas(document.getElementById('qrcode'), url, { 
+                width: 140, 
+                margin: 2, 
+                color: { dark: '#0f172a' } 
+            }, function(err) {
+                if (!err) {
+                    document.getElementById('downloadBtn').style.display = 'flex';
+                }
+            });
+        }
+
+        // 8. DESCARGAR QR EN PNG
+        function downloadQR() {
+            const canvas = document.getElementById("qrcode");
+            const link = document.createElement('a');
+            link.download = `qr-prince-saas.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+
+        // 9. ELIMINAR ENLACE QR
+        async function deleteLink(slug) {
+            if (confirm(`¿Eliminar permanentemente /q/${slug}? Esta acción es irreversible y purgará D1 y KV.`)) {
+                toggleLoader(true);
+                try {
+                    const res = await fetch(`${API_BASE}/links`, {
+                        method: 'DELETE',
+                        headers: { 
+                            'Authorization': `Bearer ${token}`, 
+                            'Content-Type': 'application/json' 
+                        },
+                        body: JSON.stringify({ slug })
+                    });
+                    
+                    if (res.ok) {
+                        showNotification("Enlace eliminado de D1 y purgado de la caché KV.");
+                        await loadProjects();
+                        await loadLinks();
+                    } else {
+                        showNotification("Error de autenticación o base de datos.", true);
+                    }
+                } catch (e) {
+                    showNotification("Fallo de red al intentar borrar de Cloudflare.", true);
+                } finally {
+                    toggleLoader(false);
+                }
+            }
+        }
+
+        // 10. MODAL BULK: CONTROL DE VISUALIZACIÓN
+        function openBulkModal() {
+            document.getElementById('bulkModal').classList.remove('hidden');
+        }
+
+        function closeBulkModal() {
+            document.getElementById('bulkModal').classList.add('hidden');
+            document.getElementById('bulkBatchName').value = "";
+            document.getElementById('bulkCsvData').value = "";
+        }
+
+        // 11. SUBIDA MASIVA CSV A TRAVÉS DE TRANSACCIÓN D1
+        async function processBulkUpload() {
+            const batchName = document.getElementById('bulkBatchName').value.trim();
+            const csvText = document.getElementById('bulkCsvData').value.trim();
+
+            if (!batchName || !csvText) {
+                return showNotification("Por favor ingresa el nombre del lote y la data CSV.", true);
+            }
+
+            const lines = csvText.split('\n');
+            const links = [];
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                
+                const parts = line.split(',');
+                if (parts.length < 2) {
+                    return alert(`Línea ${i + 1} inválida: Debe contener slug y url separados por coma.`);
+                }
+
+                const slug = parts[0].trim();
+                const destination_url = parts.slice(1).join(',').trim();
+
+                if (!slug || !destination_url) {
+                    return alert(`Línea ${i + 1} incompleta.`);
+                }
+
+                links.push({ slug, destination_url });
+            }
+
+            toggleLoader(true);
+            try {
+                const res = await fetch(`${API_BASE}/bulk/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: "usr-default",
+                        batch_name: batchName,
+                        links: links
+                    })
+                });
+
+                const data = await res.json();
+                
+                if (res.ok) {
+                    showNotification(`Carga en lote exitosa: ${data.total_inserted} enlaces registrados.`);
+                    closeBulkModal();
+                    await loadProjects();
+                    await loadLinks();
+                } else {
+                    showNotification(`Error: ${data.error || 'Fallo de procesamiento'}`, true);
+                }
+            } catch (e) {
+                showNotification("Fallo de red durante la subida masiva a Cloudflare.", true);
+            } finally {
+                toggleLoader(false);
+            }
+        }
+
+        // 12. FILTRAR ELEMENTOS DE LA TABLA
+        function filterLinks() {
+            const query = document.getElementById('tableSearch').value.toLowerCase();
+            const project = document.getElementById('projectFilter').value;
+            
+            const filtered = rawLinks.filter(item => {
+                const matchesSearch = item.slug.toLowerCase().includes(query) || item.url.toLowerCase().includes(query);
+                const matchesProject = project === "ALL" || (item.project || "General") === project;
+                return matchesSearch && matchesProject;
+            });
+            
+            renderTable(filtered);
+        }
+
+        // Utilidad: loader
+        function toggleLoader(show) {
+            const loader = document.getElementById('mainLoader');
+            if (show) {
+                loader.classList.remove('hidden');
+            } else {
+                loader.classList.add('hidden');
+            }
+        }
+
+        // Cerrar sesión
+        function logout() {
+            localStorage.removeItem('qr_token');
+            location.reload();
+        }
+
+        // Inicio automático
+        async function initApp() {
+            if (token) {
+                await loadProjects();
+                await loadLinks();
+            }
+        }
+
+        initApp();
     </script>
 </body>
 </html>
