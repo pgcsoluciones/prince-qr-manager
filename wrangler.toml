@@ -27,3 +27,8 @@ id = "326ce74a62124ba08f68d864f33c79d7"
 binding = "DB"
 database_name = "prince-qr-db"
 database_id = "90c45dd2-374a-4d09-9bb6-e078214c49d3"
+
+# R2 bucket — imágenes y assets subidos por usuarios
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "intap-assets"

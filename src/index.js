@@ -309,6 +309,21 @@ function serveTraceForm(tracePoint) {
     window.addEventListener('offline',updateOfflineBanner);
     updateOfflineBanner();
     const qrToken=localStorage.getItem('qr_token');
+    function detectBrowser(ua){if(ua.includes('Edg'))return'Edge';if(ua.includes('Chrome'))return'Chrome';if(ua.includes('Firefox'))return'Firefox';if(ua.includes('Safari'))return'Safari';return'Other';}
+    function detectOS(ua){if(ua.includes('iPhone')||ua.includes('iPad'))return'iOS';if(ua.includes('Android'))return'Android';if(ua.includes('Windows'))return'Windows';if(ua.includes('Mac'))return'macOS';return'Other';}
+    const _ua=navigator.userAgent;
+    const _deviceFingerprint=btoa([_ua,screen.width+'x'+screen.height,navigator.language,Intl.DateTimeFormat().resolvedOptions().timeZone].join('|')).slice(0,32);
+    const _startTime=Date.now();
+    window._scanMeta={
+      device_fingerprint:_deviceFingerprint,
+      browser:detectBrowser(_ua),
+      device_type:/Mobi|Android/i.test(_ua)?'mobile':/Tablet|iPad/i.test(_ua)?'tablet':'desktop',
+      os:detectOS(_ua),
+      language:navigator.language,
+      screen_size:screen.width+'x'+screen.height,
+      referrer:document.referrer,
+      startTime:_startTime
+    };
     function selectNPS(qId,val,btn){document.querySelectorAll('[data-q="'+qId+'"]').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');surveyAnswers[qId]=val}
     function selectStar(qId,val){const stars=document.querySelectorAll('#stars_'+qId+' .star');stars.forEach((s,i)=>s.classList.toggle('selected',i<val));surveyAnswers[qId]=val}
     function selectYesNo(qId,val,btn){document.querySelectorAll('[data-q="'+qId+'"]').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');surveyAnswers[qId]=val}
@@ -328,7 +343,17 @@ function serveTraceForm(tracePoint) {
       ${surveyQuestions.filter(q => q.type === "nps").map(q => `if(surveyAnswers['${q.id}']!==undefined)npsScore=surveyAnswers['${q.id}'];`).join("")}
       const contactEmail=document.getElementById('contactEmail').value.trim()||null;
       const respondentType=qrToken?'staff':'anonymous';
-      const payload={respondent_type:respondentType,checklist_data:checklistData,survey_data:surveyData,nps_score:npsScore,contact_email:contactEmail};
+      const payload={
+        respondent_type:respondentType,checklist_data:checklistData,survey_data:surveyData,nps_score:npsScore,contact_email:contactEmail,
+        device_fingerprint:window._scanMeta.device_fingerprint,
+        browser:window._scanMeta.browser,
+        device_type:window._scanMeta.device_type,
+        os:window._scanMeta.os,
+        language:window._scanMeta.language,
+        screen_size:window._scanMeta.screen_size,
+        referrer:window._scanMeta.referrer,
+        time_on_page_seconds:Math.round((Date.now()-window._scanMeta.startTime)/1000)
+      };
       if(!navigator.onLine){const raw=localStorage.getItem(QUEUE_KEY);const queue=raw?JSON.parse(raw):[];queue.push(payload);localStorage.setItem(QUEUE_KEY,JSON.stringify(queue));document.getElementById('formArea').style.display='none';document.getElementById('successArea').style.display='block';if(contactEmail)document.getElementById('contactConfirm').style.display='block';return}
       try{const data=await submitPayload(payload);if(data.ok){document.getElementById('formArea').style.display='none';document.getElementById('successArea').style.display='block';if(contactEmail)document.getElementById('contactConfirm').style.display='block'}else{throw new Error(data.error||'Error al enviar')}}catch(ex){errEl.textContent=ex.message;errEl.style.display='block';btn.disabled=false;btn.textContent='Enviar respuesta'}
     });
@@ -1086,19 +1111,39 @@ export default {
           nps_score,
           contact_email,
           notes,
+          device_fingerprint,
+          browser,
+          device_type: clientDeviceType,
+          os,
+          language,
+          screen_size,
+          referrer,
+          time_on_page_seconds,
         } = body;
 
         const cf = request.cf || {};
         const ip = request.headers.get("CF-Connecting-IP") || "unknown";
         const country = cf.country || "unknown";
+        const city = cf.city || null;
+        const region = cf.region || null;
         const ua = request.headers.get("user-agent") || "";
-        const device = deviceType(ua);
+        const device = clientDeviceType || deviceType(ua);
+
+        // Calculate scan_sequence for this device fingerprint
+        let scanSequence = 1;
+        if (device_fingerprint) {
+          const seqRow = await env.DB.prepare(
+            "SELECT COUNT(*) as c FROM trace_responses WHERE point_id=? AND device_fingerprint=?"
+          ).bind(pointId, device_fingerprint).first();
+          scanSequence = (seqRow?.c ?? 0) + 1;
+        }
 
         const responseId = uuid();
         await env.DB.prepare(
           `INSERT INTO trace_responses
-           (id, point_id, respondent_type, user_id, checklist_data, survey_data, nps_score, contact_email, notes, ip, country, device)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+           (id, point_id, respondent_type, user_id, checklist_data, survey_data, nps_score, contact_email, notes, ip, country, device,
+            city, region, browser, device_type, os, time_on_page_seconds, scan_sequence, device_fingerprint, referrer, language, screen_size)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
         ).bind(
           responseId, pointId, respondent_type,
           respondentUserId || null,
@@ -1107,8 +1152,23 @@ export default {
           nps_score ?? null,
           contact_email || null,
           notes || null,
-          ip, country, device
+          ip, country, device,
+          city, region,
+          browser || null,
+          device || null,
+          os || null,
+          time_on_page_seconds ?? null,
+          scanSequence,
+          device_fingerprint || null,
+          referrer || null,
+          language || null,
+          screen_size || null
         ).run();
+
+        // Update scan_count and last_scan_at on the trace_point
+        await env.DB.prepare(
+          "UPDATE trace_points SET scan_count = scan_count + 1, last_scan_at = datetime('now') WHERE id=?"
+        ).bind(pointId).run();
 
         // Generate alerts
         const alertConfig = JSON.parse(point.alert_config || "{}");
@@ -1250,12 +1310,12 @@ export default {
         if (point.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
 
         const { name, area, description, template, qr_type, checklist_items, survey_questions, alert_config, is_active,
-                brand_color, brand_logo } = await request.json();
+                brand_color, brand_logo, trace_project_id, qr_style_json } = await request.json();
         await env.DB.prepare(
           `UPDATE trace_points SET
            name=?, area=?, description=?, template=?, qr_type=?,
            checklist_items=?, survey_questions=?, alert_config=?, is_active=?,
-           brand_color=?, brand_logo=?
+           brand_color=?, brand_logo=?, trace_project_id=?
            WHERE id=?`
         ).bind(
           name, area || null, description || null, template || "custom", qr_type || "mixed",
@@ -1265,6 +1325,7 @@ export default {
           is_active !== undefined ? (is_active ? 1 : 0) : 1,
           brand_color || "#2563eb",
           brand_logo || null,
+          trace_project_id || null,
           pointId
         ).run();
         return json({ ok: true });
@@ -1317,8 +1378,8 @@ export default {
         const id = uuid();
         await env.DB.prepare(
           `INSERT INTO trace_points
-           (id, user_id, name, area, description, template, qr_type, checklist_items, survey_questions, alert_config, brand_color, brand_logo)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+           (id, user_id, name, area, description, template, qr_type, checklist_items, survey_questions, alert_config, brand_color, brand_logo, trace_project_id, scan_count, is_active)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
         ).bind(
           id, user.sub, name, area || null, description || null,
           template || "custom", qr_type || "mixed",
@@ -1326,7 +1387,10 @@ export default {
           JSON.stringify(survey_questions || []),
           JSON.stringify(alert_config || {}),
           brand_color || "#2563eb",
-          brand_logo || null
+          brand_logo || null,
+          trace_project_id || null,
+          0,
+          1
         ).run();
 
         return json({ ok: true, point: { id, name } }, 201);
@@ -1987,6 +2051,217 @@ export default {
         if (!channel) return json({ ok: false, error: "Canal no encontrado" }, 404);
         // Simulated test — in production this would call the actual notification service
         return json({ ok: true, message: "Notificación de prueba enviada (simulado)" });
+      }
+
+      // ══════════════════════════════════════════
+      // TRACE — Analytics per point
+      // ══════════════════════════════════════════
+
+      // GET /api/trace/points/:id/analytics
+      if (path.match(/^\/api\/trace\/points\/[^/]+\/analytics$/) && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const pointId = path.split("/api/trace/points/")[1].replace("/analytics", "");
+        const point = await env.DB.prepare("SELECT user_id, scan_count FROM trace_points WHERE id=?").bind(pointId).first();
+        if (!point) return json({ ok: false, error: "Punto no encontrado" }, 404);
+        if (point.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+
+        const [
+          totalResp,
+          uniqueDev,
+          avgNpsRow,
+          avgTimeRow,
+          byDevice,
+          byBrowser,
+          byHour,
+          byDay,
+          byCountry,
+          byCity,
+          repeatScan,
+          npsDistrib,
+          recentResps,
+        ] = await Promise.all([
+          env.DB.prepare("SELECT COUNT(*) as c FROM trace_responses WHERE point_id=?").bind(pointId).first(),
+          env.DB.prepare("SELECT COUNT(DISTINCT device_fingerprint) as c FROM trace_responses WHERE point_id=? AND device_fingerprint IS NOT NULL").bind(pointId).first(),
+          env.DB.prepare("SELECT AVG(nps_score) as avg FROM trace_responses WHERE point_id=? AND nps_score IS NOT NULL").bind(pointId).first(),
+          env.DB.prepare("SELECT AVG(time_on_page_seconds) as avg FROM trace_responses WHERE point_id=? AND time_on_page_seconds IS NOT NULL").bind(pointId).first(),
+          env.DB.prepare("SELECT COALESCE(device_type, device, 'unknown') as dtype, COUNT(*) as c FROM trace_responses WHERE point_id=? GROUP BY dtype").bind(pointId).all(),
+          env.DB.prepare("SELECT browser, COUNT(*) as c FROM trace_responses WHERE point_id=? AND browser IS NOT NULL GROUP BY browser").bind(pointId).all(),
+          env.DB.prepare("SELECT strftime('%H', created_at) as hr, COUNT(*) as c FROM trace_responses WHERE point_id=? GROUP BY hr").bind(pointId).all(),
+          env.DB.prepare("SELECT strftime('%w', created_at) as dw, COUNT(*) as c FROM trace_responses WHERE point_id=? GROUP BY dw").bind(pointId).all(),
+          env.DB.prepare("SELECT country, COUNT(*) as c FROM trace_responses WHERE point_id=? GROUP BY country ORDER BY c DESC LIMIT 20").bind(pointId).all(),
+          env.DB.prepare("SELECT city, COUNT(*) as c FROM trace_responses WHERE point_id=? AND city IS NOT NULL GROUP BY city ORDER BY c DESC LIMIT 10").bind(pointId).all(),
+          env.DB.prepare("SELECT COUNT(*) as c FROM trace_responses WHERE point_id=? AND scan_sequence > 1").bind(pointId).first(),
+          env.DB.prepare("SELECT nps_score, COUNT(*) as c FROM trace_responses WHERE point_id=? AND nps_score IS NOT NULL GROUP BY nps_score").bind(pointId).all(),
+          env.DB.prepare("SELECT * FROM trace_responses WHERE point_id=? ORDER BY created_at DESC LIMIT 10").bind(pointId).all(),
+        ]);
+
+        const totalScans = point.scan_count || totalResp?.c || 0;
+        const totalResponses = totalResp?.c || 0;
+
+        // Build by_device map
+        const byDeviceMap = {};
+        for (const row of byDevice.results) { byDeviceMap[row.dtype] = row.c; }
+
+        // Build by_browser map
+        const byBrowserMap = {};
+        for (const row of byBrowser.results) { byBrowserMap[row.browser] = row.c; }
+
+        // Build by_hour map (0-23)
+        const byHourMap = {};
+        for (let h = 0; h < 24; h++) byHourMap[String(h)] = 0;
+        for (const row of byHour.results) { byHourMap[String(parseInt(row.hr))] = row.c; }
+
+        // Build by_day map (0=Sun..6=Sat mapped to Mon..Sun labels)
+        const dayLabels = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+        const byDayMap = {};
+        for (const d of dayLabels) byDayMap[d] = 0;
+        for (const row of byDay.results) { byDayMap[dayLabels[parseInt(row.dw)] || "?"] = row.c; }
+
+        // Build by_country map
+        const byCountryMap = {};
+        for (const row of byCountry.results) { byCountryMap[row.country] = row.c; }
+
+        // Build nps_distribution
+        const npsDistribMap = {};
+        for (let i = 1; i <= 10; i++) npsDistribMap[String(i)] = 0;
+        let lowNpsCount = 0;
+        for (const row of npsDistrib.results) {
+          npsDistribMap[String(row.nps_score)] = row.c;
+          if (row.nps_score < 7) lowNpsCount += row.c;
+        }
+
+        // Checklist compliance: fraction of responses where all required items are checked
+        const checklistItems = await env.DB.prepare("SELECT checklist_items FROM trace_points WHERE id=?").bind(pointId).first();
+        let checklistCompliance = null;
+        if (checklistItems?.checklist_items) {
+          const items = JSON.parse(checklistItems.checklist_items);
+          const required = items.filter(i => i.required);
+          if (required.length > 0 && totalResponses > 0) {
+            const allResps = await env.DB.prepare("SELECT checklist_data FROM trace_responses WHERE point_id=?").bind(pointId).all();
+            let compliant = 0;
+            for (const r of allResps.results) {
+              const cd = JSON.parse(r.checklist_data || "{}");
+              if (required.every(i => cd[i.id] === true)) compliant++;
+            }
+            checklistCompliance = parseFloat((compliant / totalResponses).toFixed(2));
+          }
+        }
+
+        return json({
+          ok: true,
+          analytics: {
+            total_scans: totalScans,
+            total_responses: totalResponses,
+            unique_devices: uniqueDev?.c || 0,
+            avg_nps: avgNpsRow?.avg ? parseFloat(avgNpsRow.avg.toFixed(1)) : null,
+            avg_time_on_page: avgTimeRow?.avg ? Math.round(avgTimeRow.avg) : null,
+            response_rate: totalScans > 0 ? parseFloat((totalResponses / totalScans).toFixed(2)) : 0,
+            by_device: byDeviceMap,
+            by_browser: byBrowserMap,
+            by_hour: byHourMap,
+            by_day: byDayMap,
+            by_country: byCountryMap,
+            by_city: byCity.results,
+            repeat_scanners: repeatScan?.c || 0,
+            checklist_compliance: checklistCompliance,
+            low_nps_count: lowNpsCount,
+            nps_distribution: npsDistribMap,
+            recent_responses: recentResps.results,
+          },
+        });
+      }
+
+      // GET /api/trace/analytics/summary
+      if (path === "/api/trace/analytics/summary" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+
+        const from = url.searchParams.get("from") || new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+        const to = url.searchParams.get("to") || new Date().toISOString().split("T")[0];
+
+        const points = await env.DB.prepare(
+          "SELECT id, name, scan_count FROM trace_points WHERE user_id=? ORDER BY scan_count DESC"
+        ).bind(user.sub).all();
+        const pointIds = points.results.map(p => p.id);
+
+        if (pointIds.length === 0) {
+          return json({ ok: true, summary: { total_scans: 0, total_responses: 0, unique_devices: 0, avg_nps: null, response_rate: 0, top_points: [], alert_summary: { total: 0, low_nps: 0, missed_checklist: 0 } } });
+        }
+
+        const placeholders = pointIds.map(() => "?").join(",");
+        const fromTs = from + " 00:00:00";
+        const toTs = to + " 23:59:59";
+
+        const [totalResp, uniqueDev, avgNpsRow, alertsRow] = await Promise.all([
+          env.DB.prepare(`SELECT COUNT(*) as c FROM trace_responses WHERE point_id IN (${placeholders}) AND created_at BETWEEN ? AND ?`).bind(...pointIds, fromTs, toTs).first(),
+          env.DB.prepare(`SELECT COUNT(DISTINCT device_fingerprint) as c FROM trace_responses WHERE point_id IN (${placeholders}) AND device_fingerprint IS NOT NULL AND created_at BETWEEN ? AND ?`).bind(...pointIds, fromTs, toTs).first(),
+          env.DB.prepare(`SELECT AVG(nps_score) as avg FROM trace_responses WHERE point_id IN (${placeholders}) AND nps_score IS NOT NULL AND created_at BETWEEN ? AND ?`).bind(...pointIds, fromTs, toTs).first(),
+          env.DB.prepare(`SELECT alert_type, COUNT(*) as c FROM trace_alerts WHERE point_id IN (${placeholders}) AND is_resolved=0 GROUP BY alert_type`).bind(...pointIds).all(),
+        ]);
+
+        const totalScans = points.results.reduce((s, p) => s + (p.scan_count || 0), 0);
+        const totalResponses = totalResp?.c || 0;
+
+        const alertSummary = { total: 0, low_nps: 0, missed_checklist: 0 };
+        for (const a of alertsRow.results) {
+          alertSummary.total += a.c;
+          if (a.alert_type === "low_nps") alertSummary.low_nps = a.c;
+          if (a.alert_type === "missed_checklist") alertSummary.missed_checklist = a.c;
+        }
+
+        return json({
+          ok: true,
+          summary: {
+            total_scans: totalScans,
+            total_responses: totalResponses,
+            unique_devices: uniqueDev?.c || 0,
+            avg_nps: avgNpsRow?.avg ? parseFloat(avgNpsRow.avg.toFixed(1)) : null,
+            response_rate: totalScans > 0 ? parseFloat((totalResponses / totalScans).toFixed(2)) : 0,
+            top_points: points.results.slice(0, 5).map(p => ({ id: p.id, name: p.name, scan_count: p.scan_count || 0 })),
+            alert_summary: alertSummary,
+          },
+        });
+      }
+
+      // ══════════════════════════════════════════
+      // R2 Image Upload
+      // ══════════════════════════════════════════
+
+      // POST /api/upload/image
+      if (path === "/api/upload/image" && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+
+        if (!env.ASSETS) return json({ ok: false, error: "R2 bucket no configurado" }, 500);
+
+        const sizeLimits = { free: 512 * 1024, starter: 2 * 1024 * 1024, pro: 10 * 1024 * 1024, enterprise: 50 * 1024 * 1024 };
+        const maxSize = sizeLimits[user.plan] || sizeLimits.free;
+
+        const formData = await request.formData();
+        const file = formData.get("file");
+        if (!file || typeof file === "string") return json({ ok: false, error: "Archivo requerido" }, 400);
+
+        const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/svg+xml"];
+        if (!allowedTypes.includes(file.type)) {
+          return json({ ok: false, error: "Formato no permitido. Usa JPG, PNG, WebP o SVG" }, 400);
+        }
+
+        if (file.size > maxSize) {
+          const maxMB = (maxSize / (1024 * 1024)).toFixed(0);
+          return json({ ok: false, error: `Archivo muy grande (máx ${maxMB}MB)` }, 400);
+        }
+
+        const extMap = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/svg+xml": "svg" };
+        const ext = extMap[file.type] || "bin";
+        const key = `uploads/${user.sub}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+        await env.ASSETS.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
+
+        return json({ ok: true, url: `https://assets.intaprd.com/${key}` }, 201);
       }
 
       // Root

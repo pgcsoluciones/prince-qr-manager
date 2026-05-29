@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { api } from "../utils/api.js";
 import { toast } from "./Toast.jsx";
+import ImageUpload from "./ImageUpload.jsx";
 
 const CHANNEL_DEFS = [
   { type: "email",    icon: "📧", label: "Correo electrónico", placeholder: "tu@empresa.com",          configKey: "email" },
@@ -171,19 +172,13 @@ export default function TraceConfigTab() {
             </div>
           </div>
 
-          <div>
-            <label className="text-xs font-medium text-slate-600 mb-1 block">URL del logotipo</label>
-            <input
-              type="url"
-              value={brandLogo}
-              onChange={e => setBrandLogo(e.target.value)}
-              placeholder="https://tu-empresa.com/logo.png"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
-            />
-            {brandLogo && (
-              <img src={brandLogo} alt="Vista previa del logo" className="h-10 mt-2 object-contain" onError={e => e.target.style.display = "none"} />
-            )}
-          </div>
+          <ImageUpload
+            label="Logotipo corporativo"
+            hint="JPG, PNG, WebP o SVG. Máx 2MB."
+            value={brandLogo}
+            onChange={setBrandLogo}
+            maxSizeMB={2}
+          />
 
           <p className="text-xs text-slate-400">
             Nota: El color y logo configurados aquí se aplican globalmente. Para personalizar punto por punto, usa la sección "Marca" dentro de cada punto de control.

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { api } from "../utils/api.js";
 import { toast } from "../components/Toast.jsx";
+import ImageUpload from "../components/ImageUpload.jsx";
 
 const TABS = ["General", "Notificaciones", "Agente IA", "Integraciones", "Peligroso"];
 
@@ -163,13 +164,13 @@ export default function SettingsPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">URL del logotipo</label>
-            <input className="input" value={generalForm.logo_url} onChange={(e) => setGeneral({ ...generalForm, logo_url: e.target.value })} placeholder="https://..." />
-            {generalForm.logo_url && (
-              <div className="mt-2 p-2 border border-slate-200 rounded-lg inline-block">
-                <img src={generalForm.logo_url} alt="Logo preview" className="h-12 object-contain" onError={(e) => { e.target.style.display = "none"; }} />
-              </div>
-            )}
+            <ImageUpload
+              label="Logotipo de la empresa"
+              hint="JPG, PNG, WebP o SVG. Máx 2MB."
+              value={generalForm.logo_url}
+              onChange={(url) => setGeneral({ ...generalForm, logo_url: url })}
+              maxSizeMB={2}
+            />
           </div>
           <button onClick={() => save(generalForm)} disabled={saving} className="btn-primary">
             {saving ? "Guardando..." : "Guardar cambios"}

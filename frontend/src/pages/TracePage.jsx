@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { api } from "../utils/api.js";
 import { toast } from "../components/Toast.jsx";
 import TracePointModal from "../components/TracePointModal.jsx";
+import TraceQRPanel from "../components/TraceQRPanel.jsx";
 import TraceAutomationsTab from "../components/TraceAutomationsTab.jsx";
 import TraceCRMTab from "../components/TraceCRMTab.jsx";
 import TraceConfigTab from "../components/TraceConfigTab.jsx";
@@ -352,7 +353,7 @@ function AlertRow({ alert, onResolve }) {
 }
 
 /* ── Point card (for grid view) ── */
-function PointCard({ point, alertCount, onEdit, onDelete }) {
+function PointCard({ point, alertCount, onEdit, onDelete, onShowQR }) {
   const navigate = useNavigate();
   const qrUrl = `https://qr.intaprd.com/t/${point.id}`;
   return (
@@ -387,11 +388,11 @@ function PointCard({ point, alertCount, onEdit, onDelete }) {
           Editar
         </button>
         <button
-          onClick={() => window.open(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrUrl)}`, "_blank")}
-          data-tooltip="Descargar código QR para imprimir"
-          className="text-xs px-2.5 py-1.5 bg-slate-50 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors"
+          onClick={() => onShowQR(point)}
+          data-tooltip="Ver y descargar código QR"
+          className="text-xs px-2.5 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-medium transition-colors"
         >
-          QR
+          Ver QR
         </button>
         <button
           onClick={() => onDelete(point)}
@@ -603,6 +604,7 @@ export default function TracePage() {
   const [activeTab, setActiveTab] = useState("puntos");
   const [showTour, setShowTour] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [qrPanelPoint, setQrPanelPoint] = useState(null);
   const didCheckOnboarding = useRef(false);
 
   const canUseTRACE = ["pro", "enterprise"].includes(user?.plan) || user?.role === "superadmin";
@@ -665,12 +667,14 @@ export default function TracePage() {
     loadData();
     toast.success(editingPoint ? "Punto actualizado" : "Punto de control creado");
   }
+  function handleShowQR(point) { setQrPanelPoint(point); }
 
   function handleOnboardingCreated(point) {
     localStorage.setItem("trace_onboarding_dismissed", "1");
     setShowOnboarding(false);
     loadData();
-    toast.success(`Punto "${point.name}" creado. Ahora puedes descargar tu QR.`);
+    // Show QR panel immediately after creation
+    setQrPanelPoint(point);
   }
 
   function handleOnboardingDismiss() {
@@ -804,6 +808,7 @@ export default function TracePage() {
                         alertCount={alertsByPoint[p.id] || 0}
                         onEdit={handleEdit}
                         onDelete={handleDelete}
+                        onShowQR={handleShowQR}
                       />
                     ))}
                   </div>
@@ -856,6 +861,14 @@ export default function TracePage() {
           point={editingPoint}
           onClose={() => setShowModal(false)}
           onSaved={handleSaved}
+        />
+      )}
+
+      {/* QR Panel modal */}
+      {qrPanelPoint && (
+        <TraceQRPanel
+          point={qrPanelPoint}
+          onClose={() => setQrPanelPoint(null)}
         />
       )}
     </div>

@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { api } from "../utils/api.js";
 import { toast } from "./Toast.jsx";
+import ImageUpload from "./ImageUpload.jsx";
+import TraceLandingPreview from "./TraceLandingPreview.jsx";
 
 /* ── Template presets ── */
 const TEMPLATES = {
@@ -428,35 +430,25 @@ export default function TracePointModal({ point, onClose, onSaved }) {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">URL del logotipo (opcional)</label>
-                <input
-                  type="url"
-                  value={brandLogo}
-                  onChange={e => setBrandLogo(e.target.value)}
-                  placeholder="https://tu-empresa.com/logo.png"
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                />
-                {brandLogo && (
-                  <img
-                    src={brandLogo}
-                    alt="Vista previa del logotipo"
-                    className="h-10 mt-2 object-contain rounded border border-slate-100"
-                    onError={e => { e.target.style.display = "none"; }}
-                  />
-                )}
-              </div>
+              <ImageUpload
+                label="Logotipo (opcional)"
+                hint="JPG, PNG, WebP o SVG. Máx 2MB."
+                value={brandLogo}
+                onChange={setBrandLogo}
+                maxSizeMB={2}
+              />
 
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                <p className="text-xs font-semibold text-slate-500 mb-3">Vista previa de cómo verán el QR tus clientes</p>
-                <div className="rounded-xl p-4 text-white text-sm font-semibold" style={{ background: brandColor }}>
-                  {brandLogo ? (
-                    <img src={brandLogo} alt="Logo" className="h-6 mb-2 object-contain" onError={e => { e.target.style.display="none"; }} />
-                  ) : (
-                    <p className="text-xs mb-1 opacity-80">Intap TRACE</p>
-                  )}
-                  <p>{name || "Nombre del punto de control"}</p>
-                </div>
+                <p className="text-xs font-semibold text-slate-500 mb-3">Vista previa de la landing pública</p>
+                <TraceLandingPreview point={{
+                  name,
+                  area,
+                  qr_type: qrType,
+                  brand_color: brandColor,
+                  brand_logo: brandLogo,
+                  checklist_items: checklistItems,
+                  survey_questions: surveyQuestions,
+                }} />
               </div>
             </div>
           )}
