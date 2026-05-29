@@ -789,6 +789,256 @@ export default {
         return json({ ok: true, migrated, skipped, errors });
       }
 
+      // ══════════════════════════════════════════
+      // TRACE — public endpoints (no auth)
+      // ══════════════════════════════════════════
+
+      // GET /api/trace/public/:pointId — get point config for form rendering
+      if (path.match(/^\/api\/trace\/public\/[^/]+$/) && method === "GET") {
+        const pointId = path.split("/api/trace/public/")[1];
+        const point = await env.DB.prepare(
+          "SELECT id, name, area, qr_type, checklist_items, survey_questions FROM trace_points WHERE id=? AND is_active=1"
+        ).bind(pointId).first();
+        if (!point) return json({ ok: false, error: "Punto no encontrado" }, 404);
+        return json({ ok: true, point: {
+          ...point,
+          checklist_items: JSON.parse(point.checklist_items || "[]"),
+          survey_questions: JSON.parse(point.survey_questions || "[]"),
+        }});
+      }
+
+      // POST /api/trace/public/:pointId/respond — submit response
+      if (path.match(/^\/api\/trace\/public\/[^/]+\/respond$/) && method === "POST") {
+        const pointId = path.split("/api/trace/public/")[1].replace("/respond", "");
+        const point = await env.DB.prepare(
+          "SELECT * FROM trace_points WHERE id=? AND is_active=1"
+        ).bind(pointId).first();
+        if (!point) return json({ ok: false, error: "Punto no encontrado" }, 404);
+
+        const body = await request.json();
+        const {
+          respondent_type = "anonymous",
+          user_id: respondentUserId,
+          checklist_data = {},
+          survey_data = {},
+          nps_score,
+          contact_email,
+          notes,
+        } = body;
+
+        const cf = request.cf || {};
+        const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+        const country = cf.country || "unknown";
+        const ua = request.headers.get("user-agent") || "";
+        const device = deviceType(ua);
+
+        const responseId = uuid();
+        await env.DB.prepare(
+          `INSERT INTO trace_responses
+           (id, point_id, respondent_type, user_id, checklist_data, survey_data, nps_score, contact_email, notes, ip, country, device)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+        ).bind(
+          responseId, pointId, respondent_type,
+          respondentUserId || null,
+          JSON.stringify(checklist_data),
+          JSON.stringify(survey_data),
+          nps_score ?? null,
+          contact_email || null,
+          notes || null,
+          ip, country, device
+        ).run();
+
+        // Generate alerts
+        const alertConfig = JSON.parse(point.alert_config || "{}");
+        const npsThreshold = alertConfig.nps_threshold ?? 7;
+        const alertOps = [];
+
+        if (nps_score !== undefined && nps_score !== null && nps_score < npsThreshold) {
+          alertOps.push(env.DB.prepare(
+            "INSERT INTO trace_alerts (id, point_id, user_id, alert_type, message) VALUES (?,?,?,?,?)"
+          ).bind(uuid(), pointId, point.user_id, "low_nps", `NPS score ${nps_score} está por debajo del umbral ${npsThreshold}`).run());
+        }
+
+        const checklistItems = JSON.parse(point.checklist_items || "[]");
+        const requiredItems = checklistItems.filter(i => i.required);
+        const hasMissedRequired = requiredItems.some(i => !checklist_data[i.id]);
+        if (requiredItems.length > 0 && hasMissedRequired) {
+          alertOps.push(env.DB.prepare(
+            "INSERT INTO trace_alerts (id, point_id, user_id, alert_type, message) VALUES (?,?,?,?,?)"
+          ).bind(uuid(), pointId, point.user_id, "missed_checklist", "Ítems obligatorios del checklist no completados").run());
+        }
+
+        if (alertOps.length > 0) {
+          ctx.waitUntil(Promise.all(alertOps));
+        }
+
+        return json({ ok: true, response_id: responseId }, 201);
+      }
+
+      // ══════════════════════════════════════════
+      // TRACE — authenticated endpoints
+      // ══════════════════════════════════════════
+
+      // GET /api/trace/alerts
+      if (path === "/api/trace/alerts" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const result = await env.DB.prepare(
+          "SELECT * FROM trace_alerts WHERE user_id=? AND is_resolved=0 ORDER BY created_at DESC LIMIT 100"
+        ).bind(user.sub).all();
+        return json({ ok: true, alerts: result.results });
+      }
+
+      // PATCH /api/trace/alerts/:id/resolve
+      if (path.match(/^\/api\/trace\/alerts\/[^/]+\/resolve$/) && method === "PATCH") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const alertId = path.split("/api/trace/alerts/")[1].replace("/resolve", "");
+        const alert = await env.DB.prepare("SELECT user_id FROM trace_alerts WHERE id=?").bind(alertId).first();
+        if (!alert) return json({ ok: false, error: "Alerta no encontrada" }, 404);
+        if (alert.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+        await env.DB.prepare("UPDATE trace_alerts SET is_resolved=1 WHERE id=?").bind(alertId).run();
+        return json({ ok: true });
+      }
+
+      // GET /api/trace/responses — all responses for user's points
+      if (path === "/api/trace/responses" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const limit = parseInt(url.searchParams.get("limit") || "50");
+        const offset = parseInt(url.searchParams.get("offset") || "0");
+        const result = await env.DB.prepare(
+          `SELECT tr.* FROM trace_responses tr
+           JOIN trace_points tp ON tr.point_id = tp.id
+           WHERE tp.user_id=?
+           ORDER BY tr.created_at DESC LIMIT ? OFFSET ?`
+        ).bind(user.sub, limit, offset).all();
+        return json({ ok: true, responses: result.results });
+      }
+
+      // GET /api/trace/points/:id/responses
+      if (path.match(/^\/api\/trace\/points\/[^/]+\/responses$/) && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const pointId = path.split("/api/trace/points/")[1].replace("/responses", "");
+        const point = await env.DB.prepare("SELECT user_id FROM trace_points WHERE id=?").bind(pointId).first();
+        if (!point) return json({ ok: false, error: "Punto no encontrado" }, 404);
+        if (point.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+        const limit = parseInt(url.searchParams.get("limit") || "50");
+        const offset = parseInt(url.searchParams.get("offset") || "0");
+        const result = await env.DB.prepare(
+          "SELECT * FROM trace_responses WHERE point_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        ).bind(pointId, limit, offset).all();
+        return json({ ok: true, responses: result.results });
+      }
+
+      // GET /api/trace/points/:id
+      if (path.match(/^\/api\/trace\/points\/[^/]+$/) && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const pointId = path.split("/api/trace/points/")[1];
+        const point = await env.DB.prepare("SELECT * FROM trace_points WHERE id=?").bind(pointId).first();
+        if (!point) return json({ ok: false, error: "Punto no encontrado" }, 404);
+        if (point.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+        return json({ ok: true, point: {
+          ...point,
+          checklist_items: JSON.parse(point.checklist_items || "[]"),
+          survey_questions: JSON.parse(point.survey_questions || "[]"),
+          alert_config: JSON.parse(point.alert_config || "{}"),
+        }});
+      }
+
+      // PUT /api/trace/points/:id
+      if (path.match(/^\/api\/trace\/points\/[^/]+$/) && method === "PUT") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const pointId = path.split("/api/trace/points/")[1];
+        const point = await env.DB.prepare("SELECT user_id FROM trace_points WHERE id=?").bind(pointId).first();
+        if (!point) return json({ ok: false, error: "Punto no encontrado" }, 404);
+        if (point.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+
+        const { name, area, description, template, qr_type, checklist_items, survey_questions, alert_config, is_active } = await request.json();
+        await env.DB.prepare(
+          `UPDATE trace_points SET
+           name=?, area=?, description=?, template=?, qr_type=?,
+           checklist_items=?, survey_questions=?, alert_config=?, is_active=?
+           WHERE id=?`
+        ).bind(
+          name, area || null, description || null, template || "custom", qr_type || "mixed",
+          JSON.stringify(checklist_items || []),
+          JSON.stringify(survey_questions || []),
+          JSON.stringify(alert_config || {}),
+          is_active !== undefined ? (is_active ? 1 : 0) : 1,
+          pointId
+        ).run();
+        return json({ ok: true });
+      }
+
+      // DELETE /api/trace/points/:id
+      if (path.match(/^\/api\/trace\/points\/[^/]+$/) && method === "DELETE") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const pointId = path.split("/api/trace/points/")[1];
+        const point = await env.DB.prepare("SELECT user_id FROM trace_points WHERE id=?").bind(pointId).first();
+        if (!point) return json({ ok: false, error: "Punto no encontrado" }, 404);
+        if (point.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+        await env.DB.prepare("DELETE FROM trace_points WHERE id=?").bind(pointId).run();
+        return json({ ok: true });
+      }
+
+      // GET /api/trace/points
+      if (path === "/api/trace/points" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const result = await env.DB.prepare(
+          "SELECT * FROM trace_points WHERE user_id=? ORDER BY created_at DESC"
+        ).bind(user.sub).all();
+        return json({ ok: true, points: result.results.map(p => ({
+          ...p,
+          checklist_items: JSON.parse(p.checklist_items || "[]"),
+          survey_questions: JSON.parse(p.survey_questions || "[]"),
+          alert_config: JSON.parse(p.alert_config || "{}"),
+        }))});
+      }
+
+      // POST /api/trace/points
+      if (path === "/api/trace/points" && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+
+        // Plan gate
+        if (!["pro", "enterprise"].includes(user.plan) && user.role !== "superadmin") {
+          return json({ ok: false, error: "TRACE requiere plan Pro o superior" }, 403);
+        }
+
+        const { name, area, description, template, qr_type, checklist_items, survey_questions, alert_config } = await request.json();
+        if (!name) return json({ ok: false, error: "Nombre requerido" }, 400);
+
+        const id = uuid();
+        await env.DB.prepare(
+          `INSERT INTO trace_points
+           (id, user_id, name, area, description, template, qr_type, checklist_items, survey_questions, alert_config)
+           VALUES (?,?,?,?,?,?,?,?,?,?)`
+        ).bind(
+          id, user.sub, name, area || null, description || null,
+          template || "custom", qr_type || "mixed",
+          JSON.stringify(checklist_items || []),
+          JSON.stringify(survey_questions || []),
+          JSON.stringify(alert_config || {})
+        ).run();
+
+        return json({ ok: true, point: { id, name } }, 201);
+      }
+
       // Root
       return json({ ok: true, service: "prince-qr-manager", version: "2.1.0" });
 
