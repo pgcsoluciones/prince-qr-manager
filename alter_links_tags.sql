@@ -1,1 +1,1 @@
-ALTER TABLE qr_links ADD COLUMN tags TEXT DEFAULT '[]';
+ALTER TABLE short_links ADD COLUMN tags TEXT DEFAULT '[]';
