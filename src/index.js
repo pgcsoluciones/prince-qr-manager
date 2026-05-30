@@ -575,7 +575,8 @@ export default {
           "SELECT id, email, password_hash, role, plan, is_active FROM users WHERE email=?"
         ).bind(email.toLowerCase()).first();
 
-        if (!user || !user.is_active) return json({ ok: false, error: "Credenciales inválidas" }, 401);
+        if (!user) return json({ ok: false, error: "Credenciales inválidas" }, 401);
+        if (user.is_active === 0) return json({ ok: false, error: "Cuenta desactivada. Contacta al administrador." }, 401);
 
         const ok = await bcrypt.compare(password, user.password_hash);
         if (!ok) return json({ ok: false, error: "Credenciales inválidas" }, 401);
