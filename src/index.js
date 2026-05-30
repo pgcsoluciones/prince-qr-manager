@@ -144,14 +144,22 @@ async function saveAnalytics(db, slug, country, city, device, ua) {
 // TRACE form HTML renderer (shared between t/ prefix and direct ID)
 // ──────────────────────────────────────────────
 
-function serveTraceForm(tracePoint) {
+function serveTraceForm(tracePoint, profile = null, staffMode = false) {
   const checklistItems = JSON.parse(tracePoint.checklist_items || "[]");
   const surveyQuestions = JSON.parse(tracePoint.survey_questions || "[]");
   const qrType = tracePoint.qr_type || "mixed";
-  const brandColor = tracePoint.brand_color || "#2563eb";
-  const brandLogo = tracePoint.brand_logo || null;
+  const brandColor = profile?.brand_color || tracePoint.brand_color || "#2563eb";
+  const brandLogo = profile?.company_logo || tracePoint.brand_logo || null;
+  const companyName = profile?.company_name || null;
+  const coverImage = profile?.cover_image || null;
+  const coverMessage = profile?.cover_message || "¡Gracias por tu visita!";
 
-  const checklistHtml = (qrType === "checklist" || qrType === "mixed") && checklistItems.length > 0 ? `
+  // staff_mode logic for mixed points
+  const showChecklist = qrType === "checklist" || (qrType === "mixed" && staffMode);
+  const showSurvey = qrType === "survey" || (qrType === "mixed" && !staffMode);
+  const showReferral = (qrType === "survey" || qrType === "mixed") && !staffMode;
+
+  const checklistHtml = showChecklist && checklistItems.length > 0 ? `
     <div class="section">
       <h2 class="section-title">Checklist de verificación</h2>
       ${checklistItems.map(item => `
@@ -163,7 +171,7 @@ function serveTraceForm(tracePoint) {
     </div>
   ` : "";
 
-  const surveyHtml = (qrType === "survey" || qrType === "mixed") && surveyQuestions.length > 0 ? `
+  const surveyHtml = showSurvey && surveyQuestions.length > 0 ? `
     <div class="section">
       <h2 class="section-title">Encuesta</h2>
       ${surveyQuestions.map(q => {
@@ -174,6 +182,7 @@ function serveTraceForm(tracePoint) {
               ${[1,2,3,4,5,6,7,8,9,10].map(n => `<button type="button" class="nps-btn" data-q="${q.id}" data-val="${n}" onclick="selectNPS('${q.id}',${n},this)">${n}</button>`).join("")}
             </div>
             <div class="nps-labels"><span>Muy malo</span><span>Excelente</span></div>
+            <p style="font-size:11px;color:#94a3b8;margin-top:6px">Puntuaciones 9-10 = Promotores · 7-8 = Neutros · 0-6 = Detractores</p>
           </div>`;
         if (q.type === "rating") return `
           <div class="question" id="q_${q.id}">
@@ -280,8 +289,23 @@ function serveTraceForm(tracePoint) {
       <form id="traceForm">
         ${checklistHtml ? `<div class="card">${checklistHtml}</div>` : ""}
         ${surveyHtml ? `<div class="card">${surveyHtml}</div>` : ""}
+        ${showReferral ? `
         <div class="card contact-section">
-          <p class="contact-label">Quieres que te contactemos? (opcional)</p>
+          <p class="contact-label">¿Cómo te enteraste de nosotros? <span style="color:#94a3b8;font-size:12px">(opcional)</span></p>
+          <select id="referralSource" style="width:100%;border:2px solid #e2e8f0;border-radius:10px;padding:12px 14px;font-family:inherit;font-size:14px;outline:none;background:white;min-height:44px;color:#374151">
+            <option value="">Seleccionar...</option>
+            <option value="google">Google / búsqueda web</option>
+            <option value="ia">Búsqueda con IA (ChatGPT, Gemini, etc.)</option>
+            <option value="redes_sociales">Redes sociales</option>
+            <option value="anuncio">Anuncio / publicidad</option>
+            <option value="recomendacion">Recomendación de un amigo</option>
+            <option value="primera_vez">Primera visita</option>
+            <option value="recurrente">Soy cliente recurrente</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>` : ""}
+        <div class="card contact-section">
+          <p class="contact-label">¿Quieres que te contactemos? (opcional)</p>
           <input type="email" id="contactEmail" class="email-input" placeholder="tu@correo.com">
         </div>
         <div id="errorMsg" class="error-msg"></div>
@@ -289,12 +313,25 @@ function serveTraceForm(tracePoint) {
       </form>
     </div>
     <div id="successArea" style="display:none">
+      ${coverImage ? `
+      <div style="position:fixed;inset:0;background:url('${coverImage}') center/cover;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px;z-index:100">
+        <div style="background:rgba(0,0,0,0.45);border-radius:24px;padding:40px 32px;max-width:400px;width:100%">
+          ${brandLogo ? `<img src="${brandLogo}" alt="Logo" style="height:56px;object-fit:contain;margin:0 auto 20px;display:block">` : ""}
+          <div style="font-size:56px;margin-bottom:16px">✓</div>
+          <h2 style="color:white;font-size:26px;font-weight:700;margin-bottom:12px">${coverMessage}</h2>
+          <p style="color:rgba(255,255,255,0.8);font-size:14px;margin-bottom:24px">Tu respuesta ha sido registrada. ¡Gracias!</p>
+          <div id="contactConfirm" style="display:none;background:rgba(255,255,255,0.15);border-radius:10px;padding:10px 16px;color:white;font-size:13px;margin-bottom:16px">Te contactaremos pronto</div>
+          <button onclick="window.close()" style="background:${brandColor};color:white;border:none;border-radius:12px;padding:14px 32px;font-size:15px;font-weight:700;cursor:pointer">Cerrar</button>
+        </div>
+      </div>` : `
       <div class="success-card">
         <span class="check-anim">&#10003;</span>
-        <h2>Gracias por tu respuesta</h2>
+        ${brandLogo ? `<img src="${brandLogo}" alt="Logo" style="height:36px;object-fit:contain;margin:0 auto 12px;display:block">` : ""}
+        <h2>${coverMessage}</h2>
         <p>Tu respuesta ha sido registrada correctamente.</p>
+        ${companyName ? `<p style="margin-top:8px;font-size:12px;color:#15803d;opacity:0.8">${companyName}</p>` : ""}
         <div id="contactConfirm" class="success-contact-msg">Te contactaremos pronto</div>
-      </div>
+      </div>`}
     </div>
     <p class="powered">Verificacion por <a href="https://code.intaprd.com" target="_blank">Intap Code</a></p>
   </div>
@@ -342,9 +379,11 @@ function serveTraceForm(tracePoint) {
       let npsScore=null;
       ${surveyQuestions.filter(q => q.type === "nps").map(q => `if(surveyAnswers['${q.id}']!==undefined)npsScore=surveyAnswers['${q.id}'];`).join("")}
       const contactEmail=document.getElementById('contactEmail').value.trim()||null;
+      const referralEl=document.getElementById('referralSource');
+      const referralSource=referralEl?referralEl.value||null:null;
       const respondentType=qrToken?'staff':'anonymous';
       const payload={
-        respondent_type:respondentType,checklist_data:checklistData,survey_data:surveyData,nps_score:npsScore,contact_email:contactEmail,
+        respondent_type:respondentType,checklist_data:checklistData,survey_data:surveyData,nps_score:npsScore,contact_email:contactEmail,referral_source:referralSource,
         device_fingerprint:window._scanMeta.device_fingerprint,
         browser:window._scanMeta.browser,
         device_type:window._scanMeta.device_type,
@@ -354,8 +393,8 @@ function serveTraceForm(tracePoint) {
         referrer:window._scanMeta.referrer,
         time_on_page_seconds:Math.round((Date.now()-window._scanMeta.startTime)/1000)
       };
-      if(!navigator.onLine){const raw=localStorage.getItem(QUEUE_KEY);const queue=raw?JSON.parse(raw):[];queue.push(payload);localStorage.setItem(QUEUE_KEY,JSON.stringify(queue));document.getElementById('formArea').style.display='none';document.getElementById('successArea').style.display='block';if(contactEmail)document.getElementById('contactConfirm').style.display='block';return}
-      try{const data=await submitPayload(payload);if(data.ok){document.getElementById('formArea').style.display='none';document.getElementById('successArea').style.display='block';if(contactEmail)document.getElementById('contactConfirm').style.display='block'}else{throw new Error(data.error||'Error al enviar')}}catch(ex){errEl.textContent=ex.message;errEl.style.display='block';btn.disabled=false;btn.textContent='Enviar respuesta'}
+      if(!navigator.onLine){const raw=localStorage.getItem(QUEUE_KEY);const queue=raw?JSON.parse(raw):[];queue.push(payload);localStorage.setItem(QUEUE_KEY,JSON.stringify(queue));document.getElementById('formArea').style.display='none';document.getElementById('successArea').style.display='block';if(contactEmail){const cc=document.getElementById('contactConfirm');if(cc)cc.style.display='block';}return}
+      try{const data=await submitPayload(payload);if(data.ok){document.getElementById('formArea').style.display='none';document.getElementById('successArea').style.display='block';if(contactEmail){const cc=document.getElementById('contactConfirm');if(cc)cc.style.display='block';}}else{throw new Error(data.error||'Error al enviar')}}catch(ex){errEl.textContent=ex.message;errEl.style.display='block';btn.disabled=false;btn.textContent='Enviar respuesta'}
     });
   </script>
 </body>
@@ -394,14 +433,22 @@ export default {
         if (cached === "INACTIVE") return new Response("Enlace inactivo", { status: 404 });
         if (cached === "EXPIRED")  return new Response("Enlace expirado", { status: 410 });
 
-        // Check if slug starts with 't/' — TRACE point URL (qr.intaprd.com/t/:pointId)
+        // Check if slug starts with 't/' — TRACE point URL (qr.intaprd.com/t/:pointId or /t/:slug)
         if (slug.startsWith("t/")) {
-          const pointId = slug.slice(2);
-          const tracePoint = await env.DB.prepare(
-            "SELECT id, name, area, qr_type, checklist_items, survey_questions, brand_color, brand_logo FROM trace_points WHERE id=? AND is_active=1"
-          ).bind(pointId).first();
+          const pointRef = slug.slice(2);
+          const staffMode = url.searchParams.get("staff") === "1";
+          // Try UUID first, then slug
+          let tracePoint = await env.DB.prepare(
+            "SELECT tp.*, u.id as owner_id FROM trace_points tp JOIN users u ON tp.user_id=u.id WHERE tp.id=? AND tp.is_active=1"
+          ).bind(pointRef).first();
+          if (!tracePoint) {
+            tracePoint = await env.DB.prepare(
+              "SELECT tp.*, u.id as owner_id FROM trace_points tp JOIN users u ON tp.user_id=u.id WHERE tp.point_slug=? AND tp.is_active=1"
+            ).bind(pointRef).first();
+          }
           if (tracePoint) {
-            return serveTraceForm(tracePoint);
+            const profile = await env.DB.prepare("SELECT * FROM tenant_profiles WHERE tenant_id=?").bind(tracePoint.user_id).first().catch(() => null);
+            return serveTraceForm(tracePoint, profile, staffMode);
           }
           return new Response("Punto TRACE no encontrado", { status: 404 });
         }
@@ -414,10 +461,11 @@ export default {
         // Check if slug is a trace_point (direct ID match)
         if (!link) {
           const tracePoint = await env.DB.prepare(
-            "SELECT id, name, area, qr_type, checklist_items, survey_questions, brand_color, brand_logo FROM trace_points WHERE id=? AND is_active=1"
+            "SELECT * FROM trace_points WHERE id=? AND is_active=1"
           ).bind(slug).first();
           if (tracePoint) {
-            return serveTraceForm(tracePoint);
+            const profile = await env.DB.prepare("SELECT * FROM tenant_profiles WHERE tenant_id=?").bind(tracePoint.user_id).first().catch(() => null);
+            return serveTraceForm(tracePoint, profile, false);
           }
         }
 
@@ -1119,7 +1167,19 @@ export default {
           screen_size,
           referrer,
           time_on_page_seconds,
+          referral_source,
         } = body;
+
+        // Rate limiting by device_fingerprint
+        if (device_fingerprint) {
+          const windowHours = point.qr_type === "checklist" ? 1 : 24;
+          const recent = await env.DB.prepare(
+            `SELECT id FROM trace_responses WHERE point_id=? AND device_fingerprint=? AND created_at > datetime('now', '-${windowHours} hours') LIMIT 1`
+          ).bind(pointId, device_fingerprint).first();
+          if (recent) {
+            return json({ ok: false, error: `Ya enviaste una respuesta recientemente. Intenta de nuevo en ${windowHours === 1 ? "1 hora" : "24 horas"}.` }, 429);
+          }
+        }
 
         const cf = request.cf || {};
         const ip = request.headers.get("CF-Connecting-IP") || "unknown";
@@ -1142,8 +1202,8 @@ export default {
         await env.DB.prepare(
           `INSERT INTO trace_responses
            (id, point_id, respondent_type, user_id, checklist_data, survey_data, nps_score, contact_email, notes, ip, country, device,
-            city, region, browser, device_type, os, time_on_page_seconds, scan_sequence, device_fingerprint, referrer, language, screen_size)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+            city, region, browser, device_type, os, time_on_page_seconds, scan_sequence, device_fingerprint, referrer, language, screen_size, referral_source)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
         ).bind(
           responseId, pointId, respondent_type,
           respondentUserId || null,
@@ -1162,7 +1222,8 @@ export default {
           device_fingerprint || null,
           referrer || null,
           language || null,
-          screen_size || null
+          screen_size || null,
+          referral_source || null
         ).run();
 
         // Update scan_count and last_scan_at on the trace_point
@@ -1376,10 +1437,13 @@ export default {
         if (!name) return json({ ok: false, error: "Nombre requerido" }, 400);
 
         const id = uuid();
+        const slugBase = name.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,30);
+        const slugSuffix = Math.random().toString(36).slice(2,6);
+        const pointSlug = `${slugBase}-${slugSuffix}`;
         await env.DB.prepare(
           `INSERT INTO trace_points
-           (id, user_id, name, area, description, template, qr_type, checklist_items, survey_questions, alert_config, brand_color, brand_logo, trace_project_id, scan_count, is_active)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+           (id, user_id, name, area, description, template, qr_type, checklist_items, survey_questions, alert_config, brand_color, brand_logo, trace_project_id, scan_count, is_active, point_slug)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
         ).bind(
           id, user.sub, name, area || null, description || null,
           template || "custom", qr_type || "mixed",
@@ -1390,10 +1454,11 @@ export default {
           brand_logo || null,
           trace_project_id || null,
           0,
-          1
+          1,
+          pointSlug
         ).run();
 
-        return json({ ok: true, point: { id, name } }, 201);
+        return json({ ok: true, point: { id, name, point_slug: pointSlug } }, 201);
       }
 
       // ══════════════════════════════════════════
@@ -1593,6 +1658,34 @@ export default {
           await env.DB.prepare(
             "INSERT INTO tenant_ai_config (user_id, llm_provider, llm_api_key, system_prompt, weekly_report_enabled) VALUES (?,?,?,?,?)"
           ).bind(user.sub, body.llm_provider || "claude", body.llm_api_key || null, body.system_prompt || null, body.weekly_report_enabled !== false ? 1 : 0).run();
+        }
+        return json({ ok: true });
+      }
+
+      // GET /api/settings/profile
+      if (path === "/api/settings/profile" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const profile = await env.DB.prepare("SELECT * FROM tenant_profiles WHERE tenant_id=?").bind(user.sub).first().catch(() => null);
+        return json({ ok: true, profile: profile || {} });
+      }
+
+      // PUT /api/settings/profile
+      if (path === "/api/settings/profile" && method === "PUT") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const { company_name, company_address, company_phone, company_email, company_logo, brand_color, cover_image, cover_message } = await request.json();
+        const existing = await env.DB.prepare("SELECT tenant_id FROM tenant_profiles WHERE tenant_id=?").bind(user.sub).first().catch(() => null);
+        if (existing) {
+          await env.DB.prepare(
+            `UPDATE tenant_profiles SET company_name=?,company_address=?,company_phone=?,company_email=?,company_logo=?,brand_color=?,cover_image=?,cover_message=?,updated_at=datetime('now') WHERE tenant_id=?`
+          ).bind(company_name||null,company_address||null,company_phone||null,company_email||null,company_logo||null,brand_color||"#2563eb",cover_image||null,cover_message||"¡Gracias por tu visita!",user.sub).run();
+        } else {
+          await env.DB.prepare(
+            `INSERT INTO tenant_profiles (tenant_id,company_name,company_address,company_phone,company_email,company_logo,brand_color,cover_image,cover_message) VALUES (?,?,?,?,?,?,?,?,?)`
+          ).bind(user.sub,company_name||null,company_address||null,company_phone||null,company_email||null,company_logo||null,brand_color||"#2563eb",cover_image||null,cover_message||"¡Gracias por tu visita!").run();
         }
         return json({ ok: true });
       }

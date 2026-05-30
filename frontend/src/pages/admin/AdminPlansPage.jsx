@@ -182,7 +182,6 @@ function PlanCard({ plan, onSave }) {
 
   const [saving, setSaving]     = useState(false);
   const [success, setSuccess]   = useState(false);
-  const [expanded, setExpanded] = useState(false);
 
   const setField = (key, val) => setForm(f => ({ ...f, [key]: val }));
   const setFeature = (key, val) => setForm(f => ({ ...f, features: { ...f.features, [key]: val } }));
@@ -363,49 +362,38 @@ function PlanCard({ plan, onSave }) {
 
           {/* ── Funcionalidades ── */}
           <section>
-            <button
-              type="button"
-              className="w-full flex items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500 mb-2"
-              onClick={() => setExpanded(x => !x)}
-            >
-              <span>Funcionalidades incluidas</span>
-              <span className="text-base">{expanded ? "▲" : "▼"}</span>
-            </button>
-
-            {expanded && (
-              <div className="space-y-4">
-                {FEATURE_GROUPS.map(group => (
-                  <div key={group.label}>
-                    <p className="text-xs font-semibold text-slate-600 mb-2">{group.icon} {group.label}</p>
-                    <div className="space-y-1.5 pl-2">
-                      {group.keys.map(key => (
-                        <label
-                          key={key}
-                          title={FEATURE_LABELS[key]}
-                          className="flex items-start gap-2 cursor-pointer group"
-                        >
-                          <input
-                            type="checkbox"
-                            className="w-4 h-4 mt-0.5 rounded text-primary flex-shrink-0"
-                            checked={!!form.features[key]}
-                            onChange={e => setFeature(key, e.target.checked)}
-                          />
-                          <span className="text-xs text-gray-700 group-hover:text-gray-900 leading-relaxed">
-                            {FEATURE_LABELS[key] || key}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
+            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-3">
+              Funcionalidades incluidas
+              <span className="ml-2 font-normal normal-case text-slate-400">
+                ({Object.values(form.features).filter(Boolean).length}/{Object.keys(form.features).length} habilitadas)
+              </span>
+            </h3>
+            <div className="space-y-4">
+              {FEATURE_GROUPS.map(group => (
+                <div key={group.label}>
+                  <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">{group.icon} {group.label}</p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 pl-1">
+                    {group.keys.map(key => (
+                      <label
+                        key={key}
+                        title={FEATURE_LABELS[key]}
+                        className="flex items-start gap-1.5 cursor-pointer group"
+                      >
+                        <input
+                          type="checkbox"
+                          className="w-3.5 h-3.5 mt-0.5 rounded text-primary flex-shrink-0"
+                          checked={!!form.features[key]}
+                          onChange={e => setFeature(key, e.target.checked)}
+                        />
+                        <span className="text-[11px] text-gray-600 group-hover:text-gray-900 leading-snug" title={FEATURE_LABELS[key]}>
+                          {FEATURE_LABELS[key]?.split("(")[0]?.split(":")[0]?.trim() || key}
+                        </span>
+                      </label>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-
-            {!expanded && (
-              <p className="text-xs text-slate-400 italic">
-                {Object.values(form.features).filter(Boolean).length} funcionalidades habilitadas — haz clic para ver y editar
-              </p>
-            )}
+                </div>
+              ))}
+            </div>
           </section>
 
         </div>

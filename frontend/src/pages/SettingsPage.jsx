@@ -5,7 +5,7 @@ import { toast } from "../components/Toast.jsx";
 import ImageUpload from "../components/ImageUpload.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 
-const TABS = ["General", "Notificaciones", "Agente IA", "Integraciones", "Peligroso"];
+const TABS = ["Empresa", "General", "Notificaciones", "Agente IA", "Integraciones", "Peligroso"];
 
 const LLM_OPTIONS = [
   { id: "claude",  label: "Claude (Anthropic)",   desc: "El más capaz. Usa la clave de la plataforma por defecto." },
@@ -38,6 +38,7 @@ export default function SettingsPage() {
   const [notifForm, setNotif]       = useState({ alert_email: "", whatsapp: "", weekly_report: false });
   const [integForm, setInteg]       = useState({ webhook_url: "", api_key: "" });
   const [aiForm, setAiForm]         = useState({ llm_provider: "claude", llm_api_key: "", system_prompt: DEFAULT_PROMPT, weekly_report_enabled: true });
+  const [empresaForm, setEmpresa]   = useState({ company_name: "", company_address: "", company_phone: "", company_email: "", company_logo: "", brand_color: "#2563eb", cover_image: "", cover_message: "¡Gracias por tu visita!" });
 
   useEffect(() => {
     (async () => {
@@ -68,6 +69,16 @@ export default function SettingsPage() {
         } catch (_) {}
         const data = settingsRes;
         const s = data.settings || {};
+        // Load empresa/profile
+        try {
+          const profileRes = await fetch(`${import.meta.env.VITE_API_URL || "https://api.code.intaprd.com"}/api/settings/profile`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem("qr_token")}` }
+          }).then(r => r.ok ? r.json() : null).catch(() => null);
+          if (profileRes?.profile) {
+            const p = profileRes.profile;
+            setEmpresa(f => ({ ...f, ...p }));
+          }
+        } catch (_) {}
         setSettings(s);
         setGeneral({
           company_name: s.company_name || "",
@@ -144,6 +155,69 @@ export default function SettingsPage() {
           </button>
         ))}
       </div>
+
+      {/* Empresa */}
+      {activeTab === "Empresa" && (
+        <div className="space-y-5">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Nombre de empresa</label>
+            <input className="input" value={empresaForm.company_name} onChange={e => setEmpresa(f => ({ ...f, company_name: e.target.value }))} placeholder="Mi empresa" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Dirección</label>
+            <input className="input" value={empresaForm.company_address} onChange={e => setEmpresa(f => ({ ...f, company_address: e.target.value }))} placeholder="Calle, ciudad, país" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Teléfono</label>
+              <input className="input" type="tel" value={empresaForm.company_phone} onChange={e => setEmpresa(f => ({ ...f, company_phone: e.target.value }))} placeholder="+52 55 0000 0000" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Correo de contacto</label>
+              <input className="input" type="email" value={empresaForm.company_email} onChange={e => setEmpresa(f => ({ ...f, company_email: e.target.value }))} placeholder="contacto@empresa.com" />
+            </div>
+          </div>
+          <ImageUpload
+            label="Logo de empresa"
+            hint="JPG, PNG, WebP o SVG. Máx 2MB. Aparece en formularios TRACE públicos."
+            value={empresaForm.company_logo}
+            onChange={url => setEmpresa(f => ({ ...f, company_logo: url }))}
+            maxSizeMB={2}
+          />
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Color de marca</label>
+            <div className="flex items-center gap-3">
+              <input type="color" value={empresaForm.brand_color} onChange={e => setEmpresa(f => ({ ...f, brand_color: e.target.value }))} className="h-10 w-16 rounded border border-slate-200 cursor-pointer" />
+              <input className="input flex-1 font-mono text-xs" value={empresaForm.brand_color} onChange={e => setEmpresa(f => ({ ...f, brand_color: e.target.value }))} placeholder="#2563eb" />
+            </div>
+          </div>
+          <ImageUpload
+            label="Imagen de portada para landings"
+            hint="Se muestra como fondo al cerrar un formulario TRACE. Recomendado: 1280x720px."
+            value={empresaForm.cover_image}
+            onChange={url => setEmpresa(f => ({ ...f, cover_image: url }))}
+            maxSizeMB={5}
+          />
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Mensaje de portada</label>
+            <textarea className="input" rows={2} value={empresaForm.cover_message} onChange={e => setEmpresa(f => ({ ...f, cover_message: e.target.value }))} placeholder="¡Gracias por tu visita!" />
+          </div>
+          <button onClick={async () => {
+            setSaving(true);
+            try {
+              await fetch(`${import.meta.env.VITE_API_URL || "https://api.code.intaprd.com"}/api/settings/profile`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("qr_token")}` },
+                body: JSON.stringify(empresaForm),
+              });
+              toast("Perfil de empresa guardado");
+            } catch (e) { toast(e.message, "error"); }
+            finally { setSaving(false); }
+          }} disabled={saving} className="btn-primary">
+            {saving ? "Guardando..." : "Guardar perfil de empresa"}
+          </button>
+        </div>
+      )}
 
       {/* General */}
       {activeTab === "General" && (

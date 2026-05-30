@@ -1,0 +1,19 @@
+# Intap TRACE
+
+Intap TRACE es una plataforma SaaS de trazabilidad operacional y satisfacción de clientes para negocios latinoamericanos.
+
+## Funcionalidades principales
+- Códigos QR dinámicos para puntos de control y encuestas
+- Checklists operacionales para personal y staff
+- Encuestas NPS de satisfacción al cliente
+- Análisis con inteligencia artificial (Claude, GPT-4, Gemini, Groq)
+- CRM de contactos y seguimiento de clientes
+- Reportes semanales automatizados con IA
+- Multi-tenant con planes Free, Starter, Pro y Enterprise
+
+## Casos de uso
+Restaurantes, hoteles, retail, clínicas, logística, oficinas corporativas
+
+## URLs
+- App: https://code.intaprd.com
+- Soporte: soporte@intaprd.com

@@ -1,11 +1,54 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../utils/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { toast } from "../components/Toast.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import { Skeleton } from "../components/Skeleton.jsx";
+import QRCodeStyling from "qr-code-styling";
 
 const WORKER = "https://qr.intaprd.com";
+
+function ShortLinkQRModal({ slug, onClose }) {
+  const qrRef = useRef(null);
+  const qrInstance = useRef(null);
+  const url = `${WORKER}/corto/${slug}`;
+
+  useEffect(() => {
+    if (!qrRef.current) return;
+    qrInstance.current = new QRCodeStyling({
+      width: 240, height: 240,
+      data: url,
+      dotsOptions: { color: "#1e293b", type: "square" },
+      backgroundOptions: { color: "#ffffff" },
+    });
+    qrInstance.current.append(qrRef.current);
+  }, [url]);
+
+  const download = () => {
+    qrInstance.current?.download({ name: `qr-${slug}`, extension: "png" });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-xs w-full" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-slate-900 text-sm">QR para /{slug}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
+        </div>
+        <div ref={qrRef} className="flex justify-center mb-3" />
+        <p className="text-xs text-center text-slate-500 font-mono mb-4 break-all">{url}</p>
+        <div className="flex gap-2">
+          <button onClick={download} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">
+            Descargar PNG
+          </button>
+          <button onClick={onClose} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors">
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function copyToClipboard(text) {
   navigator.clipboard.writeText(text).then(() => toast("URL copiada al portapapeles"));
@@ -19,6 +62,7 @@ export default function ShortenerPage() {
   const [destUrl, setDestUrl]   = useState("");
   const [creating, setCreating] = useState(false);
   const [search, setSearch]     = useState("");
+  const [qrModalSlug, setQrModalSlug] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -149,6 +193,10 @@ export default function ShortenerPage() {
                         className="text-gray-400 hover:text-brand-600 shrink-0" title="Copiar">
                         📋
                       </button>
+                      <button onClick={() => setQrModalSlug(link.slug)}
+                        className="text-gray-400 hover:text-indigo-600 shrink-0 text-xs border border-gray-200 hover:border-indigo-300 rounded px-1.5 py-0.5 font-medium" title="Ver QR">
+                        QR
+                      </button>
                     </div>
                   </td>
                   <td className="px-4 py-3 text-gray-500 hidden md:table-cell max-w-xs">
@@ -176,6 +224,8 @@ export default function ShortenerPage() {
           </div>
         </div>
       )}
+
+    {qrModalSlug && <ShortLinkQRModal slug={qrModalSlug} onClose={() => setQrModalSlug(null)} />}
     </div>
   );
 }

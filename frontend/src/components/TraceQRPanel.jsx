@@ -37,7 +37,7 @@ export default function TraceQRPanel({ point, onClose }) {
   const [dotStyle, setDotStyle] = useState("square");
   const [cornerStyle, setCornerStyle] = useState("square");
 
-  const publicUrl = `https://qr.intaprd.com/t/${point?.id}`;
+  const publicUrl = point?.point_slug ? `https://qr.intaprd.com/t/${point.point_slug}` : `https://qr.intaprd.com/t/${point?.id}`;
 
   // Build QR options
   function buildOptions(size = 280) {

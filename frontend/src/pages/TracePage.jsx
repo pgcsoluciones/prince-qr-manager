@@ -8,6 +8,7 @@ import TraceQRPanel from "../components/TraceQRPanel.jsx";
 import TraceAutomationsTab from "../components/TraceAutomationsTab.jsx";
 import TraceCRMTab from "../components/TraceCRMTab.jsx";
 import TraceConfigTab from "../components/TraceConfigTab.jsx";
+import QRCode from "qrcode";
 
 /* ── Helpers ── */
 function timeAgo(dateStr) {
@@ -352,10 +353,26 @@ function AlertRow({ alert, onResolve }) {
   );
 }
 
+const POINT_TYPE_DESC = {
+  checklist: "Control de verificación — el personal confirma las tareas completadas",
+  survey:    "Encuesta de satisfacción — los clientes califican su experiencia (1-10)",
+  mixed:     "Punto mixto — checklist interno + encuesta al cliente",
+};
+
+function QRThumbnail({ url }) {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    QRCode.toCanvas(canvasRef.current, url, { width: 48, margin: 1, color: { dark: "#1e293b", light: "#ffffff" } }).catch(() => {});
+  }, [url]);
+  return <canvas ref={canvasRef} width={48} height={48} className="rounded flex-shrink-0" />;
+}
+
 /* ── Point card (for grid view) ── */
 function PointCard({ point, alertCount, onEdit, onDelete, onShowQR }) {
   const navigate = useNavigate();
-  const qrUrl = `https://qr.intaprd.com/t/${point.id}`;
+  const qrUrl = point.point_slug ? `https://qr.intaprd.com/t/${point.point_slug}` : `https://qr.intaprd.com/t/${point.id}`;
+  const scanCount = point.scan_count || 0;
   return (
     <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-2 mb-3">
@@ -369,6 +386,15 @@ function PointCard({ point, alertCount, onEdit, onDelete, onShowQR }) {
           </div>
           {point.area && <p className="text-[11px] text-slate-400 mb-1.5">📍 {point.area}</p>}
           <QRTypeBadge type={point.qr_type} />
+          <p className="text-[11px] text-slate-400 mt-1 leading-snug">{POINT_TYPE_DESC[point.qr_type] || "Punto de trazabilidad"}</p>
+        </div>
+        <div className="relative flex-shrink-0">
+          <QRThumbnail url={qrUrl} />
+          {scanCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow">
+              {scanCount > 99 ? "99+" : scanCount}
+            </span>
+          )}
         </div>
       </div>
       <p className="text-[10px] text-slate-400 font-mono truncate mb-3">{qrUrl}</p>
