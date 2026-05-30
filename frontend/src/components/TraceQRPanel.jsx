@@ -21,6 +21,7 @@ const COLOR_PRESETS = [
 
 export default function TraceQRPanel({ point, onClose }) {
   const canvasRef = useRef(null);
+  const previewCanvasRef = useRef(null);
   const [tab, setTab] = useState("qr");
   const [saving, setSaving] = useState(false);
   const [dotColor, setDotColor] = useState(point?.brand_color || "#2563eb");
@@ -31,15 +32,17 @@ export default function TraceQRPanel({ point, onClose }) {
     ? `https://qr.intaprd.com/t/${point.point_slug}`
     : `https://qr.intaprd.com/t/${point?.id}`;
 
-  // Render QR to canvas
+  // Render QR to both canvases
   useEffect(() => {
-    if (!canvasRef.current) return;
-    QRCode.toCanvas(canvasRef.current, publicUrl, {
-      width: 280,
-      margin: 2,
-      errorCorrectionLevel: errorLevel,
-      color: { dark: dotColor, light: bgColor },
-    }).catch(err => console.error("QR render error:", err));
+    const opts = { margin: 2, errorCorrectionLevel: errorLevel, color: { dark: dotColor, light: bgColor } };
+    if (canvasRef.current) {
+      QRCode.toCanvas(canvasRef.current, publicUrl, { ...opts, width: 280 })
+        .catch(err => console.error("QR render error:", err));
+    }
+    if (previewCanvasRef.current) {
+      QRCode.toCanvas(previewCanvasRef.current, publicUrl, { ...opts, width: 160 })
+        .catch(() => {});
+    }
   }, [publicUrl, dotColor, bgColor, errorLevel]);
 
   function handleDownload(format) {
@@ -199,6 +202,12 @@ export default function TraceQRPanel({ point, onClose }) {
           {/* Design tab */}
           {tab === "design" && (
             <div className="space-y-6">
+              {/* Live QR preview */}
+              <div className="flex justify-center">
+                <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100 inline-block">
+                  <canvas ref={previewCanvasRef} style={{ borderRadius: 6, display: "block" }} />
+                </div>
+              </div>
               {/* Color presets */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-3">Paleta de colores</label>
