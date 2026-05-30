@@ -2480,6 +2480,175 @@ export default {
         }
       }
 
+      // ── TRACE Tracking endpoints ──────────────────────────────────────────────
+
+      // PUBLIC: GET /api/trace/tracking/:id/public
+      if (path.startsWith("/api/trace/tracking/") && path.endsWith("/public") && method === "GET") {
+        const trackingId = path.split("/api/trace/tracking/")[1].replace("/public", "");
+        const record = await env.DB.prepare("SELECT * FROM trace_tracking WHERE id=?").bind(trackingId).first();
+        if (!record) return json({ ok: false, error: "Registro no encontrado" }, 404);
+        const events = await env.DB.prepare("SELECT * FROM trace_tracking_events WHERE tracking_id=? ORDER BY timestamp ASC").bind(trackingId).all();
+        return json({ ok: true, tracking: record, events: events.results || [] });
+      }
+
+      // GET /api/trace/tracking/:id/events
+      if (path.match(/^\/api\/trace\/tracking\/[^/]+\/events$/) && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user); if (err) return err;
+        const trackingId = path.split("/api/trace/tracking/")[1].replace("/events", "");
+        const record = await env.DB.prepare("SELECT * FROM trace_tracking WHERE id=? AND tenant_id=?").bind(trackingId, user.sub).first();
+        if (!record) return json({ ok: false, error: "Registro no encontrado" }, 404);
+        const events = await env.DB.prepare("SELECT * FROM trace_tracking_events WHERE tracking_id=? ORDER BY timestamp ASC").bind(trackingId).all();
+        return json({ ok: true, events: events.results || [] });
+      }
+
+      // POST /api/trace/tracking/:id/events
+      if (path.match(/^\/api\/trace\/tracking\/[^/]+\/events$/) && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user); if (err) return err;
+        const trackingId = path.split("/api/trace/tracking/")[1].replace("/events", "");
+        const record = await env.DB.prepare("SELECT * FROM trace_tracking WHERE id=? AND tenant_id=?").bind(trackingId, user.sub).first();
+        if (!record) return json({ ok: false, error: "Registro no encontrado" }, 404);
+        const { event_type, description, location, scanned_by, receiver_name, receiver_signature, photo_url } = await request.json();
+        if (!event_type) return json({ ok: false, error: "Tipo de evento requerido" }, 400);
+        const id = crypto.randomUUID().replace(/-/g, "");
+        await env.DB.prepare(
+          "INSERT INTO trace_tracking_events (id, tracking_id, event_type, description, location, scanned_by, receiver_name, receiver_signature, photo_url) VALUES (?,?,?,?,?,?,?,?,?)"
+        ).bind(id, trackingId, event_type, description || null, location || null, scanned_by || null, receiver_name || null, receiver_signature || null, photo_url || null).run();
+        // Auto-update tracking status based on event
+        const statusMap = { salida_almacen: "in_transit", en_camino: "in_transit", entregado: "delivered", recibido: "delivered", devuelto: "returned" };
+        if (statusMap[event_type]) {
+          await env.DB.prepare("UPDATE trace_tracking SET status=?, updated_at=datetime('now') WHERE id=?").bind(statusMap[event_type], trackingId).run();
+        }
+        return json({ ok: true, id }, 201);
+      }
+
+      // GET /api/trace/tracking
+      if (path === "/api/trace/tracking" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user); if (err) return err;
+        const url2 = new URL(request.url);
+        const status = url2.searchParams.get("status");
+        const type = url2.searchParams.get("type");
+        let q = "SELECT * FROM trace_tracking WHERE tenant_id=?";
+        const params = [user.sub];
+        if (status) { q += " AND status=?"; params.push(status); }
+        if (type) { q += " AND tracking_type=?"; params.push(type); }
+        q += " ORDER BY created_at DESC LIMIT 100";
+        const result = await env.DB.prepare(q).bind(...params).all();
+        return json({ ok: true, records: result.results || [] });
+      }
+
+      // POST /api/trace/tracking
+      if (path === "/api/trace/tracking" && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user); if (err) return err;
+        const { title, tracking_type, item_description, item_code, origin_location, destination_location, assigned_to, notes, project_id } = await request.json();
+        if (!title || !tracking_type) return json({ ok: false, error: "Título y tipo requeridos" }, 400);
+        const validTypes = ["delivery", "rental", "retail", "custom"];
+        if (!validTypes.includes(tracking_type)) return json({ ok: false, error: "Tipo inválido" }, 400);
+        const id = crypto.randomUUID().replace(/-/g, "");
+        await env.DB.prepare(
+          "INSERT INTO trace_tracking (id, tenant_id, project_id, title, tracking_type, item_description, item_code, origin_location, destination_location, assigned_to, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+        ).bind(id, user.sub, project_id || null, title, tracking_type, item_description || null, item_code || null, origin_location || null, destination_location || null, assigned_to || null, notes || null).run();
+        return json({ ok: true, id }, 201);
+      }
+
+      // PUT /api/trace/tracking/:id
+      if (path.match(/^\/api\/trace\/tracking\/[^/]+$/) && method === "PUT") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user); if (err) return err;
+        const trackingId = path.split("/api/trace/tracking/")[1];
+        const record = await env.DB.prepare("SELECT * FROM trace_tracking WHERE id=? AND tenant_id=?").bind(trackingId, user.sub).first();
+        if (!record) return json({ ok: false, error: "Registro no encontrado" }, 404);
+        const body = await request.json();
+        const allowed = ["title", "status", "notes", "assigned_to", "origin_location", "destination_location", "item_code", "item_description"];
+        const sets = [];
+        const vals = [];
+        for (const k of allowed) {
+          if (body[k] !== undefined) { sets.push(`${k}=?`); vals.push(body[k]); }
+        }
+        if (sets.length === 0) return json({ ok: false, error: "Sin campos para actualizar" }, 400);
+        sets.push("updated_at=datetime('now')");
+        vals.push(trackingId);
+        await env.DB.prepare(`UPDATE trace_tracking SET ${sets.join(",")} WHERE id=?`).bind(...vals).run();
+        return json({ ok: true });
+      }
+
+      // DELETE /api/trace/tracking/:id
+      if (path.match(/^\/api\/trace\/tracking\/[^/]+$/) && method === "DELETE") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user); if (err) return err;
+        const trackingId = path.split("/api/trace/tracking/")[1];
+        const record = await env.DB.prepare("SELECT * FROM trace_tracking WHERE id=? AND tenant_id=?").bind(trackingId, user.sub).first();
+        if (!record) return json({ ok: false, error: "Registro no encontrado" }, 404);
+        await env.DB.prepare("UPDATE trace_tracking SET status='cancelled', updated_at=datetime('now') WHERE id=?").bind(trackingId).run();
+        return json({ ok: true });
+      }
+
+      // GET /api/trace/stats
+      if (path === "/api/trace/stats" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user); if (err) return err;
+        const [totalResponses, avgNps, totalContacts, activePoints] = await Promise.all([
+          env.DB.prepare("SELECT COUNT(*) as c FROM trace_responses tr JOIN trace_points tp ON tr.point_id=tp.id WHERE tp.tenant_id=?").bind(user.sub).first(),
+          env.DB.prepare("SELECT AVG(nps_score) as avg FROM trace_responses tr JOIN trace_points tp ON tr.point_id=tp.id WHERE tp.tenant_id=? AND nps_score IS NOT NULL").bind(user.sub).first(),
+          env.DB.prepare("SELECT COUNT(DISTINCT contact_email) as c FROM trace_responses tr JOIN trace_points tp ON tr.point_id=tp.id WHERE tp.tenant_id=? AND contact_email IS NOT NULL").bind(user.sub).first(),
+          env.DB.prepare("SELECT COUNT(*) as c FROM trace_points WHERE tenant_id=? AND is_active=1").bind(user.sub).first(),
+        ]);
+        const last30 = await env.DB.prepare(`
+          SELECT DATE(tr.created_at) as day, COUNT(*) as count
+          FROM trace_responses tr JOIN trace_points tp ON tr.point_id=tp.id
+          WHERE tp.tenant_id=? AND tr.created_at > datetime('now', '-30 days')
+          GROUP BY day ORDER BY day ASC
+        `).bind(user.sub).all();
+        const npsDistrib = await env.DB.prepare(`
+          SELECT
+            SUM(CASE WHEN nps_score >= 9 THEN 1 ELSE 0 END) as promoters,
+            SUM(CASE WHEN nps_score BETWEEN 7 AND 8 THEN 1 ELSE 0 END) as neutrals,
+            SUM(CASE WHEN nps_score <= 6 AND nps_score IS NOT NULL THEN 1 ELSE 0 END) as detractors
+          FROM trace_responses tr JOIN trace_points tp ON tr.point_id=tp.id WHERE tp.tenant_id=?
+        `).bind(user.sub).first();
+        const topPoints = await env.DB.prepare(`
+          SELECT tp.name, tp.point_type, COUNT(tr.id) as responses, AVG(tr.nps_score) as avg_nps
+          FROM trace_points tp LEFT JOIN trace_responses tr ON tr.point_id=tp.id
+          WHERE tp.tenant_id=? GROUP BY tp.id ORDER BY responses DESC LIMIT 5
+        `).bind(user.sub).all();
+        return json({ ok: true, stats: {
+          totalResponses: totalResponses?.c || 0,
+          avgNps: avgNps?.avg ? Math.round(avgNps.avg * 10) / 10 : null,
+          totalContacts: totalContacts?.c || 0,
+          activePoints: activePoints?.c || 0,
+          last30Days: last30.results || [],
+          npsDistribution: npsDistrib || { promoters: 0, neutrals: 0, detractors: 0 },
+          topPoints: topPoints.results || [],
+        }});
+      }
+
+      // GET /api/trace/contacts
+      if (path === "/api/trace/contacts" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user); if (err) return err;
+        const contacts = await env.DB.prepare(`
+          SELECT
+            contact_email as email,
+            contact_name as name,
+            contact_phone as phone,
+            COUNT(*) as total_visits,
+            MAX(tr.created_at) as last_visit,
+            MIN(tr.created_at) as first_visit,
+            AVG(nps_score) as avg_nps,
+            MAX(referral_source) as referral_source
+          FROM trace_responses tr
+          JOIN trace_points tp ON tr.point_id = tp.id
+          WHERE tp.tenant_id = ? AND contact_email IS NOT NULL
+          GROUP BY contact_email
+          ORDER BY last_visit DESC
+          LIMIT 200
+        `).bind(user.sub).all();
+        return json({ ok: true, contacts: contacts.results || [] });
+      }
+
       // Root
       return json({ ok: true, service: "prince-qr-manager", version: "2.1.0" });
 

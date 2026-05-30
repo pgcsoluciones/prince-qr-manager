@@ -8,58 +8,20 @@ import TraceQRPanel from "../components/TraceQRPanel.jsx";
 import TraceAutomationsTab from "../components/TraceAutomationsTab.jsx";
 import TraceCRMTab from "../components/TraceCRMTab.jsx";
 import TraceConfigTab from "../components/TraceConfigTab.jsx";
+import TraceTrackingTab from "../components/TraceTrackingTab.jsx";
+import TraceStatsPanel from "../components/TraceStatsPanel.jsx";
 import GuidedTour from "../components/GuidedTour.jsx";
 import QRCode from "qrcode";
 
 const TRACE_TOUR = [
-  {
-    target: null,
-    title: "Bienvenido a Intap TRACE",
-    description: "TRACE es tu plataforma de trazabilidad operacional. Crea puntos de control, configura checklists para tu equipo y encuestas de satisfacción para tus clientes.",
-    position: "center"
-  },
-  {
-    target: "[data-tour='trace-tabs']",
-    title: "Módulos de TRACE",
-    description: "TRACE tiene 6 módulos: Puntos de control, Proyectos, Respuestas recibidas, CRM de contactos, Automatizaciones y Configuración.",
-    position: "bottom"
-  },
-  {
-    target: "[data-tour='trace-new-point']",
-    title: "Crear un punto de control",
-    description: "Un punto de control es una ubicación o proceso de tu negocio que quieres monitorear. Puede ser la entrada, la cocina, el área de servicio, etc.",
-    position: "bottom"
-  },
-  {
-    target: "[data-tour='trace-point-card']",
-    title: "Tarjeta de punto",
-    description: "Cada punto tiene un QR único. Cuando alguien escanea ese QR, completa el checklist o la encuesta configurada. Verás las respuestas en tiempo real.",
-    position: "right"
-  },
-  {
-    target: "[data-tour='trace-tabs']",
-    title: "Respuestas y análisis",
-    description: "En la pestaña 'Respuestas' ves todas las respuestas recibidas con metadatos completos: hora, dispositivo, ubicación y puntuación NPS.",
-    position: "bottom"
-  },
-  {
-    target: "[data-tour='trace-tabs']",
-    title: "CRM de clientes",
-    description: "TRACE captura automáticamente los contactos de clientes que dejan su email. En el CRM puedes ver su historial y puntuación.",
-    position: "bottom"
-  },
-  {
-    target: "[data-tour='trace-tabs']",
-    title: "Automatizaciones",
-    description: "Configura alertas automáticas: recibe una notificación por WhatsApp o email cuando una puntuación baja de 6, o cuando no se complete un checklist a tiempo.",
-    position: "bottom"
-  },
-  {
-    target: null,
-    title: "¡Listo para empezar!",
-    description: "Crea tu primer punto de control, configura el checklist o encuesta, descarga el QR e imprímelo donde lo necesitas. ¡Tu equipo empieza a registrar desde el momento en que lo escanean!",
-    position: "center"
-  },
+  { target: null, title: "Bienvenido a Intap TRACE", description: "TRACE es tu plataforma de trazabilidad operacional. Crea puntos de control con código QR para monitorear procesos, recopilar evaluaciones de calidad y medir la satisfacción de tus clientes.", position: "center" },
+  { target: "[data-tour='trace-tabs']", title: "Los 6 módulos de TRACE", description: "Usa las pestañas para moverte entre: Puntos de control (QRs), Proyectos, Respuestas recibidas, Contactos, Automatizaciones y Configuración.", position: "bottom" },
+  { target: "[data-tour='trace-new-point']", title: "Crear un punto de control", description: "Un punto de control es un lugar o proceso de tu negocio que quieres monitorear. Por ejemplo: entrada de tienda, cocina, área de servicio, almacén. Cada uno genera un QR único.", position: "bottom" },
+  { target: "[data-tour='trace-point-card']", title: "Tarjeta de punto de control", description: "Cada punto muestra su código QR en miniatura. Haz clic en 'Ver QR' para descargarlo e imprimirlo. Cuando alguien lo escanea, completa el formulario configurado.", position: "right" },
+  { target: "[data-tour='trace-new-point']", title: "Checklist de verificación", description: "Configura una lista de verificación para tu personal. Por ejemplo: '¿Están las mesas limpias?', '¿Se revisó el inventario?'. Tu equipo confirma cada tarea al escanear el QR.", position: "bottom" },
+  { target: "[data-tour='trace-new-point']", title: "Encuesta de satisfacción (NPS)", description: "Agrega preguntas de satisfacción para tus clientes: calificación del 1 al 10, comentarios libres, preguntas de opción múltiple. Los resultados llegan en tiempo real.", position: "bottom" },
+  { target: "[data-tour='trace-new-point']", title: "Alertas automáticas", description: "Configura alertas que se envíen cuando una calificación sea baja, cuando no se complete un checklist a tiempo, o cuando llegue un comentario negativo.", position: "bottom" },
+  { target: null, title: "¡Listo para empezar!", description: "Crea tu primer punto de control, configura el formulario, descarga el QR e imprímelo donde lo necesitas. En minutos tu equipo puede empezar a registrar y tus clientes a evaluar.", position: "center" },
 ];
 
 /* ── Helpers ── */
@@ -670,6 +632,7 @@ const NAV_TABS = [
   { id: "crm",            label: "Contactos del CRM",    desc: "Gestiona los contactos de clientes que interactuaron con tus QRs de control" },
   { id: "automatizaciones", label: "Automatizaciones",  desc: "Configura avisos y acciones automáticas cuando algo no se cumple a tiempo" },
   { id: "configuracion",  label: "Configuración",        desc: "Personaliza la apariencia, notificaciones y plantillas de tu cuenta TRACE" },
+  { id: "tracking",       label: "Seguimiento",          desc: "Trazabilidad de entrega: sigue entregas, alquileres y movimientos de inventario con QR" },
 ];
 
 /* ── Main page ── */
@@ -685,7 +648,13 @@ export default function TracePage() {
   const [traceTourDone, setTraceTourDone] = useState(() => localStorage.getItem("tour_trace_done") === "done");
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [qrPanelPoint, setQrPanelPoint] = useState(null);
+  const [showStats, setShowStats] = useState(false);
   const didCheckOnboarding = useRef(false);
+  const [pointSearch, setPointSearch] = useState("");
+  const [pointTypeFilter, setPointTypeFilter] = useState("all");
+  const [pointStatusFilter, setPointStatusFilter] = useState("all");
+  const [pointPage, setPointPage] = useState(1);
+  const POINT_PAGE_SIZE = 15;
 
   const canUseTRACE = ["pro", "enterprise"].includes(user?.plan) || user?.role === "superadmin";
 
@@ -765,6 +734,15 @@ export default function TracePage() {
   const alertsByPoint = {};
   alerts.forEach(a => { alertsByPoint[a.point_id] = (alertsByPoint[a.point_id] || 0) + 1; });
 
+  const filteredPoints = points.filter(p => {
+    const matchSearch = !pointSearch || p.name?.toLowerCase().includes(pointSearch.toLowerCase()) || p.area?.toLowerCase().includes(pointSearch.toLowerCase());
+    const matchType = pointTypeFilter === "all" || p.qr_type === pointTypeFilter;
+    const matchStatus = pointStatusFilter === "all" || (pointStatusFilter === "active" ? p.is_active : !p.is_active);
+    return matchSearch && matchType && matchStatus;
+  });
+  const pointTotalPages = Math.ceil(filteredPoints.length / POINT_PAGE_SIZE);
+  const paginatedPoints = filteredPoints.slice((pointPage - 1) * POINT_PAGE_SIZE, pointPage * POINT_PAGE_SIZE);
+
   if (!canUseTRACE && !loading) {
     return <div className="p-4 sm:p-6"><UpgradePrompt /></div>;
   }
@@ -794,6 +772,12 @@ export default function TracePage() {
                 className="hidden sm:inline-flex px-3 py-2 border border-slate-200 text-slate-500 rounded-xl text-xs font-medium hover:bg-slate-50 transition-colors"
               >
                 ? Ver visita guiada
+              </button>
+              <button
+                onClick={() => setShowStats(true)}
+                className="hidden sm:inline-flex px-3 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-medium hover:bg-slate-50 transition-colors"
+              >
+                📊 Ver estadísticas
               </button>
               <button
                 id="tour-new"
@@ -833,8 +817,15 @@ export default function TracePage() {
         </div>
       )}
 
+      {/* ── Stats panel overlay ── */}
+      {showStats && (
+        <div className="flex-1 overflow-auto">
+          <TraceStatsPanel onBack={() => setShowStats(false)} />
+        </div>
+      )}
+
       {/* ── Tab content ── */}
-      <div className="flex-1 overflow-auto">
+      <div className={`flex-1 overflow-auto ${showStats ? "hidden" : ""}`}>
 
         {/* PUNTOS tab */}
         {activeTab === "puntos" && (
@@ -872,6 +863,37 @@ export default function TracePage() {
                   ))}
                 </div>
 
+                {/* Points filter bar */}
+                {points.length > 0 && (
+                  <div className="bg-white rounded-xl border border-slate-100 p-3 mb-4 flex flex-wrap gap-2 items-center">
+                    <input
+                      className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-blue-400 flex-1 min-w-[140px]"
+                      placeholder="Buscar por nombre o área..."
+                      value={pointSearch}
+                      onChange={e => { setPointSearch(e.target.value); setPointPage(1); }}
+                    />
+                    <select
+                      className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-blue-400"
+                      value={pointTypeFilter}
+                      onChange={e => { setPointTypeFilter(e.target.value); setPointPage(1); }}
+                    >
+                      <option value="all">Todos los tipos</option>
+                      <option value="checklist">Checklist</option>
+                      <option value="survey">Encuesta</option>
+                      <option value="mixed">Mixto</option>
+                    </select>
+                    <select
+                      className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-blue-400"
+                      value={pointStatusFilter}
+                      onChange={e => { setPointStatusFilter(e.target.value); setPointPage(1); }}
+                    >
+                      <option value="all">Todos</option>
+                      <option value="active">Activos</option>
+                      <option value="inactive">Inactivos</option>
+                    </select>
+                  </div>
+                )}
+
                 {/* Points grid */}
                 {loading ? (
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -886,20 +908,42 @@ export default function TracePage() {
                       + Crear primer punto de control
                     </button>
                   </div>
-                ) : (
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {points.map((p, index) => (
-                      <div key={p.id} data-tour={index === 0 ? "trace-point-card" : undefined}>
-                        <PointCard
-                          point={p}
-                          alertCount={alertsByPoint[p.id] || 0}
-                          onEdit={handleEdit}
-                          onDelete={handleDelete}
-                          onShowQR={handleShowQR}
-                        />
-                      </div>
-                    ))}
+                ) : filteredPoints.length === 0 ? (
+                  <div className="bg-white rounded-2xl p-10 text-center border border-slate-100 shadow-sm">
+                    <p className="text-slate-400 text-sm">Sin resultados para los filtros aplicados.</p>
                   </div>
+                ) : (
+                  <>
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {paginatedPoints.map((p, index) => (
+                        <div key={p.id} data-tour={index === 0 ? "trace-point-card" : undefined}>
+                          <PointCard
+                            point={p}
+                            alertCount={alertsByPoint[p.id] || 0}
+                            onEdit={handleEdit}
+                            onDelete={handleDelete}
+                            onShowQR={handleShowQR}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    {pointTotalPages > 1 && (
+                      <div className="flex items-center justify-between px-4 py-3 bg-white rounded-xl border border-slate-100 mt-3">
+                        <p className="text-xs text-slate-500">{filteredPoints.length} puntos — Página {pointPage} de {pointTotalPages}</p>
+                        <div className="flex gap-1">
+                          <button onClick={() => setPointPage(p => Math.max(1, p-1))} disabled={pointPage === 1}
+                            className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">← Anterior</button>
+                          {Array.from({length: Math.min(5, pointTotalPages)}, (_, i) => {
+                            const p = Math.max(1, Math.min(pointTotalPages - 4, pointPage - 2)) + i;
+                            return <button key={p} onClick={() => setPointPage(p)}
+                              className={`px-3 py-1.5 text-xs border rounded-lg ${p === pointPage ? "bg-blue-600 text-white border-blue-600" : "border-slate-200 hover:bg-slate-50"}`}>{p}</button>;
+                          })}
+                          <button onClick={() => setPointPage(p => Math.min(pointTotalPages, p+1))} disabled={pointPage === pointTotalPages}
+                            className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">Siguiente →</button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -919,6 +963,8 @@ export default function TracePage() {
         {activeTab === "automatizaciones" && <TraceAutomationsTab />}
 
         {activeTab === "configuracion" && <TraceConfigTab />}
+
+        {activeTab === "tracking" && <TraceTrackingTab />}
       </div>
 
       {/* Mobile FAB */}

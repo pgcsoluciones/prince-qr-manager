@@ -70,6 +70,18 @@ export default function TraceConfigTab() {
   const [loadingChannels, setLoadingChannels] = useState(true);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
 
+  // Alert config state
+  const [alertEmail, setAlertEmail] = useState("");
+  const [alertFrequency, setAlertFrequency] = useState("immediate");
+  const [alertConditions, setAlertConditions] = useState({
+    low_nps: true,
+    incomplete_checklist: true,
+    new_response: false,
+    recurring_client: false,
+  });
+  const [checklistHours, setChecklistHours] = useState(2);
+  const [savingAlerts, setSavingAlerts] = useState(false);
+
   async function loadChannels() {
     try {
       const d = await api.get("/api/trace/channels");
@@ -87,6 +99,25 @@ export default function TraceConfigTab() {
   }
 
   useEffect(() => { loadChannels(); loadTemplates(); }, []);
+
+  async function handleSaveAlertConfig() {
+    if (!alertEmail.trim()) { toast.error("Ingresa un correo de destino"); return; }
+    setSavingAlerts(true);
+    try {
+      // Save email channel if not already saved
+      await api.post("/api/trace/channels", {
+        channel_type: "email",
+        config: { email: alertEmail.trim(), frequency: alertFrequency, conditions: alertConditions, checklist_hours: checklistHours },
+        label: "Alertas de email",
+      }).catch(() => {});
+      toast.success("Configuración de alertas guardada");
+    } catch (e) { toast.error(e.message); }
+    finally { setSavingAlerts(false); }
+  }
+
+  function toggleCondition(key) {
+    setAlertConditions(prev => ({ ...prev, [key]: !prev[key] }));
+  }
 
   async function handleSaveChannel(def, value, isActive) {
     if (!value.trim()) { toast.error("Ingresa el valor del canal"); return; }
@@ -116,6 +147,89 @@ export default function TraceConfigTab() {
 
   return (
     <div className="p-5 space-y-8 max-w-2xl">
+
+      {/* Section: Alert config */}
+      <section>
+        <h2 className="text-base font-bold text-slate-900 mb-1">Configuración de alertas</h2>
+        <p className="text-sm text-slate-500 mb-4">
+          Las alertas se envían automáticamente cuando se cumplen las condiciones configuradas.
+        </p>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-4">
+          <div>
+            <label className="text-xs font-medium text-slate-700 mb-1 block">Email de destino de alertas</label>
+            <input
+              type="email"
+              value={alertEmail}
+              onChange={e => setAlertEmail(e.target.value)}
+              placeholder="alertas@tuempresa.com"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+            />
+            <p className="text-[11px] text-slate-400 mt-1">Las alertas se envían automáticamente a este correo cuando se cumplen las condiciones configuradas.</p>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-slate-700 mb-1 block">Frecuencia del resumen</label>
+            <select
+              value={alertFrequency}
+              onChange={e => setAlertFrequency(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white"
+            >
+              <option value="immediate">Inmediata (cuando ocurre)</option>
+              <option value="hourly">Cada hora (máximo 1 alerta por hora)</option>
+              <option value="daily">Al final del día (resumen diario a las 6pm)</option>
+              <option value="weekly">Semanal (lunes por la mañana)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-slate-700 mb-2 block">Condiciones de alerta</label>
+            <div className="space-y-2">
+              {[
+                { key: "low_nps",             label: "Puntuación NPS menor a 6 (detractores)" },
+                { key: "incomplete_checklist", label: "Checklist incompleto después de horas" },
+                { key: "new_response",         label: "Nueva respuesta recibida" },
+                { key: "recurring_client",     label: "Cliente recurrente detectado" },
+              ].map(({ key, label }) => (
+                <div key={key} className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id={`cond-${key}`}
+                    checked={alertConditions[key]}
+                    onChange={() => toggleCondition(key)}
+                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor={`cond-${key}`} className="text-sm text-slate-700 cursor-pointer flex-1">{label}</label>
+                  {key === "incomplete_checklist" && alertConditions[key] && (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={1}
+                        max={72}
+                        value={checklistHours}
+                        onChange={e => setChecklistHours(Number(e.target.value))}
+                        className="w-14 border border-slate-200 rounded px-2 py-1 text-xs"
+                      />
+                      <span className="text-xs text-slate-400">h</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-400 border-t border-slate-100 pt-3">
+            Los miembros del equipo con acceso al panel también pueden recibir alertas configurando su correo en su perfil de usuario.
+          </p>
+
+          <button
+            onClick={handleSaveAlertConfig}
+            disabled={savingAlerts}
+            className="w-full py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            {savingAlerts ? "Guardando..." : "Guardar configuración de alertas"}
+          </button>
+        </div>
+      </section>
 
       {/* Section: Notification channels */}
       <section>
