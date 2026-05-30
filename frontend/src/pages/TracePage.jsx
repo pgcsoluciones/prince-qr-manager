@@ -869,7 +869,7 @@ export default function TracePage() {
   const currentTab = NAV_TABS.find(t => t.id === activeTab);
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex flex-col min-h-full overflow-x-hidden max-w-full">
       {/* ── Module header ── */}
       <div className="bg-white border-b border-slate-200 flex-shrink-0">
         <div className="px-5 pt-4 pb-0">
@@ -926,7 +926,7 @@ export default function TracePage() {
           </div>
 
           {/* Top navigation tabs */}
-          <div className="flex gap-0 overflow-x-auto" id="tour-panel" data-tour="trace-tabs">
+          <div className="flex gap-0 overflow-x-auto scrollbar-none -mx-5 px-5" id="tour-panel" data-tour="trace-tabs">
             {NAV_TABS.map(tab => (
               <button
                 key={tab.id}

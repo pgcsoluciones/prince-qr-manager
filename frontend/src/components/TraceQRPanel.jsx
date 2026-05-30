@@ -153,9 +153,8 @@ export default function TraceQRPanel({ point, onClose }) {
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
 
-          {/* QR tab */}
-          {tab === "qr" && (
-            <div className="flex flex-col items-center gap-6">
+          {/* QR canvas — always mounted so the ref never goes null */}
+          <div className={`flex flex-col items-center gap-6 ${tab !== "qr" ? "hidden" : ""}`}>
               <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100">
                 <div ref={qrContainerRef} />
               </div>
@@ -221,7 +220,6 @@ export default function TraceQRPanel({ point, onClose }) {
                 Usa PNG o JPEG para imprimir. SVG es para Illustrator/Figma — abre con fondo blanco activado en el editor.
               </p>
             </div>
-          )}
 
           {/* Design tab */}
           {tab === "design" && (

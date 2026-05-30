@@ -30,3 +30,7 @@ export function toast(message, type = "success") {
   _setToasts((prev) => [...prev, { id, message, type }]);
   setTimeout(() => _setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
 }
+
+toast.success = (msg) => toast(msg, "success");
+toast.error   = (msg) => toast(msg, "error");
+toast.warning = (msg) => toast(msg, "warning");

@@ -18,13 +18,14 @@ function NpsChip({ score }) {
 
 function TypeBadge({ type }) {
   const map = {
-    staff:     "bg-blue-100 text-blue-700",
-    customer:  "bg-purple-100 text-purple-700",
-    anonymous: "bg-slate-100 text-slate-500",
+    staff:     { cls: "bg-blue-100 text-blue-700",    label: "Personal / Staff" },
+    customer:  { cls: "bg-purple-100 text-purple-700", label: "Cliente" },
+    anonymous: { cls: "bg-slate-100 text-slate-500",   label: "Anónimo / Cliente" },
   };
+  const cfg = map[type] || map.anonymous;
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize ${map[type] || map.anonymous}`}>
-      {type}
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${cfg.cls}`}>
+      {cfg.label}
     </span>
   );
 }
@@ -173,17 +174,17 @@ export default function TraceResponsesPage() {
             <p className="text-2xl font-bold text-slate-900">{filtered.length}</p>
           </div>
           <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm text-center">
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">NPS prom.</p>
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">NPS Promedio</p>
             <p className={`text-2xl font-bold ${avgNps >= 8 ? "text-green-600" : avgNps >= 6 ? "text-amber-600" : avgNps ? "text-red-600" : "text-slate-400"}`}>
               {avgNps ?? "—"}
             </p>
           </div>
           <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm text-center">
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Con email</p>
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Contacto (email)</p>
             <p className="text-2xl font-bold text-slate-900">{filtered.filter(r => r.contact_email).length}</p>
           </div>
           <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm text-center">
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Staff</p>
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Personal</p>
             <p className="text-2xl font-bold text-slate-900">{filtered.filter(r => r.respondent_type === "staff").length}</p>
           </div>
         </div>
@@ -193,20 +194,20 @@ export default function TraceResponsesPage() {
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 mb-5">
         <div className="flex flex-wrap gap-3 items-end">
           <div>
-            <label className="block text-[10px] text-slate-500 uppercase tracking-widest mb-1">Tipo</label>
+            <label className="block text-[10px] text-slate-500 uppercase tracking-widest mb-1">Tipo de respondente</label>
             <select
               value={filters.type}
               onChange={e => setFilters(f => ({ ...f, type: e.target.value }))}
               className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-blue-400"
             >
               <option value="">Todos</option>
-              <option value="staff">Staff</option>
+              <option value="staff">Personal / Staff</option>
               <option value="customer">Cliente</option>
-              <option value="anonymous">Anónimo</option>
+              <option value="anonymous">Anónimo / Cliente</option>
             </select>
           </div>
           <div>
-            <label className="block text-[10px] text-slate-500 uppercase tracking-widest mb-1">NPS mín.</label>
+            <label className="block text-[10px] text-slate-500 uppercase tracking-widest mb-1">NPS mínimo</label>
             <input
               type="number" min="0" max="10"
               value={filters.minNps}
@@ -216,7 +217,7 @@ export default function TraceResponsesPage() {
             />
           </div>
           <div>
-            <label className="block text-[10px] text-slate-500 uppercase tracking-widest mb-1">NPS máx.</label>
+            <label className="block text-[10px] text-slate-500 uppercase tracking-widest mb-1">NPS máximo</label>
             <input
               type="number" min="0" max="10"
               value={filters.maxNps}
