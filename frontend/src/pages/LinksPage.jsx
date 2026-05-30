@@ -320,6 +320,7 @@ export default function LinksPage() {
   const [qrLink, setQrLink]           = useState(null);
   const [selected, setSelected]       = useState(new Set());
   const [sort, setSort]               = useState("recent");
+  const [filterTag, setFilterTag]     = useState("");
   const [tourDone, setTourDone]       = useState(() => localStorage.getItem("tour_links_done") === "done");
   const [page, setPage]               = useState(1);
   const PAGE_SIZE = 15;
@@ -341,6 +342,14 @@ export default function LinksPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const toggleNotify = async (link) => {
+    try {
+      await api.patch(`/api/links/${link.slug}/toggle`, { notify_on_scan: link.notify_on_scan ? 0 : 1 });
+      await load();
+      toast(link.notify_on_scan ? "Notificación desactivada" : "Notificación activada");
+    } catch (e) { toast(e.message, "error"); }
+  };
 
   const toggle = async (link) => {
     try {
@@ -379,6 +388,11 @@ export default function LinksPage() {
   const projectName = (id) => projects.find((p) => p.id === id)?.name || "—";
   const canBulk = user?.plan !== "free" || user?.role === "superadmin";
 
+  /* Collect all tags */
+  const allTags = [...new Set(links.flatMap(l => {
+    try { return JSON.parse(l.tags || "[]"); } catch { return []; }
+  }))].filter(Boolean);
+
   /* Filtering */
   const filtered = links
     .filter((l) => {
@@ -390,7 +404,8 @@ export default function LinksPage() {
       const matchProject = !filterProject || String(l.project_id) === String(filterProject);
       const matchStatus  = filterStatus === "all" || (filterStatus === "active" ? l.is_active : !l.is_active);
       const matchType    = filterType === "all" || s.type === filterType;
-      return matchSearch && matchProject && matchStatus && matchType;
+      const matchTag = !filterTag || (() => { try { return JSON.parse(l.tags||"[]").includes(filterTag); } catch { return false; } })();
+      return matchSearch && matchProject && matchStatus && matchType && matchTag;
     })
     .sort((a, b) =>
       sort === "recent"
@@ -504,6 +519,22 @@ export default function LinksPage() {
             </select>
             <Ico name="chevronDown" className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
           </div>
+
+          {/* Tag filter pills */}
+          {allTags.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button onClick={() => setFilterTag("")}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${!filterTag ? "bg-primary text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+                Todas
+              </button>
+              {allTags.map(tag => (
+                <button key={tag} onClick={() => setFilterTag(filterTag === tag ? "" : tag)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${filterTag === tag ? "bg-primary text-white" : "bg-blue-50 text-blue-700 hover:bg-blue-100"}`}>
+                  #{tag}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Spacer + view toggle */}
           <div className="ml-auto flex items-center gap-1 bg-slate-100 rounded-lg p-1">
@@ -729,6 +760,11 @@ export default function LinksPage() {
                           </ActionBtn>
                           <ActionBtn onClick={() => setEditLink(link)} title="Editar">
                             <Ico name="edit" className="w-3.5 h-3.5" />
+                          </ActionBtn>
+                          <ActionBtn onClick={() => toggleNotify(link)} title={link.notify_on_scan ? "Desactivar notificación" : "Activar notificación al escanear"}>
+                            <svg className={`w-3.5 h-3.5 ${link.notify_on_scan ? "text-amber-500" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                            </svg>
                           </ActionBtn>
                           <ActionBtn onClick={() => remove(link.slug)} title="Eliminar" danger>
                             <Ico name="trash" className="w-3.5 h-3.5" />

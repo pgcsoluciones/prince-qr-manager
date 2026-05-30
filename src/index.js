@@ -496,14 +496,22 @@ export default {
         if (link.expires_at && new Date(link.expires_at) < new Date()) {
           ctx.waitUntil(env.QR_CACHE.put(slug, "EXPIRED", { expirationTtl: 3600 }));
           if (link.fallback_url) return Response.redirect(link.fallback_url, 302);
-          return new Response("Enlace expirado", { status: 410 });
+          return new Response(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QR Expirado - Intap Code</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:system-ui,sans-serif;background:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}.card{background:white;border-radius:20px;padding:48px 40px;text-align:center;max-width:420px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.08)}.icon{font-size:56px;margin-bottom:16px}.title{font-size:22px;font-weight:700;color:#1e293b;margin-bottom:8px}.msg{font-size:14px;color:#64748b;line-height:1.6;margin-bottom:24px}.brand{font-size:12px;color:#94a3b8;margin-top:32px}a{color:#2563eb}</style></head><body><div class="card"><div class="icon">⏰</div><h1 class="title">Este código QR ha expirado</h1><p class="msg">Este código QR ya no está disponible. Si crees que es un error, contacta al administrador.</p><p class="brand">Powered by <a href="https://intapcode.com">Intap Code</a></p></div></body></html>`, { status: 410, headers: { "Content-Type": "text/html;charset=UTF-8" } });
         }
 
         // Verificar expiración por escaneos
         if (link.max_scans && link.scan_count >= link.max_scans) {
           ctx.waitUntil(env.QR_CACHE.put(slug, "EXPIRED", { expirationTtl: 3600 }));
           if (link.fallback_url) return Response.redirect(link.fallback_url, 302);
-          return new Response("Límite de escaneos alcanzado", { status: 410 });
+          return new Response(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QR Expirado - Intap Code</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:system-ui,sans-serif;background:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}.card{background:white;border-radius:20px;padding:48px 40px;text-align:center;max-width:420px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.08)}.icon{font-size:56px;margin-bottom:16px}.title{font-size:22px;font-weight:700;color:#1e293b;margin-bottom:8px}.msg{font-size:14px;color:#64748b;line-height:1.6;margin-bottom:24px}.brand{font-size:12px;color:#94a3b8;margin-top:32px}a{color:#2563eb}</style></head><body><div class="card"><div class="icon">🔢</div><h1 class="title">Límite de escaneos alcanzado</h1><p class="msg">Este código QR ha alcanzado su límite de escaneos. Contacta al administrador para más información.</p><p class="brand">Powered by <a href="https://intapcode.com">Intap Code</a></p></div></body></html>`, { status: 410, headers: { "Content-Type": "text/html;charset=UTF-8" } });
+        }
+
+        // Verificar contraseña QR
+        if (link.qr_password) {
+          const pw = url.searchParams.get("pw");
+          if (!pw || pw !== link.qr_password) {
+            return new Response(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Acceso protegido - Intap Code</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:system-ui,sans-serif;background:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}.card{background:white;border-radius:20px;padding:48px 40px;text-align:center;max-width:420px;width:100%;box-shadow:0 4px 24px rgba(0,0,0,.08)}.icon{font-size:48px;margin-bottom:16px}.title{font-size:20px;font-weight:700;color:#1e293b;margin-bottom:8px}.msg{font-size:14px;color:#64748b;margin-bottom:24px}input{width:100%;border:2px solid #e2e8f0;border-radius:10px;padding:12px 16px;font-size:15px;outline:none;margin-bottom:12px}input:focus{border-color:#2563eb}button{width:100%;background:#2563eb;color:white;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:600;cursor:pointer}.err{color:#dc2626;font-size:13px;margin-top:8px;display:none}.brand{font-size:12px;color:#94a3b8;margin-top:32px}a{color:#2563eb}</style></head><body><div class="card"><div class="icon">🔒</div><h1 class="title">Contenido protegido</h1><p class="msg">Este QR requiere una contraseña para acceder.</p><input type="password" id="pw" placeholder="Contraseña" onkeydown="if(event.key==='Enter')check()"><button onclick="check()">Acceder</button><p class="err" id="err">Contraseña incorrecta</p><p class="brand">Powered by <a href="https://intapcode.com">Intap Code</a></p></div><script>function check(){const v=document.getElementById('pw').value;if(!v){return;}window.location.href=window.location.pathname+'?pw='+encodeURIComponent(v);}</script></body></html>`, { status: 401, headers: { "Content-Type": "text/html;charset=UTF-8" } });
+          }
         }
 
         // Resolver destino según modo
@@ -2651,6 +2659,198 @@ export default {
           LIMIT 200
         `).bind(user.sub).all();
         return json({ ok: true, contacts: contacts.results || [] });
+      }
+
+      // ══════════════════════════════════════════
+      // PUT /api/trace/contacts/stage
+      // ══════════════════════════════════════════
+      if (path === "/api/trace/contacts/stage" && method === "PUT") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const { email, stage } = await request.json();
+        const valid = ["nuevo","interesado","recurrente","promotor","inactivo"];
+        if (!valid.includes(stage)) return json({ ok: false, error: "Estado inválido" }, 400);
+        await env.DB.prepare(
+          "INSERT INTO trace_contacts (tenant_id, email, stage) VALUES (?,?,?) ON CONFLICT(tenant_id,email) DO UPDATE SET stage=excluded.stage"
+        ).bind(user.sub, email, stage).run().catch(() => null);
+        return json({ ok: true });
+      }
+
+      // ══════════════════════════════════════════
+      // GET /api/analytics/advanced
+      // ══════════════════════════════════════════
+      if (path === "/api/analytics/advanced" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const qrId = url.searchParams.get("qrId");
+        const days = parseInt(url.searchParams.get("days") || "30");
+
+        const baseWhere = qrId
+          ? "link_slug = ? AND tenant_id = ?"
+          : "tenant_id = ?";
+        const baseParams = qrId ? [qrId, user.sub] : [user.sub];
+
+        const timeOfDay = await env.DB.prepare(`
+          SELECT
+            SUM(CASE WHEN CAST(strftime('%H', scanned_at) AS INTEGER) BETWEEN 6 AND 11 THEN 1 ELSE 0 END) as morning,
+            SUM(CASE WHEN CAST(strftime('%H', scanned_at) AS INTEGER) BETWEEN 12 AND 17 THEN 1 ELSE 0 END) as afternoon,
+            SUM(CASE WHEN CAST(strftime('%H', scanned_at) AS INTEGER) BETWEEN 18 AND 23 THEN 1 ELSE 0 END) as evening,
+            SUM(CASE WHEN CAST(strftime('%H', scanned_at) AS INTEGER) BETWEEN 0 AND 5 THEN 1 ELSE 0 END) as night
+          FROM qr_analytics WHERE ${baseWhere} AND scanned_at > datetime('now', '-${days} days')
+        `).bind(...baseParams).first().catch(() => null);
+
+        const thisWeekRow = await env.DB.prepare(
+          `SELECT COUNT(*) as c FROM qr_analytics WHERE ${baseWhere} AND scanned_at > datetime('now', '-7 days')`
+        ).bind(...baseParams).first().catch(() => null);
+
+        const lastWeekRow = await env.DB.prepare(
+          `SELECT COUNT(*) as c FROM qr_analytics WHERE ${baseWhere} AND scanned_at BETWEEN datetime('now', '-14 days') AND datetime('now', '-7 days')`
+        ).bind(...baseParams).first().catch(() => null);
+
+        const thisWeek = thisWeekRow?.c || 0;
+        const lastWeek = lastWeekRow?.c || 0;
+
+        return json({ ok: true, analytics: {
+          timeOfDay: timeOfDay || { morning: 0, afternoon: 0, evening: 0, night: 0 },
+          thisWeek,
+          lastWeek,
+          weekTrend: lastWeek > 0 ? Math.round(((thisWeek - lastWeek) / lastWeek) * 100) : null,
+        }});
+      }
+
+      // ══════════════════════════════════════════
+      // BILLING — Invoices, Subscriptions, Gateways
+      // ══════════════════════════════════════════
+
+      // GET /api/admin/invoices
+      if (path === "/api/admin/invoices" && method === "GET") {
+        const user = await getUser(request, env);
+        if (user?.role !== "superadmin") return json({ ok: false, error: "Acceso denegado" }, 403);
+        const status = url.searchParams.get("status");
+        const tenantId = url.searchParams.get("tenant_id");
+        let q = "SELECT i.*, u.email as tenant_email FROM invoices i JOIN users u ON u.id=i.tenant_id WHERE 1=1";
+        const params = [];
+        if (status) { q += " AND i.status=?"; params.push(status); }
+        if (tenantId) { q += " AND i.tenant_id=?"; params.push(tenantId); }
+        q += " ORDER BY i.created_at DESC LIMIT 200";
+        const rows = await env.DB.prepare(q).bind(...params).all();
+        return json({ ok: true, invoices: rows.results || [] });
+      }
+
+      // POST /api/admin/invoices
+      if (path === "/api/admin/invoices" && method === "POST") {
+        const user = await getUser(request, env);
+        if (user?.role !== "superadmin") return json({ ok: false, error: "Acceso denegado" }, 403);
+        const body = await request.json();
+        const { tenant_id, plan, billing_cycle, amount_usd, currency, payment_method, payment_gateway, gateway_ref, notes, due_date, status } = body;
+        if (!tenant_id || !plan || !amount_usd) return json({ ok: false, error: "Campos requeridos: tenant_id, plan, amount_usd" }, 400);
+        const paid_at = status === "paid" ? new Date().toISOString() : null;
+        await env.DB.prepare(
+          "INSERT INTO invoices (tenant_id, plan, billing_cycle, amount_usd, currency, status, payment_method, payment_gateway, gateway_ref, notes, due_date, paid_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)"
+        ).bind(tenant_id, plan, billing_cycle||"monthly", amount_usd, currency||"USD", status||"pending", payment_method||null, payment_gateway||null, gateway_ref||null, notes||null, due_date||null, paid_at).run();
+        if (status === "paid") {
+          await env.DB.prepare("UPDATE subscriptions SET payment_status='active', last_payment_at=datetime('now'), failed_attempts=0 WHERE tenant_id=?").bind(tenant_id).run();
+        }
+        return json({ ok: true });
+      }
+
+      // PUT /api/admin/invoices/:id
+      if (path.startsWith("/api/admin/invoices/") && method === "PUT") {
+        const user = await getUser(request, env);
+        if (user?.role !== "superadmin") return json({ ok: false, error: "Acceso denegado" }, 403);
+        const invoiceId = path.split("/api/admin/invoices/")[1];
+        const body = await request.json();
+        const { status, payment_method, payment_gateway, gateway_ref, notes, paid_at } = body;
+        const effectivePaidAt = status === "paid" ? (paid_at || new Date().toISOString()) : null;
+        await env.DB.prepare(
+          "UPDATE invoices SET status=COALESCE(?,status), payment_method=COALESCE(?,payment_method), payment_gateway=COALESCE(?,payment_gateway), gateway_ref=COALESCE(?,gateway_ref), notes=COALESCE(?,notes), paid_at=COALESCE(?,paid_at) WHERE id=?"
+        ).bind(status||null, payment_method||null, payment_gateway||null, gateway_ref||null, notes||null, effectivePaidAt, invoiceId).run();
+        if (status === "paid") {
+          const inv = await env.DB.prepare("SELECT tenant_id FROM invoices WHERE id=?").bind(invoiceId).first();
+          if (inv) await env.DB.prepare("UPDATE subscriptions SET payment_status='active', last_payment_at=datetime('now'), failed_attempts=0 WHERE tenant_id=?").bind(inv.tenant_id).run();
+        }
+        return json({ ok: true });
+      }
+
+      // GET /api/admin/tenants/:id/invoices
+      if (path.match(/^\/api\/admin\/tenants\/[^/]+\/invoices$/) && method === "GET") {
+        const user = await getUser(request, env);
+        if (user?.role !== "superadmin") return json({ ok: false, error: "Acceso denegado" }, 403);
+        const tenantId = path.split("/")[4];
+        const rows = await env.DB.prepare(
+          "SELECT i.*, u.email as tenant_email FROM invoices i JOIN users u ON u.id=i.tenant_id WHERE i.tenant_id=? ORDER BY i.created_at DESC LIMIT 100"
+        ).bind(tenantId).all();
+        return json({ ok: true, invoices: rows.results || [] });
+      }
+
+      // POST /api/admin/tenants/:id/billing-suspend
+      if (path.match(/^\/api\/admin\/tenants\/[^/]+\/billing-suspend$/) && method === "POST") {
+        const user = await getUser(request, env);
+        if (user?.role !== "superadmin") return json({ ok: false, error: "Acceso denegado" }, 403);
+        const tenantId = path.split("/")[4];
+        const { reason } = await request.json().catch(() => ({}));
+        await env.DB.prepare("UPDATE subscriptions SET payment_status='suspended' WHERE tenant_id=?").bind(tenantId).run();
+        await env.DB.prepare("UPDATE users SET plan='free' WHERE id=?").bind(tenantId).run();
+        await env.DB.prepare("INSERT INTO admin_notifications (type, title, message, tenant_id) VALUES ('warning','Cuenta suspendida',?,?)").bind(reason||"Cuenta suspendida por falta de pago.", tenantId).run().catch(()=>{});
+        return json({ ok: true });
+      }
+
+      // POST /api/admin/tenants/:id/billing-reactivate
+      if (path.match(/^\/api\/admin\/tenants\/[^/]+\/billing-reactivate$/) && method === "POST") {
+        const user = await getUser(request, env);
+        if (user?.role !== "superadmin") return json({ ok: false, error: "Acceso denegado" }, 403);
+        const tenantId = path.split("/")[4];
+        const { plan } = await request.json().catch(() => ({}));
+        const targetPlan = plan || "starter";
+        await env.DB.prepare("UPDATE subscriptions SET payment_status='active', failed_attempts=0 WHERE tenant_id=?").bind(tenantId).run();
+        await env.DB.prepare("UPDATE users SET plan=? WHERE id=?").bind(targetPlan, tenantId).run();
+        return json({ ok: true });
+      }
+
+      // POST /api/admin/tenants/:id/downgrade
+      if (path.match(/^\/api\/admin\/tenants\/[^/]+\/downgrade$/) && method === "POST") {
+        const user = await getUser(request, env);
+        if (user?.role !== "superadmin") return json({ ok: false, error: "Acceso denegado" }, 403);
+        const tenantId = path.split("/")[4];
+        await env.DB.prepare("UPDATE users SET plan='free' WHERE id=?").bind(tenantId).run();
+        await env.DB.prepare("UPDATE subscriptions SET payment_status='cancelled', updated_at=datetime('now') WHERE tenant_id=?").bind(tenantId).run();
+        return json({ ok: true });
+      }
+
+      // GET /api/admin/payment-gateways
+      if (path === "/api/admin/payment-gateways" && method === "GET") {
+        const user = await getUser(request, env);
+        if (user?.role !== "superadmin") return json({ ok: false, error: "Acceso denegado" }, 403);
+        const rows = await env.DB.prepare("SELECT id, name, provider, is_active, is_default, created_at FROM payment_gateways ORDER BY is_default DESC, name ASC").all();
+        return json({ ok: true, gateways: rows.results || [] });
+      }
+
+      // POST /api/admin/payment-gateways
+      if (path === "/api/admin/payment-gateways" && method === "POST") {
+        const user = await getUser(request, env);
+        if (user?.role !== "superadmin") return json({ ok: false, error: "Acceso denegado" }, 403);
+        const body = await request.json();
+        const { name, provider, config_json, is_default } = body;
+        if (!name || !provider) return json({ ok: false, error: "name y provider son requeridos" }, 400);
+        if (is_default) await env.DB.prepare("UPDATE payment_gateways SET is_default=0").run();
+        await env.DB.prepare("INSERT INTO payment_gateways (name, provider, config_json, is_default) VALUES (?,?,?,?)").bind(name, provider, JSON.stringify(config_json||{}), is_default?1:0).run();
+        return json({ ok: true });
+      }
+
+      // PUT /api/admin/payment-gateways/:id
+      if (path.startsWith("/api/admin/payment-gateways/") && method === "PUT") {
+        const user = await getUser(request, env);
+        if (user?.role !== "superadmin") return json({ ok: false, error: "Acceso denegado" }, 403);
+        const gwId = path.split("/api/admin/payment-gateways/")[1];
+        const body = await request.json();
+        const { name, provider, is_active, is_default, config_json } = body;
+        if (is_default) await env.DB.prepare("UPDATE payment_gateways SET is_default=0").run();
+        await env.DB.prepare(
+          "UPDATE payment_gateways SET name=COALESCE(?,name), provider=COALESCE(?,provider), is_active=COALESCE(?,is_active), is_default=COALESCE(?,is_default), config_json=COALESCE(?,config_json) WHERE id=?"
+        ).bind(name||null, provider||null, is_active??null, is_default??null, config_json ? JSON.stringify(config_json) : null, gwId).run();
+        return json({ ok: true });
       }
 
       // Root

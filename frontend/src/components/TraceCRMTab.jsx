@@ -395,8 +395,9 @@ export default function TraceCRMTab() {
       </div>
 
       {/* Table header */}
-      <div className="hidden sm:grid grid-cols-5 gap-2 px-4 py-2 border-b border-slate-100 bg-slate-50 text-[11px] font-semibold text-slate-500 uppercase tracking-wide flex-shrink-0">
+      <div className="hidden sm:grid grid-cols-6 gap-2 px-4 py-2 border-b border-slate-100 bg-slate-50 text-[11px] font-semibold text-slate-500 uppercase tracking-wide flex-shrink-0">
         <span className="col-span-2">Contacto</span>
+        <span>Estado</span>
         <span>Temperatura</span>
         <span>Tipo</span>
         <span>NPS / Visitas</span>
@@ -412,13 +413,9 @@ export default function TraceCRMTab() {
             const visits = c.total_visits || c.total_responses || 0;
             const ctype = getContactType(visits, c.first_visit);
             return (
-              <button
-                key={c.email || c.id}
-                onClick={() => handleSelect(c)}
-                className="w-full grid grid-cols-3 sm:grid-cols-5 gap-2 px-4 py-3 border-b border-slate-50 hover:bg-blue-50 transition-colors text-left"
-              >
+              <div key={c.email || c.id} className="w-full grid grid-cols-3 sm:grid-cols-6 gap-2 px-4 py-3 border-b border-slate-50 hover:bg-blue-50 transition-colors">
                 {/* Contact info */}
-                <div className="flex items-center gap-2 min-w-0 col-span-2">
+                <button onClick={() => handleSelect(c)} className="flex items-center gap-2 min-w-0 col-span-2 text-left">
                   <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
                     {(c.email || "?")[0].toUpperCase()}
                   </div>
@@ -427,6 +424,10 @@ export default function TraceCRMTab() {
                     {c.name && <p className="text-[10px] text-slate-400 truncate">{c.email}</p>}
                     {c.phone && <p className="text-[10px] text-slate-400">📱 {c.phone}</p>}
                   </div>
+                </button>
+                {/* Stage badge */}
+                <div className="hidden sm:flex items-center self-center">
+                  <StageBadge stage={c.stage} email={c.email} onStageChange={handleStageChange} />
                 </div>
                 {/* Temperature */}
                 <div className="hidden sm:flex items-center self-center">
@@ -442,7 +443,7 @@ export default function TraceCRMTab() {
                   <span className="text-xs text-slate-500">{visits} {visits === 1 ? "visita" : "visitas"}</span>
                   <span className="text-[10px] text-slate-400 hidden sm:inline">{timeAgo(c.last_visit || c.last_seen)}</span>
                 </div>
-              </button>
+              </div>
             );
           })
         ) : (

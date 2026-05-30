@@ -69,6 +69,7 @@ const NAV_ITEMS = [
   { to: "/admin/tenants",        icon: "tenants",        label: "Tenants"         },
   { to: "/admin/notifications",  icon: "bell",           label: "Notificaciones"  },
   { to: "/admin/plans",          icon: "plans",          label: "Planes"          },
+  { to: "/admin/billing",        icon: "subscriptions",  label: "Facturación"     },
   { to: "/admin/ai-models",      icon: "ai",             label: "Modelos IA"      },
 ];
 
