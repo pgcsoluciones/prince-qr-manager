@@ -37,12 +37,14 @@ export default function ImageUpload({ value, onChange, maxSizeMB = 2, label = "I
       const formData = new FormData();
       formData.append("file", file);
       const token = localStorage.getItem("qr_token") || "";
-      const res = await fetch("/api/upload/image", {
+      const BASE = import.meta.env.VITE_API_URL || "https://api.code.intaprd.com";
+      const res = await fetch(`${BASE}/api/upload/image`, {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
-      const data = await res.json();
+      let data;
+      try { data = await res.json(); } catch (_) { throw new Error("Error de conexión al subir imagen"); }
       if (!data.ok) throw new Error(data.error || "Error subiendo imagen");
       onChange(data.url);
     } catch (e) {
