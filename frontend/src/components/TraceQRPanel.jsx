@@ -66,6 +66,21 @@ export default function TraceQRPanel({ point, onClose }) {
     qrInstance.current.download({ name: `qr-${point.id}`, extension: format });
   }
 
+  function handleDownloadPDF() {
+    const canvas = qrContainerRef.current?.querySelector("canvas");
+    if (!canvas) { toast.error("Espera a que el QR termine de renderizar"); return; }
+    const dataUrl = canvas.toDataURL("image/png");
+    const win = window.open("", "_blank");
+    if (!win) { toast.error("Permite ventanas emergentes para descargar PDF"); return; }
+    win.document.write(`<!DOCTYPE html><html><head><title>QR - ${point.name}</title>
+      <style>body{margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif}
+      img{width:280px;height:280px}p{margin-top:12px;font-size:13px;color:#64748b}
+      @media print{body{margin:0}}</style></head>
+      <body><img src="${dataUrl}"><p>${point.name}</p>
+      <script>window.onload=function(){window.print();}<\/script></body></html>`);
+    win.document.close();
+  }
+
   function copyUrl() {
     navigator.clipboard.writeText(publicUrl).then(() => toast.success("URL copiada"));
   }
@@ -184,6 +199,13 @@ export default function TraceQRPanel({ point, onClose }) {
                   title="SVG para uso en diseño gráfico (Illustrator, Figma)"
                 >
                   ↓ SVG
+                </button>
+                <button
+                  onClick={handleDownloadPDF}
+                  className="px-4 py-2.5 bg-red-50 text-red-700 rounded-xl text-sm font-semibold hover:bg-red-100 transition-colors"
+                  title="Abre el diálogo de impresión — guarda como PDF"
+                >
+                  ↓ PDF
                 </button>
                 <a
                   href={publicUrl}
