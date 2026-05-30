@@ -261,7 +261,6 @@ function SidebarContent({ user, isSuperadmin, isEnterprise, onNav, onLogout }) {
           onClick={onNav}
           badge={!["pro","enterprise"].includes(user?.plan) && user?.role !== "superadmin" ? "Pro" : undefined}
         />
-        <NavItem to="/dashboard/collaborators" iconName="collaborators" label="Colaboradores" onClick={onNav} />
         <NavItem to="/dashboard/analytics" iconName="chart"  label="Analíticas" onClick={onNav} />
         <NavItem to="/dashboard/profile"   iconName="user"   label="Mi perfil"  onClick={onNav} />
 
