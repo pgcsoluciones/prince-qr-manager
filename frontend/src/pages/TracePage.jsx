@@ -453,6 +453,7 @@ function ResponsesTab({ points }) {
   const [responses, setResponses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [expanded, setExpanded] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -464,6 +465,25 @@ function ResponsesTab({ points }) {
 
   const pointMap = Object.fromEntries(points.map(p => [p.id, p.name]));
 
+  const RESPONDENT_LABELS = { staff: "Personal / Staff", anonymous: "Anónimo / Cliente", customer: "Cliente" };
+  const REFERRAL_LABELS = {
+    google: "Google / búsqueda web", ia: "Búsqueda con IA", redes_sociales: "Redes sociales",
+    anuncio: "Anuncio / publicidad", recomendacion: "Recomendación", primera_vez: "Primera visita",
+    recurrente: "Cliente recurrente", otro: "Otro",
+  };
+
+  function npsColor(score) {
+    if (score == null) return "";
+    return score >= 9 ? "bg-green-100 text-green-700" : score >= 7 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
+  }
+
+  function npsLabel(score) {
+    if (score == null) return null;
+    if (score >= 9) return "Promotor";
+    if (score >= 7) return "Neutro";
+    return "Detractor";
+  }
+
   if (loading) {
     return <div className="p-5 space-y-2">{[1,2,3,4].map(i => <div key={i} className="h-14 bg-slate-100 rounded-xl animate-pulse" />)}</div>;
   }
@@ -473,7 +493,7 @@ function ResponsesTab({ points }) {
       <div className="mb-4">
         <h2 className="text-base font-bold text-slate-900">Respuestas recibidas</h2>
         <p className="text-sm text-slate-500 mt-0.5">
-          Revisa cada escaneo y respuesta recibida de tus equipos y clientes en tiempo real
+          Haz clic en cualquier fila para ver el detalle completo de cada respuesta
         </p>
       </div>
       {error && <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">Error al cargar respuestas: {error}</div>}
@@ -486,19 +506,113 @@ function ResponsesTab({ points }) {
       ) : (
         <div className="space-y-2">
           {responses.map(r => {
-            const npsColor = r.nps_score >= 8 ? "bg-green-100 text-green-700" : r.nps_score >= 6 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
+            const isExpanded = expanded === r.id;
+            const checklist = (() => { try { return typeof r.checklist_data === "string" ? JSON.parse(r.checklist_data) : (r.checklist_data || {}); } catch { return {}; } })();
+            const survey = (() => { try { return typeof r.survey_data === "string" ? JSON.parse(r.survey_data) : (r.survey_data || {}); } catch { return {}; } })();
+            const checklistEntries = Object.entries(checklist).filter(([, v]) => v !== false);
+            const surveyEntries = Object.entries(survey);
             return (
-              <div key={r.id} className="bg-white rounded-xl p-3 border border-slate-100 shadow-sm flex items-center gap-3 flex-wrap">
-                <span className="text-xs text-slate-400 font-mono">{timeAgo(r.created_at)}</span>
-                <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">{pointMap[r.point_id] || r.point_id}</span>
-                <span className="text-[11px] text-slate-500 capitalize px-2 py-0.5 bg-white rounded-full border border-slate-200">{r.respondent_type}</span>
-                {r.nps_score != null && (
-                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${npsColor}`}>
-                    Índice de satisfacción (NPS): {r.nps_score}/10
+              <div key={r.id} className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+                {/* Summary row */}
+                <button
+                  className="w-full flex items-center gap-3 p-3 flex-wrap text-left hover:bg-slate-50 transition-colors"
+                  onClick={() => setExpanded(isExpanded ? null : r.id)}
+                >
+                  <span className="text-xs text-slate-400 font-mono flex-shrink-0">{timeAgo(r.created_at)}</span>
+                  <span className="text-xs font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full flex-shrink-0">{pointMap[r.point_id] || "Punto desconocido"}</span>
+                  <span className="text-[11px] text-slate-500 px-2 py-0.5 bg-white rounded-full border border-slate-200 flex-shrink-0">
+                    {RESPONDENT_LABELS[r.respondent_type] || r.respondent_type}
                   </span>
+                  {r.nps_score != null && (
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${npsColor(r.nps_score)}`}>
+                      NPS {r.nps_score}/10 · {npsLabel(r.nps_score)}
+                    </span>
+                  )}
+                  {r.contact_email && <span className="text-[11px] text-blue-600 truncate">{r.contact_name || r.contact_email}</span>}
+                  <span className="ml-auto flex items-center gap-2 flex-shrink-0">
+                    <span className="text-[10px] text-slate-400">{r.country}</span>
+                    <span className="text-slate-300 text-xs">{isExpanded ? "▲" : "▼"}</span>
+                  </span>
+                </button>
+
+                {/* Expanded detail */}
+                {isExpanded && (
+                  <div className="border-t border-slate-100 bg-slate-50 p-4 grid grid-cols-2 gap-x-6 gap-y-3 text-xs">
+                    <div className="col-span-2 font-semibold text-slate-700 mb-1">Metadatos de sesión</div>
+                    {[
+                      ["Fecha / hora", r.created_at ? new Date(r.created_at).toLocaleString("es-DO") : "—"],
+                      ["Dispositivo", r.device_type || "—"],
+                      ["Sistema operativo", r.os || "—"],
+                      ["Navegador", r.browser || "—"],
+                      ["País / Ciudad", [r.country, r.city, r.region].filter(Boolean).join(", ") || "—"],
+                      ["Idioma", r.language || "—"],
+                      ["Resolución", r.screen_size || "—"],
+                      ["Tiempo en página", r.time_on_page_seconds != null ? `${r.time_on_page_seconds}s` : "—"],
+                      ["Secuencia de escaneo", r.scan_sequence != null ? `#${r.scan_sequence}` : "—"],
+                      ["Origen de tráfico", r.referrer || "Directo"],
+                      ["Tipo de respondente", RESPONDENT_LABELS[r.respondent_type] || r.respondent_type],
+                      ["¿Cómo nos conoció?", REFERRAL_LABELS[r.referral_source] || r.referral_source || "No indicado"],
+                    ].map(([label, val]) => (
+                      <div key={label}>
+                        <p className="text-slate-400 mb-0.5">{label}</p>
+                        <p className="text-slate-700 font-medium">{val}</p>
+                      </div>
+                    ))}
+
+                    {r.nps_score != null && (
+                      <div>
+                        <p className="text-slate-400 mb-0.5">Puntuación NPS</p>
+                        <p className={`font-bold px-2 py-0.5 rounded-full inline-block ${npsColor(r.nps_score)}`}>{r.nps_score}/10 · {npsLabel(r.nps_score)}</p>
+                      </div>
+                    )}
+
+                    {(r.contact_name || r.contact_phone || r.contact_email) && (
+                      <div className="col-span-2 border-t border-slate-200 pt-3 mt-1">
+                        <p className="font-semibold text-slate-700 mb-2">Datos de contacto</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          {r.contact_name && <div><p className="text-slate-400">Nombre</p><p className="text-slate-700 font-medium">{r.contact_name}</p></div>}
+                          {r.contact_phone && <div><p className="text-slate-400">Teléfono</p><p className="text-slate-700 font-medium">{r.contact_phone}</p></div>}
+                          {r.contact_email && <div><p className="text-slate-400">Correo</p><p className="text-blue-600 font-medium">{r.contact_email}</p></div>}
+                        </div>
+                      </div>
+                    )}
+
+                    {checklistEntries.length > 0 && (
+                      <div className="col-span-2 border-t border-slate-200 pt-3 mt-1">
+                        <p className="font-semibold text-slate-700 mb-2">Checklist completado</p>
+                        <div className="space-y-1">
+                          {checklistEntries.map(([id, val]) => (
+                            <div key={id} className="flex items-center gap-2">
+                              <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${val ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>{val ? "✓" : "✗"}</span>
+                              <span className="text-slate-600">{id}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {surveyEntries.length > 0 && (
+                      <div className="col-span-2 border-t border-slate-200 pt-3 mt-1">
+                        <p className="font-semibold text-slate-700 mb-2">Respuestas de encuesta</p>
+                        <div className="space-y-1">
+                          {surveyEntries.map(([id, val]) => (
+                            <div key={id} className="flex items-start gap-2">
+                              <span className="text-slate-400 flex-shrink-0">{id}:</span>
+                              <span className="text-slate-700 font-medium">{String(val)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {r.notes && (
+                      <div className="col-span-2 border-t border-slate-200 pt-3 mt-1">
+                        <p className="font-semibold text-slate-700 mb-1">Comentario / Nota</p>
+                        <p className="text-slate-600 italic">"{r.notes}"</p>
+                      </div>
+                    )}
+                  </div>
                 )}
-                {r.contact_email && <span className="text-[11px] text-blue-600 truncate">{r.contact_email}</span>}
-                <span className="ml-auto text-[10px] text-slate-400">{r.country}</span>
               </div>
             );
           })}
