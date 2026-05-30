@@ -55,9 +55,11 @@ function OnboardingGate({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
   if (!user) return <Navigate to="/login" replace />;
-  const done = user
-    ? localStorage.getItem("onboarding_done_" + user.id)
-    : localStorage.getItem("onboarding_done");
+  // Accept any of: old global key, new per-user key, or API settings flag
+  const done =
+    localStorage.getItem("onboarding_done") ||
+    localStorage.getItem("onboarding_done_" + user.id) ||
+    user?.settings?.onboarding_done;
   if (!done) return <Navigate to="/onboarding" replace />;
   return children;
 }
