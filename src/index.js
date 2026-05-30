@@ -292,7 +292,7 @@ function serveTraceForm(tracePoint, profile = null, staffMode = false) {
         ${showReferral ? `
         <div class="card contact-section">
           <p class="contact-label">¿Cómo te enteraste de nosotros? <span style="color:#94a3b8;font-size:12px">(opcional)</span></p>
-          <select id="referralSource" style="width:100%;border:2px solid #e2e8f0;border-radius:10px;padding:12px 14px;font-family:inherit;font-size:14px;outline:none;background:white;min-height:44px;color:#374151">
+          <select id="referralSource" onchange="document.getElementById('otroReferral').style.display=this.value==='otro'?'block':'none'" style="width:100%;border:2px solid #e2e8f0;border-radius:10px;padding:12px 14px;font-family:inherit;font-size:14px;outline:none;background:white;min-height:44px;color:#374151">
             <option value="">Seleccionar...</option>
             <option value="google">Google / búsqueda web</option>
             <option value="ia">Búsqueda con IA (ChatGPT, Gemini, etc.)</option>
@@ -303,10 +303,15 @@ function serveTraceForm(tracePoint, profile = null, staffMode = false) {
             <option value="recurrente">Soy cliente recurrente</option>
             <option value="otro">Otro</option>
           </select>
+          <input type="text" id="otroReferral" placeholder="¿De dónde nos conociste?" style="display:none;margin-top:10px;width:100%;border:2px solid #e2e8f0;border-radius:10px;padding:12px 14px;font-family:inherit;font-size:14px;outline:none;box-sizing:border-box">
         </div>` : ""}
         <div class="card contact-section">
-          <p class="contact-label">¿Quieres que te contactemos? (opcional)</p>
-          <input type="email" id="contactEmail" class="email-input" placeholder="tu@correo.com">
+          <p class="contact-label">¿Quieres que te contactemos? <span style="color:#94a3b8;font-size:12px">(opcional)</span></p>
+          <div style="display:grid;gap:10px">
+            <input type="text" id="contactName" class="email-input" placeholder="Tu nombre completo" style="margin-bottom:0">
+            <input type="tel" id="contactPhone" class="email-input" placeholder="Teléfono / WhatsApp" style="margin-bottom:0">
+            <input type="email" id="contactEmail" class="email-input" placeholder="tu@correo.com" style="margin-bottom:0">
+          </div>
         </div>
         <div id="errorMsg" class="error-msg"></div>
         <button type="submit" class="submit-btn">Enviar respuesta</button>
@@ -378,12 +383,15 @@ function serveTraceForm(tracePoint, profile = null, staffMode = false) {
       document.querySelectorAll('textarea[id^="text_"]').forEach(ta=>{const id=ta.id.replace('text_','');surveyData[id]=ta.value});
       let npsScore=null;
       ${surveyQuestions.filter(q => q.type === "nps").map(q => `if(surveyAnswers['${q.id}']!==undefined)npsScore=surveyAnswers['${q.id}'];`).join("")}
+      const contactName=document.getElementById('contactName')?.value.trim()||null;
+      const contactPhone=document.getElementById('contactPhone')?.value.trim()||null;
       const contactEmail=document.getElementById('contactEmail').value.trim()||null;
       const referralEl=document.getElementById('referralSource');
-      const referralSource=referralEl?referralEl.value||null:null;
+      let referralSource=referralEl?referralEl.value||null:null;
+      if(referralSource==='otro'){const otroEl=document.getElementById('otroReferral');referralSource=otroEl&&otroEl.value.trim()?otroEl.value.trim():'otro'}
       const respondentType=qrToken?'staff':'anonymous';
       const payload={
-        respondent_type:respondentType,checklist_data:checklistData,survey_data:surveyData,nps_score:npsScore,contact_email:contactEmail,referral_source:referralSource,
+        respondent_type:respondentType,checklist_data:checklistData,survey_data:surveyData,nps_score:npsScore,contact_name:contactName,contact_phone:contactPhone,contact_email:contactEmail,referral_source:referralSource,
         device_fingerprint:window._scanMeta.device_fingerprint,
         browser:window._scanMeta.browser,
         device_type:window._scanMeta.device_type,
@@ -393,7 +401,7 @@ function serveTraceForm(tracePoint, profile = null, staffMode = false) {
         referrer:window._scanMeta.referrer,
         time_on_page_seconds:Math.round((Date.now()-window._scanMeta.startTime)/1000)
       };
-      if(!navigator.onLine){const raw=localStorage.getItem(QUEUE_KEY);const queue=raw?JSON.parse(raw):[];queue.push(payload);localStorage.setItem(QUEUE_KEY,JSON.stringify(queue));document.getElementById('formArea').style.display='none';document.getElementById('successArea').style.display='block';if(contactEmail){const cc=document.getElementById('contactConfirm');if(cc)cc.style.display='block';}return}
+      if(!navigator.onLine){const raw=localStorage.getItem(QUEUE_KEY);const queue=raw?JSON.parse(raw):[];queue.push(payload);localStorage.setItem(QUEUE_KEY,JSON.stringify(queue));document.getElementById('formArea').style.display='none';document.getElementById('successArea').style.display='block';if(contactName||contactPhone||contactEmail){const cc=document.getElementById('contactConfirm');if(cc)cc.style.display='block';}return}
       try{const data=await submitPayload(payload);if(data.ok){document.getElementById('formArea').style.display='none';document.getElementById('successArea').style.display='block';if(contactEmail){const cc=document.getElementById('contactConfirm');if(cc)cc.style.display='block';}}else{throw new Error(data.error||'Error al enviar')}}catch(ex){errEl.textContent=ex.message;errEl.style.display='block';btn.disabled=false;btn.textContent='Enviar respuesta'}
     });
   </script>
@@ -1165,6 +1173,8 @@ export default {
           checklist_data = {},
           survey_data = {},
           nps_score,
+          contact_name,
+          contact_phone,
           contact_email,
           notes,
           device_fingerprint,
@@ -1209,15 +1219,17 @@ export default {
         const responseId = uuid();
         await env.DB.prepare(
           `INSERT INTO trace_responses
-           (id, point_id, respondent_type, user_id, checklist_data, survey_data, nps_score, contact_email, notes, ip, country, device,
+           (id, point_id, respondent_type, user_id, checklist_data, survey_data, nps_score, contact_name, contact_phone, contact_email, notes, ip, country, device,
             city, region, browser, device_type, os, time_on_page_seconds, scan_sequence, device_fingerprint, referrer, language, screen_size, referral_source)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
         ).bind(
           responseId, pointId, respondent_type,
           respondentUserId || null,
           JSON.stringify(checklist_data),
           JSON.stringify(survey_data),
           nps_score ?? null,
+          contact_name || null,
+          contact_phone || null,
           contact_email || null,
           notes || null,
           ip, country, device,
@@ -1275,9 +1287,9 @@ export default {
               ).bind(newTotal, newAvg, existing.id).run();
             } else {
               await env.DB.prepare(
-                `INSERT INTO trace_contacts (id, user_id, email, total_responses, avg_nps, source_point_id)
-                 VALUES (?,?,?,?,?,?)`
-              ).bind(uuid(), point.user_id, contact_email, 1, nps_score ?? null, pointId).run();
+                `INSERT INTO trace_contacts (id, user_id, email, contact_name, contact_phone, total_responses, avg_nps, source_point_id)
+                 VALUES (?,?,?,?,?,?,?,?)`
+              ).bind(uuid(), point.user_id, contact_email, contact_name || null, contact_phone || null, 1, nps_score ?? null, pointId).run();
             }
           })();
           alertOps.push(crmOp);

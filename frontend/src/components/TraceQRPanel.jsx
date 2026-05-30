@@ -52,20 +52,13 @@ export default function TraceQRPanel({ point, onClose }) {
     };
   }
 
-  // Initialize QR on mount
+  // Render QR whenever design options change (also handles initial mount)
   useEffect(() => {
     if (!qrContainerRef.current) return;
-    qrInstance.current = new QRCodeStyling(buildOptions(280));
-    qrInstance.current.append(qrContainerRef.current);
-    return () => {
-      if (qrContainerRef.current) qrContainerRef.current.innerHTML = "";
-    };
-  }, []);
-
-  // Update QR when design changes
-  useEffect(() => {
-    if (!qrInstance.current) return;
-    qrInstance.current.update(buildOptions(280));
+    qrContainerRef.current.innerHTML = "";
+    const qr = new QRCodeStyling(buildOptions(280));
+    qr.append(qrContainerRef.current);
+    qrInstance.current = qr;
   }, [dotColor, bgColor, dotStyle, cornerStyle]);
 
   function handleDownload(format) {
@@ -166,31 +159,44 @@ export default function TraceQRPanel({ point, onClose }) {
               </div>
 
               {/* Action buttons */}
-              <div className="flex gap-3 flex-wrap justify-center">
+              <div className="flex gap-2 flex-wrap justify-center">
                 <button
                   onClick={() => handleDownload("png")}
-                  className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors"
+                  className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors"
                 >
-                  ↓ Descargar PNG
+                  ↓ PNG
+                </button>
+                <button
+                  onClick={() => handleDownload("jpeg")}
+                  className="px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-200 transition-colors"
+                >
+                  ↓ JPEG
+                </button>
+                <button
+                  onClick={() => handleDownload("webp")}
+                  className="px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-200 transition-colors"
+                >
+                  ↓ WebP
                 </button>
                 <button
                   onClick={() => handleDownload("svg")}
-                  className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-200 transition-colors"
+                  className="px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-200 transition-colors"
+                  title="SVG para uso en diseño gráfico (Illustrator, Figma)"
                 >
-                  ↓ Descargar SVG
+                  ↓ SVG
                 </button>
                 <a
                   href={publicUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-5 py-2.5 bg-emerald-100 text-emerald-700 rounded-xl text-sm font-semibold hover:bg-emerald-200 transition-colors"
+                  className="px-4 py-2.5 bg-emerald-100 text-emerald-700 rounded-xl text-sm font-semibold hover:bg-emerald-200 transition-colors"
                 >
                   Ver landing →
                 </a>
               </div>
 
               <p className="text-xs text-slate-400 text-center max-w-xs">
-                Este QR lleva a la página pública del punto de control donde los usuarios pueden registrar respuestas.
+                Usa PNG o JPEG para imprimir. SVG es para Illustrator/Figma — abre con fondo blanco activado en el editor.
               </p>
             </div>
           )}

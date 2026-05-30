@@ -63,11 +63,11 @@ function getDaysDiff(dateStr) {
 }
 
 function getTemperature(avgNps) {
-  if (avgNps == null) return { label: "Sin calificar", icon: "⚫", cls: "bg-slate-100 text-slate-500" };
+  if (avgNps == null) return { label: "Sin calificar", icon: "⚫", cls: "bg-slate-100 text-slate-500", tooltip: "El cliente aún no ha respondido una encuesta NPS" };
   const n = Number(avgNps);
-  if (n >= 9) return { label: "Promotor", icon: "🔥", cls: "bg-green-100 text-green-700" };
-  if (n >= 7) return { label: "Neutro", icon: "😐", cls: "bg-amber-100 text-amber-700" };
-  return { label: "Detractor", icon: "❄️", cls: "bg-red-100 text-red-600" };
+  if (n >= 9) return { label: "Promotor", icon: "🔥", cls: "bg-green-100 text-green-700", tooltip: "NPS 9-10: cliente muy satisfecho que recomendaría tu negocio" };
+  if (n >= 7) return { label: "Neutro", icon: "😐", cls: "bg-amber-100 text-amber-700", tooltip: "NPS 7-8: cliente satisfecho pero sin motivación para recomendar" };
+  return { label: "Detractor", icon: "❄️", cls: "bg-red-100 text-red-600", tooltip: "NPS 0-6: cliente insatisfecho que podría hablar mal del negocio" };
 }
 
 function getContactType(totalVisits, firstVisit) {
@@ -123,7 +123,7 @@ function ContactDetail({ contact, onClose }) {
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${temp.cls}`}>{temp.icon} {temp.label}</span>
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${temp.cls} cursor-help`} title={temp.tooltip}>{temp.icon} {temp.label}</span>
           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${ctype.cls}`}>{ctype.label}</span>
         </div>
 
@@ -398,7 +398,7 @@ export default function TraceCRMTab() {
       <div className="hidden sm:grid grid-cols-6 gap-2 px-4 py-2 border-b border-slate-100 bg-slate-50 text-[11px] font-semibold text-slate-500 uppercase tracking-wide flex-shrink-0">
         <span className="col-span-2">Contacto</span>
         <span>Estado</span>
-        <span>Temperatura</span>
+        <span title="Basada en el NPS: Promotor (9-10) · Neutro (7-8) · Detractor (0-6)" className="cursor-help">Temperatura ⓘ</span>
         <span>Tipo</span>
         <span>NPS / Visitas</span>
       </div>
@@ -431,7 +431,7 @@ export default function TraceCRMTab() {
                 </div>
                 {/* Temperature */}
                 <div className="hidden sm:flex items-center self-center">
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${temp.cls}`}>{temp.icon} {temp.label}</span>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${temp.cls} cursor-help`} title={temp.tooltip}>{temp.icon} {temp.label}</span>
                 </div>
                 {/* Type */}
                 <div className="hidden sm:flex items-center self-center">
