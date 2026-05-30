@@ -1,6 +1,50 @@
 import { useState, useEffect } from "react";
 import { api } from "../utils/api.js";
 
+const STAGE_CONFIG = {
+  nuevo:       { label: "Nuevo",      cls: "bg-blue-100 text-blue-700",    dot: "bg-blue-400"    },
+  interesado:  { label: "Interesado", cls: "bg-purple-100 text-purple-700", dot: "bg-purple-400"  },
+  recurrente:  { label: "Recurrente", cls: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-400" },
+  promotor:    { label: "Promotor",   cls: "bg-green-100 text-green-700",   dot: "bg-green-500"   },
+  inactivo:    { label: "Inactivo",   cls: "bg-slate-100 text-slate-500",   dot: "bg-slate-400"   },
+};
+
+function StageBadge({ stage, email, onStageChange }) {
+  const [open, setOpen] = useState(false);
+  const cfg = STAGE_CONFIG[stage || "nuevo"];
+
+  const updateStage = async (newStage) => {
+    setOpen(false);
+    try {
+      await api.put("/api/trace/contacts/stage", { email, stage: newStage });
+      onStageChange(email, newStage);
+    } catch (_) {}
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
+        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${cfg.cls} cursor-pointer hover:opacity-80`}
+      >
+        <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`}></span>
+        {cfg.label}
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 py-1 min-w-[140px]" onClick={e => e.stopPropagation()}>
+          {Object.entries(STAGE_CONFIG).map(([key, val]) => (
+            <button key={key} onClick={() => updateStage(key)}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-slate-50 ${key === (stage||"nuevo") ? "font-semibold" : ""}`}>
+              <span className={`w-2 h-2 rounded-full ${val.dot}`}></span>
+              {val.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function timeAgo(dateStr) {
   if (!dateStr) return "—";
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -156,6 +200,14 @@ function GhostRow() {
   );
 }
 
+const exportCSV = (contacts) => {
+  const rows = [["Email","Nombre","Teléfono","Visitas","NPS Promedio","Estado","Última visita"]];
+  contacts.forEach(c => rows.push([c.email, c.name||"", c.phone||"", c.total_visits||0, c.avg_nps?.toFixed(1)||"", c.stage||"nuevo", c.last_visit||""]));
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "contactos.csv"; a.click();
+};
+
 export default function TraceCRMTab() {
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -163,6 +215,7 @@ export default function TraceCRMTab() {
   const [filterTemp, setFilterTemp] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterDate, setFilterDate] = useState("");
+  const [quickFilter, setQuickFilter] = useState("todos");
   const [selected, setSelected] = useState(null);
 
   async function load() {
@@ -189,7 +242,27 @@ export default function TraceCRMTab() {
 
   function handleSelect(contact) { setSelected(contact); }
 
+  const handleStageChange = (email, newStage) => {
+    setContacts(prev => prev.map(c => c.email === email ? { ...c, stage: newStage } : c));
+  };
+
+  // Summary stats
+  const totalContacts = contacts.length;
+  const avgNps = contacts.filter(c => c.avg_nps != null).length > 0
+    ? (contacts.filter(c => c.avg_nps != null).reduce((s,c) => s + Number(c.avg_nps), 0) / contacts.filter(c => c.avg_nps != null).length).toFixed(1)
+    : "—";
+  const promotorPct = contacts.length > 0
+    ? Math.round(contacts.filter(c => Number(c.avg_nps) >= 9).length / contacts.length * 100)
+    : 0;
+  const newThisWeek = contacts.filter(c => getDaysDiff(c.first_visit) <= 7).length;
+
   const filtered = contacts.filter(c => {
+    // Quick filter
+    if (quickFilter === "nuevos" && getDaysDiff(c.first_visit) > 7) return false;
+    if (quickFilter === "recurrentes" && (c.total_visits||0) < 3) return false;
+    if (quickFilter === "promotores" && Number(c.avg_nps) < 9) return false;
+    if (quickFilter === "detractores" && Number(c.avg_nps) >= 7) return false;
+    if (quickFilter === "inactivos" && getDaysDiff(c.last_visit||c.last_seen) <= 30) return false;
     // Search
     if (search && !c.email?.toLowerCase().includes(search.toLowerCase()) && !c.name?.toLowerCase().includes(search.toLowerCase())) return false;
 
@@ -228,10 +301,48 @@ export default function TraceCRMTab() {
     <div className="flex flex-col" style={{ minHeight: "calc(100vh - 120px)" }}>
       {/* Header */}
       <div className="p-5 border-b border-slate-100 flex-shrink-0">
-        <h2 className="text-base font-bold text-slate-900 mb-1">Gestión de contactos</h2>
+        <div className="flex items-start justify-between mb-1">
+          <h2 className="text-base font-bold text-slate-900">Gestión de contactos</h2>
+          <button onClick={() => exportCSV(filtered)} className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-medium flex items-center gap-1.5 transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Exportar CSV
+          </button>
+        </div>
         <p className="text-sm text-slate-500 mb-3">
           Gestiona los contactos de clientes que interactuaron con tus QRs de control
         </p>
+
+        {/* Summary bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          {[
+            { label: "Total contactos", value: totalContacts, icon: "👥" },
+            { label: "NPS Promedio", value: avgNps, icon: "⭐" },
+            { label: "% Promotores", value: `${promotorPct}%`, icon: "🔥" },
+            { label: "Nuevos esta semana", value: newThisWeek, icon: "✨" },
+          ].map(s => (
+            <div key={s.label} className="bg-slate-50 rounded-xl p-3">
+              <p className="text-[10px] text-slate-500 mb-0.5">{s.icon} {s.label}</p>
+              <p className="text-lg font-bold text-slate-800">{s.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Quick filter pills */}
+        <div className="flex gap-1.5 flex-wrap mb-3">
+          {[
+            { key: "todos", label: "Todos" },
+            { key: "nuevos", label: "Nuevos (7d)" },
+            { key: "recurrentes", label: "Recurrentes (3+)" },
+            { key: "promotores", label: "Promotores" },
+            { key: "detractores", label: "Detractores" },
+            { key: "inactivos", label: "Inactivos (30d+)" },
+          ].map(f => (
+            <button key={f.key} onClick={() => setQuickFilter(f.key)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${quickFilter === f.key ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+              {f.label}
+            </button>
+          ))}
+        </div>
 
         {/* Filters bar */}
         <div className="flex gap-2 flex-wrap">
