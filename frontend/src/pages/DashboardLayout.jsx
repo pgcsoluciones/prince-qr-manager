@@ -180,7 +180,7 @@ function PlanCard({ user }) {
   const pctColor = pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-400" : "bg-primary";
 
   return (
-    <div className="mx-3 mb-3 p-3.5 rounded-xl bg-gradient-to-b from-slate-50 to-white border border-slate-200 shadow-sm">
+    <div data-tour="plan-card" className="mx-3 mb-3 p-3.5 rounded-xl bg-gradient-to-b from-slate-50 to-white border border-slate-200 shadow-sm">
       {/* Plan badge + count */}
       <div className="flex items-center justify-between mb-3">
         <span className={`badge ${plan.color} font-semibold`}>{plan.label}</span>

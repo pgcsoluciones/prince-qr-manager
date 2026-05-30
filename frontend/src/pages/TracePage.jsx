@@ -8,7 +8,59 @@ import TraceQRPanel from "../components/TraceQRPanel.jsx";
 import TraceAutomationsTab from "../components/TraceAutomationsTab.jsx";
 import TraceCRMTab from "../components/TraceCRMTab.jsx";
 import TraceConfigTab from "../components/TraceConfigTab.jsx";
+import GuidedTour from "../components/GuidedTour.jsx";
 import QRCode from "qrcode";
+
+const TRACE_TOUR = [
+  {
+    target: null,
+    title: "Bienvenido a Intap TRACE",
+    description: "TRACE es tu plataforma de trazabilidad operacional. Crea puntos de control, configura checklists para tu equipo y encuestas de satisfacción para tus clientes.",
+    position: "center"
+  },
+  {
+    target: "[data-tour='trace-tabs']",
+    title: "Módulos de TRACE",
+    description: "TRACE tiene 6 módulos: Puntos de control, Proyectos, Respuestas recibidas, CRM de contactos, Automatizaciones y Configuración.",
+    position: "bottom"
+  },
+  {
+    target: "[data-tour='trace-new-point']",
+    title: "Crear un punto de control",
+    description: "Un punto de control es una ubicación o proceso de tu negocio que quieres monitorear. Puede ser la entrada, la cocina, el área de servicio, etc.",
+    position: "bottom"
+  },
+  {
+    target: "[data-tour='trace-point-card']",
+    title: "Tarjeta de punto",
+    description: "Cada punto tiene un QR único. Cuando alguien escanea ese QR, completa el checklist o la encuesta configurada. Verás las respuestas en tiempo real.",
+    position: "right"
+  },
+  {
+    target: "[data-tour='trace-tabs']",
+    title: "Respuestas y análisis",
+    description: "En la pestaña 'Respuestas' ves todas las respuestas recibidas con metadatos completos: hora, dispositivo, ubicación y puntuación NPS.",
+    position: "bottom"
+  },
+  {
+    target: "[data-tour='trace-tabs']",
+    title: "CRM de clientes",
+    description: "TRACE captura automáticamente los contactos de clientes que dejan su email. En el CRM puedes ver su historial y puntuación.",
+    position: "bottom"
+  },
+  {
+    target: "[data-tour='trace-tabs']",
+    title: "Automatizaciones",
+    description: "Configura alertas automáticas: recibe una notificación por WhatsApp o email cuando una puntuación baja de 6, o cuando no se complete un checklist a tiempo.",
+    position: "bottom"
+  },
+  {
+    target: null,
+    title: "¡Listo para empezar!",
+    description: "Crea tu primer punto de control, configura el checklist o encuesta, descarga el QR e imprímelo donde lo necesitas. ¡Tu equipo empieza a registrar desde el momento en que lo escanean!",
+    position: "center"
+  },
+];
 
 /* ── Helpers ── */
 function timeAgo(dateStr) {
@@ -630,6 +682,7 @@ export default function TracePage() {
   const [editingPoint, setEditingPoint] = useState(null);
   const [activeTab, setActiveTab] = useState("puntos");
   const [showTour, setShowTour] = useState(false);
+  const [traceTourDone, setTraceTourDone] = useState(() => localStorage.getItem("tour_trace_done") === "done");
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [qrPanelPoint, setQrPanelPoint] = useState(null);
   const didCheckOnboarding = useRef(false);
@@ -737,7 +790,14 @@ export default function TracePage() {
                 </span>
               )}
               <button
+                onClick={() => { localStorage.removeItem("tour_trace_done"); setTraceTourDone(false); }}
+                className="hidden sm:inline-flex px-3 py-2 border border-slate-200 text-slate-500 rounded-xl text-xs font-medium hover:bg-slate-50 transition-colors"
+              >
+                ? Ver visita guiada
+              </button>
+              <button
                 id="tour-new"
+                data-tour="trace-new-point"
                 onClick={handleNew}
                 data-tooltip="Crear un nuevo punto de control QR"
                 className="px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors"
@@ -748,7 +808,7 @@ export default function TracePage() {
           </div>
 
           {/* Top navigation tabs */}
-          <div className="flex gap-0 overflow-x-auto" id="tour-panel">
+          <div className="flex gap-0 overflow-x-auto" id="tour-panel" data-tour="trace-tabs">
             {NAV_TABS.map(tab => (
               <button
                 key={tab.id}
@@ -828,15 +888,16 @@ export default function TracePage() {
                   </div>
                 ) : (
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {points.map(p => (
-                      <PointCard
-                        key={p.id}
-                        point={p}
-                        alertCount={alertsByPoint[p.id] || 0}
-                        onEdit={handleEdit}
-                        onDelete={handleDelete}
-                        onShowQR={handleShowQR}
-                      />
+                    {points.map((p, index) => (
+                      <div key={p.id} data-tour={index === 0 ? "trace-point-card" : undefined}>
+                        <PointCard
+                          point={p}
+                          alertCount={alertsByPoint[p.id] || 0}
+                          onEdit={handleEdit}
+                          onDelete={handleDelete}
+                          onShowQR={handleShowQR}
+                        />
+                      </div>
                     ))}
                   </div>
                 )}
@@ -870,16 +931,9 @@ export default function TracePage() {
         >+</button>
       )}
 
-      {/* Feature tour button */}
-      <button
-        onClick={() => setShowTour(t => !t)}
-        data-tooltip="Guía de funciones de TRACE"
-        className="fixed bottom-4 right-4 w-10 h-10 bg-slate-700 text-white rounded-full shadow-lg flex items-center justify-center text-sm font-bold hover:bg-slate-900 transition-colors z-30"
-        aria-label="Abrir guía de funciones"
-      >?</button>
-
-      {showTour && (
-        <FeatureTour onClose={() => { setShowTour(false); localStorage.setItem("trace_tour_seen", "1"); }} />
+      {/* Guided tour */}
+      {!traceTourDone && (
+        <GuidedTour steps={TRACE_TOUR} storageKey="tour_trace_done" onFinish={() => setTraceTourDone(true)} />
       )}
 
       {/* Point modal */}

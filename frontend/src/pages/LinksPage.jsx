@@ -7,6 +7,40 @@ import QRDownloadModal from "../components/QRDownloadModal.jsx";
 import BulkImportModal from "../components/BulkImportModal.jsx";
 import { toast } from "../components/Toast.jsx";
 import PageHeader from "../components/PageHeader.jsx";
+import GuidedTour from "../components/GuidedTour.jsx";
+
+const LINKS_TOUR = [
+  {
+    target: null,
+    title: "Bienvenido a Mis Códigos QR",
+    description: "Aquí creas y gestionas todos tus códigos QR dinámicos. Puedes editarlos en cualquier momento sin reimprimir el código físico.",
+    position: "center"
+  },
+  {
+    target: "[data-tour='create-qr']",
+    title: "Crear nuevo código QR",
+    description: "Haz clic aquí para crear un QR dinámico. Puedes elegir entre URL, WhatsApp, email, WiFi, texto y más.",
+    position: "bottom"
+  },
+  {
+    target: "[data-tour='qr-list']",
+    title: "Lista de tus códigos QR",
+    description: "Aquí aparecen todos tus QRs con sus estadísticas de escaneo. Puedes activarlos, editarlos o eliminarlos.",
+    position: "top"
+  },
+  {
+    target: "[data-tour='qr-search']",
+    title: "Busca y filtra",
+    description: "Usa el buscador para encontrar rápidamente un QR por nombre, URL o etiqueta.",
+    position: "bottom"
+  },
+  {
+    target: "[data-tour='plan-card']",
+    title: "Tu plan actual",
+    description: "Aquí ves cuántos QRs has usado de tu límite. Puedes actualizar tu plan en cualquier momento para crear más.",
+    position: "right"
+  },
+];
 
 const WORKER = "https://qr.intaprd.com";
 
@@ -286,6 +320,7 @@ export default function LinksPage() {
   const [qrLink, setQrLink]           = useState(null);
   const [selected, setSelected]       = useState(new Set());
   const [sort, setSort]               = useState("recent");
+  const [tourDone, setTourDone]       = useState(() => localStorage.getItem("tour_links_done") === "done");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -373,6 +408,12 @@ export default function LinksPage() {
         description={loading ? "Cargando…" : `${links.length} código${links.length !== 1 ? "s" : ""} QR`}
         actions={
           <>
+            <button
+              onClick={() => { localStorage.removeItem("tour_links_done"); setTourDone(false); }}
+              className="btn-secondary btn-sm gap-1.5 hidden sm:inline-flex"
+            >
+              ? Ver visita guiada
+            </button>
             {canBulk && (
               <button onClick={() => setShowBulk(true)} className="btn-secondary btn-sm gap-1.5">
                 <Ico name="upload" className="w-3.5 h-3.5" />
@@ -380,7 +421,7 @@ export default function LinksPage() {
                 <span className="sm:hidden">CSV</span>
               </button>
             )}
-            <button onClick={() => setShowCreate(true)} className="btn-primary">
+            <button data-tour="create-qr" onClick={() => setShowCreate(true)} className="btn-primary">
               <Ico name="plus" className="w-4 h-4" />
               Crear QR
             </button>
@@ -392,7 +433,7 @@ export default function LinksPage() {
       <div className="card mb-4 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           {/* Search */}
-          <div className="relative flex-1 min-w-[160px] max-w-xs">
+          <div className="relative flex-1 min-w-[160px] max-w-xs" data-tour="qr-search">
             <Ico name="search" className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <input
               className="input pl-8 text-sm"
@@ -510,7 +551,7 @@ export default function LinksPage() {
         <EmptyState hasFilters={hasFilters} onCreate={() => setShowCreate(true)} />
       ) : view === "grid" ? (
         /* ── Grid view ── */
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        <div data-tour="qr-list" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {filtered.map((link) => (
             <QRGridCard
               key={link.slug}
@@ -527,7 +568,7 @@ export default function LinksPage() {
         </div>
       ) : (
         /* ── List / table view ── */
-        <div className="card overflow-hidden animate-fade-in">
+        <div data-tour="qr-list" className="card overflow-hidden animate-fade-in">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -706,6 +747,11 @@ export default function LinksPage() {
       )}
       {qrLink && (
         <QRDownloadModal slug={qrLink.slug} styleJson={qrLink.qr_style_json} onClose={() => setQrLink(null)} />
+      )}
+
+      {/* Guided tour */}
+      {!tourDone && (
+        <GuidedTour steps={LINKS_TOUR} storageKey="tour_links_done" onFinish={() => setTourDone(true)} />
       )}
     </div>
   );
