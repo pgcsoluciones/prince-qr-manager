@@ -298,7 +298,10 @@ export default function OnboardingPage() {
       <p className="text-xs text-slate-400 mt-6">
         ¿Ya configuraste tu cuenta?{" "}
         <button
-          onClick={() => navigate("/dashboard/links")}
+          onClick={() => {
+            localStorage.setItem("onboarding_done", "1");
+            navigate("/dashboard/links");
+          }}
           className="text-primary hover:underline font-medium"
         >
           Ir al dashboard

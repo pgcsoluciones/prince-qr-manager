@@ -619,10 +619,12 @@ export default {
         const err  = requireAuth(user);
         if (err) return err;
         const dbUser = await env.DB.prepare(
-          "SELECT id, email, role, plan, enterprise_id, is_active, created_at FROM users WHERE id=?"
+          "SELECT id, email, role, plan, enterprise_id, is_active, created_at, settings FROM users WHERE id=?"
         ).bind(user.sub).first();
         if (!dbUser) return json({ ok: false, error: "Usuario no encontrado" }, 404);
-        return json({ ok: true, user: dbUser });
+        let settings = {};
+        try { settings = JSON.parse(dbUser.settings || "{}"); } catch (_) {}
+        return json({ ok: true, user: { ...dbUser, settings } });
       }
 
       // ══════════════════════════════════════════
