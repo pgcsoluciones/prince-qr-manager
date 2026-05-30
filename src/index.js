@@ -2459,6 +2459,27 @@ export default {
         return json({ ok: true, imported: batch.length }, 201);
       }
 
+      // AI Chat
+      if (path === "/api/ai/chat" && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const { message } = await request.json();
+        if (!message) return json({ ok: false, error: "Mensaje requerido" }, 400);
+
+        const aiConfig = await env.DB.prepare("SELECT * FROM tenant_ai_config WHERE user_id=?").bind(user.sub).first().catch(() => null);
+        const systemPrompt = aiConfig?.system_prompt || "Eres Intap, un asistente de operaciones y calidad. Ayudas a gestores de negocio a interpretar métricas, checklists y feedback. Responde en español, de forma clara y accionable.";
+        const provider = aiConfig?.llm_provider || "claude";
+        const apiKey = aiConfig?.llm_api_key || null;
+
+        try {
+          const response = await callLLM({ provider, apiKey, systemPrompt, userPrompt: message, maxTokens: 400, env });
+          return json({ ok: true, message: response || "No pude generar una respuesta." });
+        } catch (e) {
+          return json({ ok: false, error: "El asistente no está disponible en este momento." }, 500);
+        }
+      }
+
       // Root
       return json({ ok: true, service: "prince-qr-manager", version: "2.1.0" });
 
