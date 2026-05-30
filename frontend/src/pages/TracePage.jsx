@@ -11,6 +11,7 @@ import TraceConfigTab from "../components/TraceConfigTab.jsx";
 import TraceTrackingTab from "../components/TraceTrackingTab.jsx";
 import TraceStatsPanel from "../components/TraceStatsPanel.jsx";
 import GuidedTour from "../components/GuidedTour.jsx";
+import CollaboratorsPage from "./CollaboratorsPage.jsx";
 import QRCode from "qrcode";
 
 const TRACE_TOUR = [
@@ -403,7 +404,7 @@ function PointCard({ point, alertCount, onEdit, onDelete, onShowQR }) {
           <QRTypeBadge type={point.qr_type} />
           <p className="text-[11px] text-slate-400 mt-1 leading-snug">{POINT_TYPE_DESC[point.qr_type] || "Punto de trazabilidad"}</p>
         </div>
-        <div className="relative flex-shrink-0">
+        <div className="relative flex-shrink-0 cursor-pointer" onClick={() => onShowQR(point)} title="Clic para ver y descargar QR">
           <QRThumbnail url={qrUrl} />
           {scanCount > 0 && (
             <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow">
@@ -451,11 +452,13 @@ function PointCard({ point, alertCount, onEdit, onDelete, onShowQR }) {
 function ResponsesTab({ points }) {
   const [responses, setResponses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    api.get("/api/trace/responses?limit=50")
-      .then(d => setResponses(d.responses || []))
-      .catch(() => {})
+    setLoading(true);
+    api.get("/api/trace/responses?limit=100")
+      .then(d => { setResponses(d.responses || []); setError(null); })
+      .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
@@ -473,11 +476,12 @@ function ResponsesTab({ points }) {
           Revisa cada escaneo y respuesta recibida de tus equipos y clientes en tiempo real
         </p>
       </div>
+      {error && <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">Error al cargar respuestas: {error}</div>}
       {responses.length === 0 ? (
         <div className="bg-white rounded-xl p-10 text-center border border-slate-100 shadow-sm">
           <p className="text-3xl mb-3">📋</p>
           <p className="font-semibold text-slate-700 text-sm">Sin respuestas aún</p>
-          <p className="text-xs text-slate-400 mt-1">Las respuestas aparecerán aquí cuando alguien escanee y complete un QR TRACE</p>
+          <p className="text-xs text-slate-400 mt-1">Las respuestas aparecerán aquí cuando alguien escanee y complete un formulario QR TRACE</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -633,6 +637,7 @@ const NAV_TABS = [
   { id: "automatizaciones", label: "Automatizaciones",  desc: "Configura avisos y acciones automáticas cuando algo no se cumple a tiempo" },
   { id: "configuracion",  label: "Configuración",        desc: "Personaliza la apariencia, notificaciones y plantillas de tu cuenta TRACE" },
   { id: "tracking",       label: "Seguimiento",          desc: "Trazabilidad de entrega: sigue entregas, alquileres y movimientos de inventario con QR" },
+  { id: "colaboradores",  label: "Colaboradores",        desc: "Gestiona el personal operativo asignado a los puntos de control" },
 ];
 
 /* ── Main page ── */
@@ -778,6 +783,21 @@ export default function TracePage() {
                 className="hidden sm:inline-flex px-3 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-medium hover:bg-slate-50 transition-colors"
               >
                 📊 Ver estadísticas
+              </button>
+              {/* Notification bell */}
+              <button
+                onClick={() => setActiveTab("respuestas")}
+                className="relative p-2 border border-slate-200 rounded-xl text-slate-500 hover:bg-slate-50 transition-colors"
+                title="Respuestas recibidas"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                </svg>
+                {points.reduce((s, p) => s + (p.scan_count || 0), 0) > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                    {Math.min(99, points.reduce((s, p) => s + (p.scan_count || 0), 0))}
+                  </span>
+                )}
               </button>
               <button
                 id="tour-new"
@@ -965,6 +985,7 @@ export default function TracePage() {
         {activeTab === "configuracion" && <TraceConfigTab />}
 
         {activeTab === "tracking" && <TraceTrackingTab />}
+        {activeTab === "colaboradores" && <div className="p-2"><CollaboratorsPage /></div>}
       </div>
 
       {/* Mobile FAB */}

@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 
-const API = import.meta.env.VITE_API_URL || "";
+const API = import.meta.env.VITE_API_URL || "https://api.code.intaprd.com";
 
 function apiFetch(path, opts = {}) {
-  const token = localStorage.getItem("token");
+  const token = localStorage.getItem("qr_token");
   return fetch(`${API}${path}`, {
     ...opts,
     headers: {
