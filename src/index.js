@@ -2473,10 +2473,14 @@ export default {
         const apiKey = aiConfig?.llm_api_key || null;
 
         try {
-          const response = await callLLM({ provider, apiKey, systemPrompt, userPrompt: message, maxTokens: 400, env });
-          return json({ ok: true, message: response || "No pude generar una respuesta." });
+          // Always fall back to platform Claude key if no tenant key
+          const effectiveKey = apiKey || env.ANTHROPIC_API_KEY;
+          const effectiveProvider = effectiveKey === env.ANTHROPIC_API_KEY ? "claude" : provider;
+          const response = await callLLM({ provider: effectiveProvider, apiKey: effectiveKey, systemPrompt, userPrompt: message, maxTokens: 600, env });
+          return json({ ok: true, message: response || "Recibí tu mensaje pero no pude generar una respuesta. Intenta de nuevo." });
         } catch (e) {
-          return json({ ok: false, error: "El asistente no está disponible en este momento." }, 500);
+          console.error("AI chat error:", e);
+          return json({ ok: true, message: "En este momento no puedo conectarme con el asistente. Verifica que la clave de IA esté configurada en el panel de administración." });
         }
       }
 
