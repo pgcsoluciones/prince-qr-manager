@@ -87,6 +87,15 @@ export default function TracePointModal({ point, onClose, onSaved }) {
   const [overdueMinutes, setOverdueMinutes] = useState(point?.alert_config?.threshold_minutes ?? 0);
   const [brandColor, setBrandColor] = useState(point?.brand_color || "#2563eb");
   const [brandLogo, setBrandLogo] = useState(point?.brand_logo || "");
+  const [responsibleId, setResponsibleId] = useState(point?.responsible_id || "");
+  const [notifyIds, setNotifyIds] = useState(() => {
+    try { return JSON.parse(point?.notify_collaborator_ids || "[]"); } catch { return []; }
+  });
+  const [collaborators, setCollaborators] = useState([]);
+
+  useEffect(() => {
+    api.get("/api/collaborators").then(d => setCollaborators((d.collaborators || []).filter(c => c.is_active))).catch(() => {});
+  }, []);
 
   function applyTemplate(tmpl) {
     setTemplate(tmpl);
@@ -136,6 +145,8 @@ export default function TracePointModal({ point, onClose, onSaved }) {
       },
       brand_color: brandColor || "#2563eb",
       brand_logo: brandLogo.trim() || null,
+      responsible_id: responsibleId || null,
+      notify_collaborator_ids: notifyIds,
     };
     try {
       if (isEdit) {
@@ -359,6 +370,44 @@ export default function TracePointModal({ point, onClose, onSaved }) {
           {/* === ALERTS TAB === */}
           {tab === "alerts" && (
             <div className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Responsable</label>
+                <select
+                  value={responsibleId}
+                  onChange={e => setResponsibleId(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white"
+                >
+                  <option value="">Sin responsable asignado</option>
+                  {collaborators.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}{c.position ? ` — ${c.position}` : ""}</option>
+                  ))}
+                </select>
+              </div>
+
+              {collaborators.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Notificar a</label>
+                  <div className="space-y-2 max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-3">
+                    {collaborators.map(c => (
+                      <label key={c.id} className="flex items-center gap-2.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={notifyIds.includes(c.id)}
+                          onChange={e => {
+                            setNotifyIds(prev =>
+                              e.target.checked ? [...prev, c.id] : prev.filter(id => id !== c.id)
+                            );
+                          }}
+                          className="accent-primary w-4 h-4"
+                        />
+                        <span className="text-sm text-slate-700">{c.name}</span>
+                        {c.email && <span className="text-xs text-slate-400">{c.email}</span>}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Correo de notificaciones</label>
                 <input

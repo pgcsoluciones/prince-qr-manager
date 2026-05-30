@@ -385,6 +385,7 @@ function PointCard({ point, alertCount, onEdit, onDelete, onShowQR }) {
             )}
           </div>
           {point.area && <p className="text-[11px] text-slate-400 mb-1.5">📍 {point.area}</p>}
+          {point.responsible_name && <p className="text-[11px] text-slate-400 mb-1.5">👤 {point.responsible_name}</p>}
           <QRTypeBadge type={point.qr_type} />
           <p className="text-[11px] text-slate-400 mt-1 leading-snug">{POINT_TYPE_DESC[point.qr_type] || "Punto de trazabilidad"}</p>
         </div>

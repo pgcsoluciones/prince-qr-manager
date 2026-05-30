@@ -1371,12 +1371,12 @@ export default {
         if (point.user_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
 
         const { name, area, description, template, qr_type, checklist_items, survey_questions, alert_config, is_active,
-                brand_color, brand_logo, trace_project_id, qr_style_json } = await request.json();
+                brand_color, brand_logo, trace_project_id, qr_style_json, responsible_id, notify_collaborator_ids } = await request.json();
         await env.DB.prepare(
           `UPDATE trace_points SET
            name=?, area=?, description=?, template=?, qr_type=?,
            checklist_items=?, survey_questions=?, alert_config=?, is_active=?,
-           brand_color=?, brand_logo=?, trace_project_id=?
+           brand_color=?, brand_logo=?, trace_project_id=?, responsible_id=?, notify_collaborator_ids=?
            WHERE id=?`
         ).bind(
           name, area || null, description || null, template || "custom", qr_type || "mixed",
@@ -1387,6 +1387,8 @@ export default {
           brand_color || "#2563eb",
           brand_logo || null,
           trace_project_id || null,
+          responsible_id || null,
+          JSON.stringify(notify_collaborator_ids || []),
           pointId
         ).run();
         return json({ ok: true });
@@ -1411,7 +1413,10 @@ export default {
         const err = requireAuth(user);
         if (err) return err;
         const result = await env.DB.prepare(
-          "SELECT * FROM trace_points WHERE user_id=? ORDER BY created_at DESC"
+          `SELECT tp.*, c.name as responsible_name
+           FROM trace_points tp
+           LEFT JOIN collaborators c ON c.id = tp.responsible_id
+           WHERE tp.user_id=? ORDER BY tp.created_at DESC`
         ).bind(user.sub).all();
         return json({ ok: true, points: result.results.map(p => ({
           ...p,
@@ -2355,6 +2360,103 @@ export default {
         await env.ASSETS.put(key, file.stream(), { httpMetadata: { contentType: file.type } });
 
         return json({ ok: true, url: `https://assets.intaprd.com/${key}` }, 201);
+      }
+
+      // ── Collaborators ────────────────────────────────────────────────────────
+
+      const COLLABORATOR_LIMITS = { free: 5, starter: 20, pro: 100, enterprise: -1 };
+
+      // GET /api/collaborators
+      if (path === "/api/collaborators" && method === "GET") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const rows = await env.DB.prepare(
+          "SELECT * FROM collaborators WHERE tenant_id = ? ORDER BY name ASC"
+        ).bind(user.sub).all();
+        return json({ ok: true, collaborators: rows.results });
+      }
+
+      // POST /api/collaborators
+      if (path === "/api/collaborators" && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const limit = COLLABORATOR_LIMITS[user.plan] ?? 5;
+        if (limit !== -1) {
+          const count = await env.DB.prepare(
+            "SELECT COUNT(*) as c FROM collaborators WHERE tenant_id = ? AND is_active = 1"
+          ).bind(user.sub).first();
+          if ((count?.c ?? 0) >= limit) {
+            return json({ ok: false, error: `Límite de ${limit} colaboradores alcanzado. Mejora tu plan para agregar más.` }, 403);
+          }
+        }
+        const { name, position, department, email, phone } = await request.json();
+        if (!name?.trim()) return json({ ok: false, error: "El nombre es requerido" }, 400);
+        const id = uuid();
+        await env.DB.prepare(
+          "INSERT INTO collaborators (id, tenant_id, name, position, department, email, phone) VALUES (?,?,?,?,?,?,?)"
+        ).bind(id, user.sub, name.trim(), position || null, department || null, email || null, phone || null).run();
+        return json({ ok: true, id }, 201);
+      }
+
+      // PUT /api/collaborators/:id
+      if (path.match(/^\/api\/collaborators\/[^/]+$/) && method === "PUT") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const collabId = path.split("/")[3];
+        const collab = await env.DB.prepare("SELECT tenant_id FROM collaborators WHERE id=?").bind(collabId).first();
+        if (!collab) return json({ ok: false, error: "Colaborador no encontrado" }, 404);
+        if (collab.tenant_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+        const { name, position, department, email, phone, is_active } = await request.json();
+        await env.DB.prepare(
+          "UPDATE collaborators SET name=?, position=?, department=?, email=?, phone=?, is_active=? WHERE id=?"
+        ).bind(
+          name?.trim() || null, position || null, department || null, email || null, phone || null,
+          is_active !== undefined ? (is_active ? 1 : 0) : 1,
+          collabId
+        ).run();
+        return json({ ok: true });
+      }
+
+      // DELETE /api/collaborators/:id
+      if (path.match(/^\/api\/collaborators\/[^/]+$/) && method === "DELETE") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const collabId = path.split("/")[3];
+        const collab = await env.DB.prepare("SELECT tenant_id FROM collaborators WHERE id=?").bind(collabId).first();
+        if (!collab) return json({ ok: false, error: "Colaborador no encontrado" }, 404);
+        if (collab.tenant_id !== user.sub && user.role !== "superadmin") return json({ ok: false, error: "Sin permiso" }, 403);
+        await env.DB.prepare("UPDATE collaborators SET is_active=0 WHERE id=?").bind(collabId).run();
+        return json({ ok: true });
+      }
+
+      // POST /api/collaborators/bulk
+      if (path === "/api/collaborators/bulk" && method === "POST") {
+        const user = await getUser(request, env);
+        const err = requireAuth(user);
+        if (err) return err;
+        const { collaborators: items } = await request.json();
+        if (!Array.isArray(items) || items.length === 0) return json({ ok: false, error: "Sin datos" }, 400);
+        const limit = COLLABORATOR_LIMITS[user.plan] ?? 5;
+        if (limit !== -1) {
+          const count = await env.DB.prepare(
+            "SELECT COUNT(*) as c FROM collaborators WHERE tenant_id = ? AND is_active = 1"
+          ).bind(user.sub).first();
+          const current = count?.c ?? 0;
+          if (current + items.length > limit) {
+            return json({ ok: false, error: `Importar ${items.length} colaboradores excedería el límite de ${limit}. Actualmente tienes ${current}.` }, 403);
+          }
+        }
+        const batch = items.slice(0, 50);
+        await Promise.all(batch.map(item =>
+          env.DB.prepare(
+            "INSERT INTO collaborators (id, tenant_id, name, position, department, email, phone) VALUES (?,?,?,?,?,?,?)"
+          ).bind(uuid(), user.sub, (item.name || "").trim(), item.position || null, item.department || item.area || null, item.email || null, item.phone || null).run()
+        ));
+        return json({ ok: true, imported: batch.length }, 201);
       }
 
       // Root
