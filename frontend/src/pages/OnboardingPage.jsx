@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { api } from "../utils/api.js";
+import { useAuth } from "../context/AuthContext.jsx";
 
 /* ── Industry options ── */
 const INDUSTRIES = [
@@ -209,17 +211,21 @@ function StepDone({ companyName, onFinish }) {
 /* ── Main Onboarding page ── */
 export default function OnboardingPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [step, setStep]       = useState(0);
   const [industry, setIndustry] = useState("");
   const [company, setCompany]   = useState("");
 
   const TOTAL_STEPS = 3;
 
-  const handleFinish = () => {
-    // Persist to localStorage
+  const handleFinish = async () => {
     localStorage.setItem("onboarding_industry", industry);
     localStorage.setItem("onboarding_company",  company);
-    localStorage.setItem("onboarding_done",     "1");
+    localStorage.setItem("onboarding_done", "1");
+    if (user) {
+      localStorage.setItem("onboarding_done_" + user.id, "1");
+      try { await api.put("/api/settings", { onboarding_done: true, industry, company }); } catch (_) {}
+    }
     navigate("/dashboard/links");
   };
 

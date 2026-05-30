@@ -55,7 +55,9 @@ function OnboardingGate({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
   if (!user) return <Navigate to="/login" replace />;
-  const done = localStorage.getItem("onboarding_done");
+  const done = user
+    ? localStorage.getItem("onboarding_done_" + user.id)
+    : localStorage.getItem("onboarding_done");
   if (!done) return <Navigate to="/onboarding" replace />;
   return children;
 }
