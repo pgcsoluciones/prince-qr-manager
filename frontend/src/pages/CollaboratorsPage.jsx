@@ -262,6 +262,9 @@ export default function CollaboratorsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [showBulk, setShowBulk] = useState(false);
   const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 15;
 
   const planLimit = PLAN_LIMITS[user?.plan] ?? 5;
   const activeCount = collaborators.filter((c) => c.is_active).length;
@@ -329,15 +332,21 @@ export default function CollaboratorsPage() {
   }
 
   const filtered = collaborators.filter((c) => {
-    if (!search) return true;
     const q = search.toLowerCase();
-    return (
+    const matchSearch = !search || (
       c.name?.toLowerCase().includes(q) ||
       c.position?.toLowerCase().includes(q) ||
       c.department?.toLowerCase().includes(q) ||
       c.email?.toLowerCase().includes(q)
     );
+    const matchStatus = filterStatus === "all" || (filterStatus === "active" ? c.is_active : !c.is_active);
+    return matchSearch && matchStatus;
   });
+
+  useEffect(() => { setPage(1); }, [search, filterStatus]);
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const departments = [...new Set(collaborators.filter((c) => c.department).map((c) => c.department))];
   const topDepts = departments
@@ -429,8 +438,8 @@ export default function CollaboratorsPage() {
         </div>
       )}
 
-      {/* Search */}
-      <div className="mb-4">
+      {/* Search and filters */}
+      <div className="mb-4 flex flex-wrap gap-2 items-center">
         <input
           type="text"
           value={search}
@@ -438,6 +447,15 @@ export default function CollaboratorsPage() {
           placeholder="Buscar por nombre, cargo, área..."
           className="w-full sm:w-72 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
         />
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+        >
+          <option value="all">Todos</option>
+          <option value="active">Activos</option>
+          <option value="inactive">Inactivos</option>
+        </select>
       </div>
 
       {/* Table */}
@@ -463,7 +481,7 @@ export default function CollaboratorsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map((c) => (
+                {paginated.map((c) => (
                   editId === c.id ? (
                     <tr key={c.id}>
                       <td colSpan={7} className="px-4 py-3">
@@ -528,6 +546,24 @@ export default function CollaboratorsPage() {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-4 py-3 bg-white rounded-xl border border-slate-200 mt-2">
+          <p className="text-xs text-slate-500">{filtered.length} resultados — Página {page} de {totalPages}</p>
+          <div className="flex gap-1">
+            <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}
+              className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">← Anterior</button>
+            {Array.from({length: Math.min(5, totalPages)}, (_, i) => {
+              const p = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
+              return <button key={p} onClick={() => setPage(p)}
+                className={`px-3 py-1.5 text-xs border rounded-lg ${p === page ? "bg-primary text-white border-primary" : "border-slate-200 hover:bg-slate-50"}`}>{p}</button>;
+            })}
+            <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages}
+              className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">Siguiente →</button>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirm modal */}
       {deleteConfirm && (

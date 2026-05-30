@@ -228,7 +228,7 @@ export default function TraceCRMTab() {
     <div className="flex flex-col" style={{ minHeight: "calc(100vh - 120px)" }}>
       {/* Header */}
       <div className="p-5 border-b border-slate-100 flex-shrink-0">
-        <h2 className="text-base font-bold text-slate-900 mb-1">Contactos del sistema CRM</h2>
+        <h2 className="text-base font-bold text-slate-900 mb-1">Gestión de contactos</h2>
         <p className="text-sm text-slate-500 mb-3">
           Gestiona los contactos de clientes que interactuaron con tus QRs de control
         </p>

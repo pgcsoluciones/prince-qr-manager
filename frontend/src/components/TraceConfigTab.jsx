@@ -7,7 +7,7 @@ const CHANNEL_DEFS = [
   { type: "email",    icon: "📧", label: "Correo electrónico", placeholder: "tu@empresa.com",          configKey: "email" },
   { type: "whatsapp", icon: "💬", label: "WhatsApp",           placeholder: "+52 55 0000 0000",         configKey: "phone" },
   { type: "slack",    icon: "🔗", label: "Slack",              placeholder: "Webhook URL de Slack",     configKey: "webhook_url" },
-  { type: "webhook",  icon: "🔌", label: "Webhook personalizado", placeholder: "https://tu-servidor.com/hook", configKey: "webhook_url" },
+  { type: "webhook",  icon: "🔌", label: "URL de notificación externa", placeholder: "https://tu-servidor.com/hook", configKey: "webhook_url" },
 ];
 
 function ChannelRow({ def, channel, onSave, onTest, onDelete }) {

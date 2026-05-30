@@ -13,31 +13,31 @@ const LINKS_TOUR = [
   {
     target: null,
     title: "Bienvenido a Mis Códigos QR",
-    description: "Aquí creas y gestionas todos tus códigos QR dinámicos. Puedes editarlos en cualquier momento sin reimprimir el código físico.",
+    description: "Aquí creas y gestionas todos tus códigos QR dinámicos. Cuando alguien escanea el QR, lo redirige al destino que configures. Puedes cambiarlo en cualquier momento sin reimprimir el código.",
     position: "center"
   },
   {
     target: "[data-tour='create-qr']",
-    title: "Crear nuevo código QR",
-    description: "Haz clic aquí para crear un QR dinámico. Puedes elegir entre URL, WhatsApp, email, WiFi, texto y más.",
+    title: "Crear un nuevo código QR",
+    description: "Haz clic aquí para crear un QR dinámico. Puedes elegir entre URL, WhatsApp, email, WiFi, archivo PDF y más tipos de contenido.",
+    position: "bottom"
+  },
+  {
+    target: "[data-tour='qr-search']",
+    title: "Busca y filtra tus códigos",
+    description: "Usa el buscador para encontrar rápidamente cualquier QR. Puedes filtrar por estado (activo/inactivo) o por tipo.",
     position: "bottom"
   },
   {
     target: "[data-tour='qr-list']",
-    title: "Lista de tus códigos QR",
-    description: "Aquí aparecen todos tus QRs con sus estadísticas de escaneo. Puedes activarlos, editarlos o eliminarlos.",
+    title: "Tu lista de códigos QR",
+    description: "Cada código QR muestra cuántas veces fue escaneado. Puedes editarlo, descargarlo, ver sus estadísticas o desactivarlo con el interruptor.",
     position: "top"
   },
   {
-    target: "[data-tour='qr-search']",
-    title: "Busca y filtra",
-    description: "Usa el buscador para encontrar rápidamente un QR por nombre, URL o etiqueta.",
-    position: "bottom"
-  },
-  {
     target: "[data-tour='plan-card']",
-    title: "Tu plan actual",
-    description: "Aquí ves cuántos QRs has usado de tu límite. Puedes actualizar tu plan en cualquier momento para crear más.",
+    title: "Tu plan y recursos disponibles",
+    description: "Aquí ves cuántos códigos QR has creado versus los que permite tu plan. La barra muestra el porcentaje de uso. Si llegas al límite, puedes actualizar tu plan.",
     position: "right"
   },
 ];
@@ -321,6 +321,8 @@ export default function LinksPage() {
   const [selected, setSelected]       = useState(new Set());
   const [sort, setSort]               = useState("recent");
   const [tourDone, setTourDone]       = useState(() => localStorage.getItem("tour_links_done") === "done");
+  const [page, setPage]               = useState(1);
+  const PAGE_SIZE = 15;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -395,6 +397,11 @@ export default function LinksPage() {
         ? new Date(b.created_at || 0) - new Date(a.created_at || 0)
         : new Date(a.created_at || 0) - new Date(b.created_at || 0)
     );
+
+  useEffect(() => { setPage(1); }, [search, filterProject, filterStatus, filterType]);
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const allSelected = filtered.length > 0 && selected.size === filtered.length;
   const hasFilters = !!(search || filterProject || filterStatus !== "all" || filterType !== "all");
@@ -551,21 +558,39 @@ export default function LinksPage() {
         <EmptyState hasFilters={hasFilters} onCreate={() => setShowCreate(true)} />
       ) : view === "grid" ? (
         /* ── Grid view ── */
-        <div data-tour="qr-list" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-          {filtered.map((link) => (
-            <QRGridCard
-              key={link.slug}
-              link={link}
-              projectName={projectName(link.project_id)}
-              onEdit={setEditLink}
-              onDownload={setQrLink}
-              onToggle={toggle}
-              onDelete={remove}
-              isSelected={selected.has(link.slug)}
-              onSelect={toggleSelect}
-            />
-          ))}
-        </div>
+        <>
+          <div data-tour="qr-list" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {paginated.map((link) => (
+              <QRGridCard
+                key={link.slug}
+                link={link}
+                projectName={projectName(link.project_id)}
+                onEdit={setEditLink}
+                onDownload={setQrLink}
+                onToggle={toggle}
+                onDelete={remove}
+                isSelected={selected.has(link.slug)}
+                onSelect={toggleSelect}
+              />
+            ))}
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 card mt-3">
+              <p className="text-xs text-slate-500">{filtered.length} resultados — Página {page} de {totalPages}</p>
+              <div className="flex gap-1">
+                <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}
+                  className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">← Anterior</button>
+                {Array.from({length: Math.min(5, totalPages)}, (_, i) => {
+                  const p = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
+                  return <button key={p} onClick={() => setPage(p)}
+                    className={`px-3 py-1.5 text-xs border rounded-lg ${p === page ? "bg-primary text-white border-primary" : "border-slate-200 hover:bg-slate-50"}`}>{p}</button>;
+                })}
+                <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages}
+                  className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">Siguiente →</button>
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         /* ── List / table view ── */
         <div data-tour="qr-list" className="card overflow-hidden animate-fade-in">
@@ -614,7 +639,7 @@ export default function LinksPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {filtered.map((link) => {
+                {paginated.map((link) => {
                   const s = getStyle(link);
                   const type = TYPE_META[s.type] || TYPE_META.url;
                   const isRowSelected = selected.has(link.slug);
@@ -732,6 +757,22 @@ export default function LinksPage() {
               </button>
             )}
           </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
+              <p className="text-xs text-slate-500">{filtered.length} resultados — Página {page} de {totalPages}</p>
+              <div className="flex gap-1">
+                <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}
+                  className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">← Anterior</button>
+                {Array.from({length: Math.min(5, totalPages)}, (_, i) => {
+                  const p = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
+                  return <button key={p} onClick={() => setPage(p)}
+                    className={`px-3 py-1.5 text-xs border rounded-lg ${p === page ? "bg-primary text-white border-primary" : "border-slate-200 hover:bg-slate-50"}`}>{p}</button>;
+                })}
+                <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages}
+                  className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">Siguiente →</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

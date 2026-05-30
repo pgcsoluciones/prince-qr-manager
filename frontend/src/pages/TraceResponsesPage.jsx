@@ -94,6 +94,8 @@ export default function TraceResponsesPage() {
   const [responses, setResponses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ type: "", minNps: "", maxNps: "", from: "", to: "" });
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 15;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -121,6 +123,11 @@ export default function TraceResponsesPage() {
     if (filters.to && new Date(r.created_at) > new Date(filters.to + "T23:59:59")) return false;
     return true;
   });
+
+  useEffect(() => { setPage(1); }, [filters]);
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const checklistItems = point?.checklist_items || [];
   const surveyQuestions = point?.survey_questions || [];
@@ -257,8 +264,9 @@ export default function TraceResponsesPage() {
           <p className="text-sm text-slate-400 mt-1">Ajusta los filtros o espera nuevas respuestas</p>
         </div>
       ) : (
+        <>
         <div className="space-y-3">
-          {filtered.map(r => (
+          {paginated.map(r => (
             <div key={r.id} className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
               {/* Top row */}
               <div className="flex items-center gap-2 flex-wrap mb-3">
@@ -295,6 +303,23 @@ export default function TraceResponsesPage() {
             </div>
           ))}
         </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 bg-white rounded-xl border border-slate-100 shadow-sm mt-3">
+            <p className="text-xs text-slate-500">{filtered.length} respuestas — Página {page} de {totalPages}</p>
+            <div className="flex gap-1">
+              <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}
+                className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">← Anterior</button>
+              {Array.from({length: Math.min(5, totalPages)}, (_, i) => {
+                const p = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
+                return <button key={p} onClick={() => setPage(p)}
+                  className={`px-3 py-1.5 text-xs border rounded-lg ${p === page ? "bg-blue-600 text-white border-blue-600" : "border-slate-200 hover:bg-slate-50"}`}>{p}</button>;
+              })}
+              <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages}
+                className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">Siguiente →</button>
+            </div>
+          </div>
+        )}
+        </>
       )}
     </div>
   );

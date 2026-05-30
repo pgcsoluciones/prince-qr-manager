@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import HelpSystem from "../components/HelpSystem.jsx";
 import KeyboardShortcuts from "../components/KeyboardShortcuts.jsx";
 import Breadcrumbs from "../components/Breadcrumbs.jsx";
+import AIChat from "../components/AIChat.jsx";
 
 /* ── Plan display helpers ── */
 const PLAN_LABELS = {
@@ -531,6 +532,9 @@ export default function DashboardLayout() {
 
       {/* ── Mobile bottom nav ── */}
       <BottomNav />
+
+      {/* ── AI Chat assistant ── */}
+      <AIChat />
 
       {/* ── Global help system ── */}
       <HelpSystem />

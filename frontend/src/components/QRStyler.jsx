@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import QRCodeStyling from "qr-code-styling";
+import ImageUpload from "./ImageUpload.jsx";
 
 const DOT_STYLES = ["square", "dots", "rounded", "classy", "classy-rounded", "extra-rounded"];
 const CORNER_STYLES = ["square", "dot", "extra-rounded"];
@@ -81,10 +82,13 @@ export default function QRStyler({ url, style = {}, onChange }) {
           </div>
         </div>
         <div className="col-span-2">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Logo URL (opcional)</label>
-          <input className="input text-xs" placeholder="https://... (.png/.svg)"
+          <ImageUpload
+            label="Logo (opcional)"
+            hint="Se mostrará en el centro del QR. Recomendado: PNG con fondo transparente."
             value={style.logo || ""}
-            onChange={(e) => update("logo", e.target.value)} />
+            onChange={(url) => update("logo", url)}
+            maxSizeMB={1}
+          />
         </div>
       </div>
     </div>

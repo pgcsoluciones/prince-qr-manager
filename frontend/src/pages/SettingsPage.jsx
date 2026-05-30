@@ -387,7 +387,7 @@ export default function SettingsPage() {
         <div className="space-y-5">
           {["pro","enterprise"].includes(user?.plan) || user?.role === "superadmin" ? (
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">URL del Webhook</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">URL de notificación externa</label>
               <div className="flex gap-2">
                 <input className="input flex-1" placeholder="https://tu-servidor.com/webhook" value={integForm.webhook_url} onChange={(e) => setInteg({ ...integForm, webhook_url: e.target.value })} />
                 <button onClick={testWebhook} className="btn-secondary whitespace-nowrap">Probar</button>
@@ -395,7 +395,7 @@ export default function SettingsPage() {
             </div>
           ) : (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-              <p className="text-sm text-amber-800 font-medium">Webhooks disponibles en plan Pro+</p>
+              <p className="text-sm text-amber-800 font-medium">Notificaciones externas disponibles en plan Pro+</p>
             </div>
           )}
 

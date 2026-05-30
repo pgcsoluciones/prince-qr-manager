@@ -62,7 +62,10 @@ export default function ShortenerPage() {
   const [destUrl, setDestUrl]   = useState("");
   const [creating, setCreating] = useState(false);
   const [search, setSearch]     = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
   const [qrModalSlug, setQrModalSlug] = useState(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 15;
 
   const load = useCallback(async () => {
     try {
@@ -97,9 +100,16 @@ export default function ShortenerPage() {
     catch (e) { toast(e.message, "error"); }
   };
 
-  const filtered = links.filter(l =>
-    !search || l.slug.includes(search) || l.destination_url?.toLowerCase().includes(search)
-  );
+  const filtered = links.filter(l => {
+    const matchSearch = !search || l.slug.includes(search) || l.destination_url?.toLowerCase().includes(search);
+    const matchStatus = filterStatus === "all" || (filterStatus === "active" ? l.is_active : !l.is_active);
+    return matchSearch && matchStatus;
+  });
+
+  useEffect(() => { setPage(1); }, [search, filterStatus]);
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const shortUrl = (s) => `${WORKER}/${s}`;
 
@@ -145,10 +155,15 @@ export default function ShortenerPage() {
         )}
       </div>
 
-      {/* Búsqueda */}
-      <div className="mb-4">
+      {/* Búsqueda y filtros */}
+      <div className="mb-4 flex flex-wrap gap-2 items-center">
         <input className="input max-w-xs text-sm" placeholder="Buscar URL..."
           value={search} onChange={e => setSearch(e.target.value)} />
+        <select className="input w-auto text-sm" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+          <option value="all">Todos</option>
+          <option value="active">Activos</option>
+          <option value="inactive">Inactivos</option>
+        </select>
       </div>
 
       {/* Lista */}
@@ -181,7 +196,7 @@ export default function ShortenerPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.map((link) => (
+              {paginated.map((link) => (
                 <tr key={link.slug} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -222,6 +237,22 @@ export default function ShortenerPage() {
           <div className="px-4 py-2 border-t border-gray-100 text-xs text-gray-400">
             {filtered.length} URL{filtered.length !== 1 ? "s" : ""} acortada{filtered.length !== 1 ? "s" : ""}
           </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+              <p className="text-xs text-slate-500">{filtered.length} resultados — Página {page} de {totalPages}</p>
+              <div className="flex gap-1">
+                <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}
+                  className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">← Anterior</button>
+                {Array.from({length: Math.min(5, totalPages)}, (_, i) => {
+                  const p = Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
+                  return <button key={p} onClick={() => setPage(p)}
+                    className={`px-3 py-1.5 text-xs border rounded-lg ${p === page ? "bg-primary text-white border-primary" : "border-slate-200 hover:bg-slate-50"}`}>{p}</button>;
+                })}
+                <button onClick={() => setPage(p => Math.min(totalPages, p+1))} disabled={page === totalPages}
+                  className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50">Siguiente →</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
