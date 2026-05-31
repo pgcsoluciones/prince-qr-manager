@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const BASE = import.meta.env.VITE_API_URL || "https://api.code.intaprd.com";
 
 const QUICK_QUESTIONS = [
-  "¿Cómo crear un QR TRACE?",
-  "Analiza mis métricas",
+  "¿Cómo crear mi primer QR?",
+  "¿Para qué sirve Trace?",
   "¿Qué plan me conviene?",
+  "¿Cómo descargo mi QR?",
 ];
 
 function getTime() {
@@ -27,12 +29,16 @@ function saveSession(messages) {
   } catch {}
 }
 
-const WELCOME = {
-  id: "welcome",
-  role: "assistant",
-  content: "¡Hola! Soy tu asistente de operaciones de Intap. Puedo ayudarte con métricas, QRs TRACE, planes y más. ¿En qué te ayudo hoy?",
-  time: getTime(),
-};
+function buildWelcome(user) {
+  const name = user?.company_name || user?.email?.split("@")[0] || null;
+  const greeting = name ? `¡Hola, ${name}! ` : "¡Hola! ";
+  return {
+    id: "welcome",
+    role: "assistant",
+    content: `${greeting}Soy **Codi**, tu asistente de Intap Code. Puedo ayudarte a crear QRs, entender Trace, analizar métricas y elegir el plan ideal. ¿En qué te ayudo hoy?`,
+    time: getTime(),
+  };
+}
 
 function DotsLoader() {
   return (
@@ -45,12 +51,25 @@ function DotsLoader() {
 }
 
 export default function AIChat() {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState(() => loadSession() || [WELCOME]);
+  const [messages, setMessages] = useState(() => loadSession() || [buildWelcome(user)]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
+
+  // Reset welcome message when user loads (token from localStorage may load after mount)
+  useEffect(() => {
+    if (user) {
+      setMessages((prev) => {
+        if (prev.length === 1 && prev[0].id === "welcome") {
+          return [buildWelcome(user)];
+        }
+        return prev;
+      });
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     if (open) {
@@ -147,8 +166,8 @@ export default function AIChat() {
               🤖
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-white text-sm leading-none">Intap IA</p>
-              <p className="text-blue-200 text-xs mt-0.5">En línea · Tu asistente de operaciones</p>
+              <p className="font-semibold text-white text-sm leading-none">Codi</p>
+              <p className="text-blue-200 text-xs mt-0.5">En línea · Tu asistente de Intap Code</p>
             </div>
             <button
               onClick={() => setOpen(false)}
@@ -242,7 +261,7 @@ export default function AIChat() {
         <div className="relative group">
           {/* Tooltip */}
           <span className="absolute bottom-full right-0 mb-2 px-2 py-1 rounded-lg bg-slate-800 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none select-none">
-            Asistente IA
+            Codi — Asistente IA
           </span>
 
           <button

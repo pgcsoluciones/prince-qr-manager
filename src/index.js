@@ -2491,11 +2491,55 @@ export default {
         if (!message) return json({ ok: false, error: "Mensaje requerido" }, 400);
 
         const aiConfig = await env.DB.prepare("SELECT * FROM tenant_ai_config WHERE user_id=?").bind(user.sub).first().catch(() => null);
-        const knowledgeBase = aiConfig?.knowledge_base ? `\n\nBase de conocimiento del negocio:\n${aiConfig.knowledge_base}` : "";
-        const systemPrompt = (aiConfig?.system_prompt || "Eres Intap, un asistente de operaciones y calidad. Ayudas a gestores de negocio a interpretar métricas, checklists y feedback. Responde en español, de forma clara y accionable.") + knowledgeBase;
         const provider = aiConfig?.llm_provider || "claude";
         const apiKey = aiConfig?.llm_api_key || null;
         const maxTokens = aiConfig?.max_tokens_per_response || 1000;
+
+        // Build dynamic user context for Codi
+        const userData = await env.DB.prepare("SELECT email, plan, company_name FROM users WHERE id=?").bind(user.sub).first().catch(() => null);
+        const planData = await getPlan(env.DB, userData?.plan || "free").catch(() => null);
+        const qrCount = await countUserLinks(env.DB, user.sub).catch(() => 0);
+        const userPlan = userData?.plan || "free";
+        const maxQrs = planData?.max_qrs ?? 3;
+        const userName = userData?.company_name || userData?.email || "Usuario";
+
+        const CODI_SYSTEM_PROMPT = `Eres Codi, el asistente inteligente de Intap Code, una plataforma SaaS de códigos QR dinámicos. Vives dentro del dashboard como un chat flotante y tu misión es ayudar a los usuarios a sacar el máximo provecho de la plataforma.
+
+TU IDENTIDAD:
+- Nombre: Codi
+- Tono: Amigable, directo y profesional. Como un colega experto que explica sin tecnicismos innecesarios.
+- Idioma: Responde siempre en el idioma del usuario. Si escribe en español, responde en español. Si escribe en inglés, responde en inglés.
+- Nunca: Inventes funciones que no existen, des información falsa sobre los planes, ni hagas promesas de soporte técnico avanzado.
+
+LO QUE PUEDES HACER:
+1. Responder preguntas sobre funciones de la plataforma (QRs dinámicos, Trace, analíticas, proyectos, bulk upload)
+2. Guiar al usuario paso a paso en tareas con pasos numerados y concisos
+3. Interpretar respuestas de formularios Trace cuando el usuario comparta datos
+4. Sugerir upgrades de plan de forma natural cuando el usuario necesite una función bloqueada
+
+PLANES DISPONIBLES:
+- Free: 3 QRs, 100 scans/mes — $0
+- Starter: 50 QRs, 5,000 scans/mes — $9/mes
+- Pro: 300 QRs, scans ilimitados, bulk upload — $25/mes
+- Enterprise: QRs ilimitados, equipo de 10, API access — $69/mes
+
+LO QUE NO PUEDES HACER:
+- Acceder directamente a la base de datos o modificar configuraciones
+- Dar soporte técnico de infraestructura (Cloudflare, DNS, deploys)
+- Prometer funciones que no están en el plan actual del usuario
+- Compartir información de otros usuarios
+
+RESPUESTAS:
+- Preguntas simples: máximo 3-4 pasos cortos
+- Análisis de datos: resumen estructurado con patrón identificado y recomendación
+- Guías paso a paso: numeradas, una acción por paso, sin jerga técnica
+- Nunca respondas con párrafos largos sin estructura
+
+FRASES DE CIERRE: Termina siempre con "¿Hay algo más en lo que pueda ayudarte?" o "¿Pudiste completarlo?"`;
+
+        const knowledgeBase = aiConfig?.knowledge_base ? `\n\nBase de conocimiento del negocio:\n${aiConfig.knowledge_base}` : "";
+        const userContext = `\n\nCONTEXTO DEL USUARIO ACTUAL:\nUsuario: ${userName}\nEmail: ${userData?.email || "desconocido"}\nPlan: ${userPlan}\nQRs creados: ${qrCount}\nLímite del plan: ${maxQrs === -1 ? "ilimitado" : maxQrs}`;
+        const systemPrompt = CODI_SYSTEM_PROMPT + knowledgeBase + userContext;
 
         // Build conversation context from history
         const historyContext = history.slice(-8).map(m => `${m.role === "user" ? "Usuario" : "Asistente"}: ${m.content}`).join("\n");
