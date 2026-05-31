@@ -25,7 +25,7 @@ export default function AdminAIModelsPage() {
   const loadPlans = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.get("/api/plans");
+      const data = await api.get("/api/admin/plans");
       const ordered = PLAN_ORDER.map((p) => data.plans?.find((x) => x.plan === p)).filter(Boolean);
       setPlans(ordered);
       const initial = {};

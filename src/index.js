@@ -1078,10 +1078,10 @@ export default {
         return json({ ok: true, plans: result.results });
       }
 
-      // GET /api/admin/ai/models?provider=anthropic|openai|google|cloudflare
-      if (path === "/api/admin/ai/models" && method === "GET") {
+      // GET /api/admin/ai/models?provider=  (superadmin) OR /api/ai/models?provider= (any auth user)
+      if ((path === "/api/admin/ai/models" || path === "/api/ai/models") && method === "GET") {
         const user = await getUser(request, env);
-        const err  = requireAuth(user, "superadmin");
+        const err  = path === "/api/admin/ai/models" ? requireAuth(user, "superadmin") : requireAuth(user);
         if (err) return err;
         const provider = url.searchParams.get("provider") || "anthropic";
 

@@ -42,6 +42,13 @@ export default function SettingsPage() {
   const [fetchingModels, setFetchingModels] = useState(false);
   const [empresaForm, setEmpresa]   = useState({ company_name: "", company_address: "", company_phone: "", company_email: "", company_logo: "", brand_color: "#2563eb", cover_image: "", cover_message: "¡Gracias por tu visita!" });
 
+  // Auto-load models when Agente IA tab is active
+  useEffect(() => {
+    if (activeTab === "Agente IA" && aiForm.llm_provider) {
+      fetchModels(aiForm.llm_provider);
+    }
+  }, [activeTab, aiForm.llm_provider]); // eslint-disable-line
+
   useEffect(() => {
     (async () => {
       try {
@@ -144,7 +151,7 @@ export default function SettingsPage() {
     if (modelCache[provider] !== undefined || fetchingModels) return;
     setFetchingModels(true);
     try {
-      const data = await api.get(`/api/admin/ai/models?provider=${provider}`);
+      const data = await api.get(`/api/ai/models?provider=${provider}`);
       setModelCache(prev => ({ ...prev, [provider]: data.ok ? (data.models || []) : [] }));
     } catch {
       setModelCache(prev => ({ ...prev, [provider]: [] }));
