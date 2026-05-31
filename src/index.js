@@ -1080,6 +1080,37 @@ export default {
 
       // ── Codi platform config ──────────────────────────────────────────────
 
+      // GET /api/admin/ai/keys — superadmin, returns masked keys
+      if (path === "/api/admin/ai/keys" && method === "GET") {
+        const user = await getUser(request, env);
+        const err  = requireAuth(user, "superadmin");
+        if (err) return err;
+        const rows = await env.DB.prepare("SELECT key, value FROM platform_config WHERE key IN ('api_key_anthropic','api_key_openai','api_key_google')").all();
+        const keys = {};
+        for (const row of (rows.results || [])) {
+          const val = row.value || "";
+          keys[row.key] = val ? val.slice(0, 8) + "••••••••••••" : "";
+        }
+        return json({ ok: true, keys });
+      }
+
+      // PUT /api/admin/ai/keys — superadmin, saves API keys to platform_config
+      if (path === "/api/admin/ai/keys" && method === "PUT") {
+        const user = await getUser(request, env);
+        const err  = requireAuth(user, "superadmin");
+        if (err) return err;
+        const body = await request.json();
+        const stmts = [];
+        const keyMap = { anthropic: "api_key_anthropic", openai: "api_key_openai", google: "api_key_google" };
+        for (const [provider, dbKey] of Object.entries(keyMap)) {
+          if (body[provider] !== undefined && body[provider] !== "") {
+            stmts.push(env.DB.prepare("INSERT OR REPLACE INTO platform_config (key, value, updated_at) VALUES (?, ?, datetime('now'))").bind(dbKey, body[provider]));
+          }
+        }
+        if (stmts.length) await env.DB.batch(stmts);
+        return json({ ok: true });
+      }
+
       // GET /api/codi/config — any authenticated user (avatar + public config)
       if (path === "/api/codi/config" && method === "GET") {
         const user = await getUser(request, env);
@@ -1132,8 +1163,8 @@ export default {
 
         try {
           if (provider === "anthropic") {
-            const key = env.ANTHROPIC_API_KEY;
-            if (!key) return json({ ok: false, error: "ANTHROPIC_API_KEY no configurada" }, 400);
+            const key = await getApiKey("anthropic", env);
+            if (!key) return json({ ok: false, error: "API key de Anthropic no configurada" }, 400);
             const res  = await fetch("https://api.anthropic.com/v1/models?limit=100", {
               headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
             });
@@ -1145,8 +1176,8 @@ export default {
           }
 
           if (provider === "openai") {
-            const key = env.OPENAI_API_KEY;
-            if (!key) return json({ ok: false, error: "OPENAI_API_KEY no configurada" }, 400);
+            const key = await getApiKey("openai", env);
+            if (!key) return json({ ok: false, error: "API key de OpenAI no configurada" }, 400);
             const res  = await fetch("https://api.openai.com/v1/models", {
               headers: { Authorization: `Bearer ${key}` },
             });
@@ -1159,8 +1190,8 @@ export default {
           }
 
           if (provider === "google") {
-            const key = env.GOOGLE_AI_KEY;
-            if (!key) return json({ ok: false, error: "GOOGLE_AI_KEY no configurada" }, 400);
+            const key = await getApiKey("google", env);
+            if (!key) return json({ ok: false, error: "API key de Google no configurada" }, 400);
             const res  = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=50`);
             const data = await res.json();
             const models = (data.models || [])
@@ -3046,9 +3077,23 @@ Respuestas TRACE este mes: ${traceResponses}`;
 // ── Multi-LLM router ──────────────────────────────────────────────────────────
 // Routes the Codi chat to the correct provider based on plan_configs.
 // provider: "anthropic" | "openai" | "google" | "cloudflare"
+async function getApiKey(provider, env) {
+  const dbKeyMap = { anthropic: "api_key_anthropic", openai: "api_key_openai", google: "api_key_google" };
+  const dbKey = dbKeyMap[provider];
+  if (dbKey) {
+    try {
+      const row = await env.DB.prepare("SELECT value FROM platform_config WHERE key = ?").bind(dbKey).first();
+      if (row?.value) return row.value;
+    } catch {}
+  }
+  // fallback to env secrets
+  const envMap = { anthropic: env.ANTHROPIC_API_KEY, openai: env.OPENAI_API_KEY, google: env.GOOGLE_AI_KEY };
+  return envMap[provider] || null;
+}
+
 async function callMultiLLM({ provider, model, systemPrompt, userPrompt, maxTokens = 1000, env, overrideKey = null }) {
   if (provider === "anthropic") {
-    const key = overrideKey || env.ANTHROPIC_API_KEY;
+    const key = overrideKey || await getApiKey("anthropic", env);
     if (!key) throw new Error("ANTHROPIC_API_KEY not set");
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -3060,7 +3105,7 @@ async function callMultiLLM({ provider, model, systemPrompt, userPrompt, maxToke
   }
 
   if (provider === "openai") {
-    const key = overrideKey || env.OPENAI_API_KEY;
+    const key = overrideKey || await getApiKey("openai", env);
     if (!key) throw new Error("OPENAI_API_KEY not set");
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -3072,7 +3117,7 @@ async function callMultiLLM({ provider, model, systemPrompt, userPrompt, maxToke
   }
 
   if (provider === "google") {
-    const key = overrideKey || env.GOOGLE_AI_KEY;
+    const key = overrideKey || await getApiKey("google", env);
     if (!key) throw new Error("GOOGLE_AI_KEY not set");
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
       method: "POST",

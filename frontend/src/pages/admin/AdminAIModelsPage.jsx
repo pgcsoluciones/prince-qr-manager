@@ -12,14 +12,23 @@ const PROVIDERS = [
 const PLAN_ORDER  = ["free", "starter", "pro", "enterprise"];
 const PLAN_LABELS = { free: "Free", starter: "Starter", pro: "Pro", enterprise: "Enterprise" };
 
+const API_KEY_PROVIDERS = [
+  { id: "anthropic", label: "Anthropic",  placeholder: "sk-ant-api03-…", hint: "Consola: console.anthropic.com" },
+  { id: "openai",    label: "OpenAI",     placeholder: "sk-proj-…",      hint: "Consola: platform.openai.com" },
+  { id: "google",    label: "Google AI",  placeholder: "AIza…",          hint: "Consola: aistudio.google.com" },
+];
+
 export default function AdminAIModelsPage() {
   const [plans, setPlans]           = useState([]);
   const [edits, setEdits]           = useState({});
   const [saving, setSaving]         = useState({});
   const [loading, setLoading]       = useState(true);
-  // modelsByProvider: { anthropic: [{id, name}], ... } — cached after first fetch
   const [modelCache, setModelCache] = useState({});
   const [fetchingModels, setFetchingModels] = useState({});
+  const [apiKeys, setApiKeys]       = useState({ anthropic: "", openai: "", google: "" });
+  const [maskedKeys, setMaskedKeys] = useState({});
+  const [savingKeys, setSavingKeys] = useState(false);
+  const [showKeys, setShowKeys]     = useState({});
 
   // ── load plans ─────────────────────────────────────────────────────────────
   const loadPlans = useCallback(async () => {
@@ -43,7 +52,34 @@ export default function AdminAIModelsPage() {
     }
   }, []);
 
-  useEffect(() => { loadPlans(); }, [loadPlans]);
+  const loadApiKeys = useCallback(async () => {
+    try {
+      const data = await api.get("/api/admin/ai/keys");
+      if (data.ok) setMaskedKeys(data.keys || {});
+    } catch {}
+  }, []);
+
+  useEffect(() => { loadPlans(); loadApiKeys(); }, [loadPlans, loadApiKeys]);
+
+  const saveApiKeys = async () => {
+    const payload = {};
+    if (apiKeys.anthropic) payload.anthropic = apiKeys.anthropic;
+    if (apiKeys.openai)    payload.openai    = apiKeys.openai;
+    if (apiKeys.google)    payload.google    = apiKeys.google;
+    if (!Object.keys(payload).length) { toast.error("Ingresa al menos una API key"); return; }
+    setSavingKeys(true);
+    try {
+      await api.put("/api/admin/ai/keys", payload);
+      toast.success("API keys guardadas");
+      setApiKeys({ anthropic: "", openai: "", google: "" });
+      setModelCache({});
+      loadApiKeys();
+    } catch {
+      toast.error("Error al guardar keys");
+    } finally {
+      setSavingKeys(false);
+    }
+  };
 
   // ── fetch models for a provider ────────────────────────────────────────────
   const fetchModels = useCallback(async (provider) => {
@@ -223,13 +259,62 @@ export default function AdminAIModelsPage() {
         })}
       </div>
 
-      {/* Keys info */}
-      <div className="mt-6 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 space-y-1">
-        <p><strong>API Keys requeridas en Cloudflare Secrets:</strong></p>
-        <p>• Anthropic → <code className="bg-amber-100 px-1 rounded">ANTHROPIC_API_KEY</code></p>
-        <p>• OpenAI → <code className="bg-amber-100 px-1 rounded">OPENAI_API_KEY</code></p>
-        <p>• Google → <code className="bg-amber-100 px-1 rounded">GOOGLE_AI_KEY</code></p>
-        <p>• Cloudflare → bindings de Workers AI (sin key adicional)</p>
+      {/* API Keys */}
+      <div className="mt-8 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h2 className="font-semibold text-slate-900">API Keys de proveedores</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Se almacenan cifradas en la base de datos. Cloudflare Workers AI no requiere key.</p>
+          </div>
+          <button
+            onClick={saveApiKeys}
+            disabled={savingKeys}
+            className="px-4 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {savingKeys ? "Guardando…" : "Guardar keys"}
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {API_KEY_PROVIDERS.map(({ id, label, placeholder, hint }) => {
+            const masked = maskedKeys[`api_key_${id}`];
+            const visible = showKeys[id];
+            return (
+              <div key={id}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-sm font-medium text-slate-700">{label}</label>
+                  {masked && (
+                    <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
+                      Configurada
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type={visible ? "text" : "password"}
+                    value={apiKeys[id]}
+                    onChange={(e) => setApiKeys((prev) => ({ ...prev, [id]: e.target.value }))}
+                    placeholder={masked ? masked : placeholder}
+                    className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 bg-slate-50 placeholder-slate-400 font-mono"
+                  />
+                  <button
+                    onClick={() => setShowKeys((prev) => ({ ...prev, [id]: !prev[id] }))}
+                    className="px-3 py-2 text-xs rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
+                    title={visible ? "Ocultar" : "Mostrar"}
+                  >
+                    {visible ? "🙈" : "👁"}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">{hint}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-slate-100 text-xs text-slate-400">
+          Cloudflare Workers AI no requiere API key — usa el binding <code className="bg-slate-100 px-1 rounded">AI</code> del Worker.
+        </div>
       </div>
     </div>
   );
