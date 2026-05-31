@@ -2546,15 +2546,22 @@ FRASES DE CIERRE: Termina siempre con "¿Hay algo más en lo que pueda ayudarte?
 
         const knowledgeBase = aiConfig?.knowledge_base ? `\n\nBase de conocimiento del negocio:\n${aiConfig.knowledge_base}` : "";
         const userContext = `\n\nCONTEXTO DEL USUARIO ACTUAL:\nUsuario: ${userName}\nEmail: ${userData?.email || "desconocido"}\nPlan: ${userPlan}\nQRs creados: ${qrCount}\nLímite del plan: ${maxQrs === -1 ? "ilimitado" : maxQrs}`;
-        const systemPrompt = CODI_SYSTEM_PROMPT + knowledgeBase + userContext;
+        // Si el tenant configuró un system_prompt propio en Settings > Agente IA, lo usa como base; si no, usa Codi por defecto
+        const basePrompt = aiConfig?.system_prompt || CODI_SYSTEM_PROMPT;
+        const systemPrompt = basePrompt + knowledgeBase + userContext;
+
+        // Si el tenant configuró su propia API key, tiene prioridad sobre la del plan
+        const effectiveApiKey = aiConfig?.llm_api_key || null;
+        const effectiveProvider = effectiveApiKey ? (aiConfig?.llm_provider || aiProvider) : aiProvider;
+        const effectiveModel    = effectiveApiKey ? (aiConfig?.llm_model    || aiModel)    : aiModel;
 
         // Build conversation from history (multi-turn)
         const historyContext = history.slice(-8).map(m => `${m.role === "user" ? "Usuario" : "Asistente"}: ${m.content}`).join("\n");
         const fullPrompt = historyContext ? `${historyContext}\nUsuario: ${message}` : message;
 
         try {
-          const response = await callMultiLLM({ provider: aiProvider, model: aiModel, systemPrompt, userPrompt: fullPrompt, maxTokens, env });
-          return json({ ok: true, message: response || "Recibí tu mensaje pero no pude generar una respuesta. Intenta de nuevo.", provider: aiProvider, model: aiModel });
+          const response = await callMultiLLM({ provider: effectiveProvider, model: effectiveModel, systemPrompt, userPrompt: fullPrompt, maxTokens, env, overrideKey: effectiveApiKey });
+          return json({ ok: true, message: response || "Recibí tu mensaje pero no pude generar una respuesta. Intenta de nuevo.", provider: effectiveProvider, model: effectiveModel });
         } catch (e) {
           console.error("AI chat error:", e);
           return json({ ok: true, message: "En este momento no puedo conectarme con el asistente. Verifica la configuración en Ajustes > Agente IA." });
@@ -2943,9 +2950,9 @@ FRASES DE CIERRE: Termina siempre con "¿Hay algo más en lo que pueda ayudarte?
 // ── Multi-LLM router ──────────────────────────────────────────────────────────
 // Routes the Codi chat to the correct provider based on plan_configs.
 // provider: "anthropic" | "openai" | "google" | "cloudflare"
-async function callMultiLLM({ provider, model, systemPrompt, userPrompt, maxTokens = 1000, env }) {
+async function callMultiLLM({ provider, model, systemPrompt, userPrompt, maxTokens = 1000, env, overrideKey = null }) {
   if (provider === "anthropic") {
-    const key = env.ANTHROPIC_API_KEY;
+    const key = overrideKey || env.ANTHROPIC_API_KEY;
     if (!key) throw new Error("ANTHROPIC_API_KEY not set");
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -2957,7 +2964,7 @@ async function callMultiLLM({ provider, model, systemPrompt, userPrompt, maxToke
   }
 
   if (provider === "openai") {
-    const key = env.OPENAI_API_KEY;
+    const key = overrideKey || env.OPENAI_API_KEY;
     if (!key) throw new Error("OPENAI_API_KEY not set");
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -2969,7 +2976,7 @@ async function callMultiLLM({ provider, model, systemPrompt, userPrompt, maxToke
   }
 
   if (provider === "google") {
-    const key = env.GOOGLE_AI_KEY;
+    const key = overrideKey || env.GOOGLE_AI_KEY;
     if (!key) throw new Error("GOOGLE_AI_KEY not set");
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
       method: "POST",
