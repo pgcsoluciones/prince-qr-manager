@@ -1680,12 +1680,12 @@ export default {
         const existing = await env.DB.prepare("SELECT user_id FROM tenant_ai_config WHERE user_id=?").bind(user.sub).first().catch(() => null);
         if (existing) {
           await env.DB.prepare(
-            "UPDATE tenant_ai_config SET llm_provider=?, llm_api_key=COALESCE(?,llm_api_key), system_prompt=?, weekly_report_enabled=?, updated_at=datetime('now') WHERE user_id=?"
-          ).bind(body.llm_provider || "claude", body.llm_api_key || null, body.system_prompt || null, body.weekly_report_enabled !== false ? 1 : 0, user.sub).run();
+            "UPDATE tenant_ai_config SET llm_provider=?, llm_api_key=COALESCE(?,llm_api_key), system_prompt=?, weekly_report_enabled=?, max_tokens_per_response=?, knowledge_base=?, updated_at=datetime('now') WHERE user_id=?"
+          ).bind(body.llm_provider || "claude", body.llm_api_key || null, body.system_prompt || null, body.weekly_report_enabled !== false ? 1 : 0, body.max_tokens_per_response || 1000, body.knowledge_base || null, user.sub).run();
         } else {
           await env.DB.prepare(
-            "INSERT INTO tenant_ai_config (user_id, llm_provider, llm_api_key, system_prompt, weekly_report_enabled) VALUES (?,?,?,?,?)"
-          ).bind(user.sub, body.llm_provider || "claude", body.llm_api_key || null, body.system_prompt || null, body.weekly_report_enabled !== false ? 1 : 0).run();
+            "INSERT INTO tenant_ai_config (user_id, llm_provider, llm_api_key, system_prompt, weekly_report_enabled, max_tokens_per_response, knowledge_base) VALUES (?,?,?,?,?,?,?)"
+          ).bind(user.sub, body.llm_provider || "claude", body.llm_api_key || null, body.system_prompt || null, body.weekly_report_enabled !== false ? 1 : 0, body.max_tokens_per_response || 1000, body.knowledge_base || null).run();
         }
         return json({ ok: true });
       }
@@ -2487,23 +2487,28 @@ export default {
         const user = await getUser(request, env);
         const err = requireAuth(user);
         if (err) return err;
-        const { message } = await request.json();
+        const { message, history = [] } = await request.json();
         if (!message) return json({ ok: false, error: "Mensaje requerido" }, 400);
 
         const aiConfig = await env.DB.prepare("SELECT * FROM tenant_ai_config WHERE user_id=?").bind(user.sub).first().catch(() => null);
-        const systemPrompt = aiConfig?.system_prompt || "Eres Intap, un asistente de operaciones y calidad. Ayudas a gestores de negocio a interpretar métricas, checklists y feedback. Responde en español, de forma clara y accionable.";
+        const knowledgeBase = aiConfig?.knowledge_base ? `\n\nBase de conocimiento del negocio:\n${aiConfig.knowledge_base}` : "";
+        const systemPrompt = (aiConfig?.system_prompt || "Eres Intap, un asistente de operaciones y calidad. Ayudas a gestores de negocio a interpretar métricas, checklists y feedback. Responde en español, de forma clara y accionable.") + knowledgeBase;
         const provider = aiConfig?.llm_provider || "claude";
         const apiKey = aiConfig?.llm_api_key || null;
+        const maxTokens = aiConfig?.max_tokens_per_response || 1000;
+
+        // Build conversation context from history
+        const historyContext = history.slice(-8).map(m => `${m.role === "user" ? "Usuario" : "Asistente"}: ${m.content}`).join("\n");
+        const fullPrompt = historyContext ? `${historyContext}\nUsuario: ${message}` : message;
 
         try {
-          // Always fall back to platform Claude key if no tenant key
           const effectiveKey = apiKey || env.ANTHROPIC_API_KEY;
           const effectiveProvider = effectiveKey === env.ANTHROPIC_API_KEY ? "claude" : provider;
-          const response = await callLLM({ provider: effectiveProvider, apiKey: effectiveKey, systemPrompt, userPrompt: message, maxTokens: 600, env });
+          const response = await callLLM({ provider: effectiveProvider, apiKey: effectiveKey, systemPrompt, userPrompt: fullPrompt, maxTokens, env });
           return json({ ok: true, message: response || "Recibí tu mensaje pero no pude generar una respuesta. Intenta de nuevo." });
         } catch (e) {
           console.error("AI chat error:", e);
-          return json({ ok: true, message: "En este momento no puedo conectarme con el asistente. Verifica que la clave de IA esté configurada en el panel de administración." });
+          return json({ ok: true, message: "En este momento no puedo conectarme con el asistente. Verifica la configuración en Ajustes > Agente IA." });
         }
       }
 

@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import HelpSystem from "../components/HelpSystem.jsx";
 import KeyboardShortcuts from "../components/KeyboardShortcuts.jsx";
 import Breadcrumbs from "../components/Breadcrumbs.jsx";
-import AIBanner from "../components/AIBanner.jsx";
+import AIChat from "../components/AIChat.jsx";
 
 /* ── Plan display helpers ── */
 const PLAN_LABELS = {
@@ -512,7 +512,6 @@ export default function DashboardLayout() {
 
         {/* Page content */}
         <main className="flex-1 overflow-auto pb-20 sm:pb-0">
-          <AIBanner />
           <div className="p-4 sm:p-6 pb-0 sm:pb-0">
             <Breadcrumbs />
           </div>
@@ -528,6 +527,9 @@ export default function DashboardLayout() {
 
       {/* ── Keyboard shortcuts modal ── */}
       <KeyboardShortcuts />
+
+      {/* ── Floating AI chat widget ── */}
+      <AIChat />
     </div>
   );
 }
