@@ -26,6 +26,7 @@ import AdminTenantDetailPage from "./pages/admin/AdminTenantDetailPage.jsx";
 import AdminNotificationsPage from "./pages/admin/AdminNotificationsPage.jsx";
 import AdminPlansPageNew from "./pages/admin/AdminPlansPage.jsx";
 import AdminAIModelsPage from "./pages/admin/AdminAIModelsPage.jsx";
+import AdminCodiConfigPage from "./pages/admin/AdminCodiConfigPage.jsx";
 import AdminBillingPage from "./pages/admin/AdminBillingPage.jsx";
 
 function Spinner() {
@@ -129,6 +130,7 @@ export default function App() {
             <Route path="notifications" element={<AdminNotificationsPage />} />
             <Route path="plans" element={<AdminPlansPageNew />} />
             <Route path="ai-models" element={<AdminAIModelsPage />} />
+            <Route path="codi-config" element={<AdminCodiConfigPage />} />
             <Route path="billing" element={<AdminBillingPage />} />
           </Route>
 

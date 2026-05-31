@@ -71,6 +71,7 @@ const NAV_ITEMS = [
   { to: "/admin/plans",          icon: "plans",          label: "Planes"          },
   { to: "/admin/billing",        icon: "subscriptions",  label: "Facturación"     },
   { to: "/admin/ai-models",      icon: "ai",             label: "Modelos IA"      },
+  { to: "/admin/codi-config",   icon: "ai",             label: "Codi Config"     },
 ];
 
 function SidebarContent({ user, onNav, onLogout }) {

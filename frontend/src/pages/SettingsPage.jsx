@@ -310,11 +310,62 @@ export default function SettingsPage() {
 
       {/* Agente IA */}
       {activeTab === "Agente IA" && (
-        ["pro","enterprise"].includes(user?.plan) || user?.role === "superadmin" ? (
-          <div className="space-y-6">
-            <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl text-sm text-blue-700">
-              Tu agente IA analiza las métricas de TRACE y genera reportes semanales. Puedes personalizarlo para que se adapte a tu negocio.
+        <div className="space-y-6">
+          {/* Info banner */}
+          <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex gap-3">
+            <span className="text-2xl">🤖</span>
+            <div>
+              <p className="font-semibold text-blue-800 text-sm">Codi — Tu asistente de Intap Code</p>
+              <p className="text-blue-700 text-xs mt-0.5">El agente IA está configurado y administrado por Intap Code según tu plan. Está activo en el chat flotante del dashboard.</p>
             </div>
+          </div>
+
+          {/* Plan info */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+              <p className="text-xs text-slate-500 mb-1">Plan IA activo</p>
+              <p className="font-semibold text-slate-800 capitalize">{user?.plan || "free"}</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+              <p className="text-xs text-slate-500 mb-1">Rubro asignado</p>
+              <p className="font-semibold text-slate-800 capitalize">{user?.rubro || "General"}</p>
+            </div>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+            El modelo, prompt y comportamiento de Codi son administrados por el equipo de Intap Code para garantizar calidad y control de costos. Si necesitas ajustes específicos para tu negocio, contáctanos.
+          </div>
+
+          {/* Weekly report toggle — único control que el tenant puede tocar */}
+          <label className="flex items-center gap-3 cursor-pointer p-4 rounded-xl border border-slate-200 hover:bg-slate-50">
+            <input type="checkbox" className="w-4 h-4" checked={aiForm.weekly_report_enabled}
+              onChange={e => setAiForm(f => ({ ...f, weekly_report_enabled: e.target.checked }))} />
+            <div>
+              <p className="text-sm font-medium text-slate-700">Reporte semanal automático</p>
+              <p className="text-xs text-slate-400">Cada lunes recibirás un análisis generado por Codi con recomendaciones para tu negocio.</p>
+            </div>
+          </label>
+
+          <button onClick={async () => {
+            setSaving(true);
+            try {
+              await fetch(`${import.meta.env.VITE_API_URL || "https://api.code.intaprd.com"}/api/settings/ai`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("qr_token")}` },
+                body: JSON.stringify({ weekly_report_enabled: aiForm.weekly_report_enabled }),
+              });
+              toast("Preferencia guardada");
+            } catch (e) { toast(e.message, "error"); }
+            finally { setSaving(false); }
+          }} disabled={saving} className="btn-primary w-fit">
+            {saving ? "Guardando..." : "Guardar preferencia"}
+          </button>
+        </div>
+      )}
+
+      {/* REMOVED old block below */}
+      {false && (
+        <div>
 
             {/* LLM selector */}
             <div className="grid grid-cols-2 gap-4">
@@ -487,9 +538,7 @@ export default function SettingsPage() {
             <div className="text-4xl mb-3">🤖</div>
             <h3 className="font-semibold text-slate-800 mb-1">Agente IA disponible en plan Pro</h3>
             <p className="text-sm text-slate-500 mb-4">Personaliza tu agente de análisis, elige el modelo de IA y activa reportes semanales automáticos.</p>
-            <button className="btn-primary">Actualizar a Pro</button>
-          </div>
-        )
+        </div>
       )}
 
       {/* Integraciones */}
