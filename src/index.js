@@ -1078,6 +1078,38 @@ export default {
         return json({ ok: true, plans: result.results });
       }
 
+      // ── Codi platform config ──────────────────────────────────────────────
+
+      // GET /api/admin/codi/config
+      if (path === "/api/admin/codi/config" && method === "GET") {
+        const user = await getUser(request, env);
+        const err  = requireAuth(user, "superadmin");
+        if (err) return err;
+        const rows = await env.DB.prepare("SELECT key, value FROM platform_config WHERE key IN ('codi_base_prompt','codi_rubros_prompts')").all();
+        const config = {};
+        for (const row of (rows.results || [])) {
+          config[row.key] = row.key === "codi_rubros_prompts" ? JSON.parse(row.value) : row.value;
+        }
+        return json({ ok: true, config });
+      }
+
+      // PUT /api/admin/codi/config
+      if (path === "/api/admin/codi/config" && method === "PUT") {
+        const user = await getUser(request, env);
+        const err  = requireAuth(user, "superadmin");
+        if (err) return err;
+        const { codi_base_prompt, codi_rubros_prompts } = await request.json();
+        const stmts = [];
+        if (codi_base_prompt !== undefined) {
+          stmts.push(env.DB.prepare("INSERT OR REPLACE INTO platform_config (key, value, updated_at) VALUES ('codi_base_prompt', ?, datetime('now'))").bind(codi_base_prompt));
+        }
+        if (codi_rubros_prompts !== undefined) {
+          stmts.push(env.DB.prepare("INSERT OR REPLACE INTO platform_config (key, value, updated_at) VALUES ('codi_rubros_prompts', ?, datetime('now'))").bind(JSON.stringify(codi_rubros_prompts)));
+        }
+        if (stmts.length) await env.DB.batch(stmts);
+        return json({ ok: true });
+      }
+
       // GET /api/admin/ai/models?provider=  (superadmin) OR /api/ai/models?provider= (any auth user)
       if ((path === "/api/admin/ai/models" || path === "/api/ai/models") && method === "GET") {
         const user = await getUser(request, env);
@@ -2557,128 +2589,62 @@ export default {
         const { message, history = [] } = await request.json();
         if (!message) return json({ ok: false, error: "Mensaje requerido" }, 400);
 
-        // Fetch user data, plan config and QR count in parallel
-        const [userData, aiConfig] = await Promise.all([
-          env.DB.prepare("SELECT email, plan, company_name FROM users WHERE id=?").bind(user.sub).first().catch(() => null),
-          env.DB.prepare("SELECT * FROM tenant_ai_config WHERE user_id=?").bind(user.sub).first().catch(() => null),
+        // Fetch all data in parallel: user, plan, platform config, tenant data
+        const [userData, platformRows] = await Promise.all([
+          env.DB.prepare("SELECT email, plan, company_name, rubro FROM users WHERE id=?").bind(user.sub).first().catch(() => null),
+          env.DB.prepare("SELECT key, value FROM platform_config WHERE key IN ('codi_base_prompt','codi_rubros_prompts')").all().catch(() => ({ results: [] })),
         ]);
         const userPlan = userData?.plan || "free";
-        const [planData, qrCount] = await Promise.all([
+        const userRubro = userData?.rubro || "general";
+
+        // Fetch plan config + real tenant data in parallel
+        const [planData, qrCount, scansRow, traceRows, traceResponsesRow] = await Promise.all([
           getPlan(env.DB, userPlan).catch(() => null),
           countUserLinks(env.DB, user.sub).catch(() => 0),
+          env.DB.prepare("SELECT COUNT(*) as c FROM qr_analytics qa JOIN short_links sl ON qa.slug=sl.slug WHERE sl.user_id=? AND qa.created_at >= date('now','-30 days')").bind(user.sub).first().catch(() => null),
+          env.DB.prepare("SELECT COUNT(*) as c FROM trace_points WHERE user_id=?").bind(user.sub).first().catch(() => null),
+          env.DB.prepare("SELECT COUNT(*) as c FROM trace_responses tr JOIN trace_points tp ON tr.point_id=tp.id WHERE tp.user_id=? AND tr.created_at >= date('now','-30 days')").bind(user.sub).first().catch(() => null),
         ]);
 
-        // Routing: plan_configs defines which provider+model to use
+        // Platform-controlled routing — tenant cannot override
         const aiProvider = planData?.ai_provider || "anthropic";
         const aiModel    = planData?.ai_model    || "claude-haiku-4-5-20251001";
-        const maxTokens  = aiConfig?.max_tokens_per_response || 1000;
+        const maxTokens  = planData?.max_tokens_per_response || 1000;
 
         const userName = userData?.company_name || userData?.email || "Usuario";
         const maxQrs   = planData?.max_qrs ?? 3;
 
-        const CODI_SYSTEM_PROMPT = `Eres Codi, el asistente inteligente de Intap Code, una plataforma SaaS de códigos QR dinámicos. Vives dentro del dashboard como un chat flotante y tu misión es ayudar a los usuarios a sacar el máximo provecho de la plataforma.
+        // Build system prompt from platform_config (controlled by superadmin only)
+        const configMap = {};
+        for (const row of (platformRows.results || [])) configMap[row.key] = row.value;
+        const basePrompt = configMap["codi_base_prompt"] || "Eres Codi, el asistente de Intap Code. Ayuda al usuario con QRs, Trace y analíticas.";
+        const rubrosJson = configMap["codi_rubros_prompts"] ? JSON.parse(configMap["codi_rubros_prompts"]) : {};
+        const rubroPrompt = rubrosJson[userRubro] || rubrosJson["general"] || "";
 
-## TU IDENTIDAD
-- Nombre: Codi
-- Tono: Amigable, directo y profesional. Como un colega experto que explica sin tecnicismos innecesarios.
-- Idioma: Responde siempre en el idioma del usuario. Si escribe en español, responde en español. Si escribe en inglés, responde en inglés.
-- Nunca: Inventes funciones que no existen, des información falsa sobre los planes, ni hagas promesas de soporte técnico avanzado.
+        // Real tenant data injected as context
+        const scansThisMonth = scansRow?.c ?? 0;
+        const tracePoints    = traceRows?.c ?? 0;
+        const traceResponses = traceResponsesRow?.c ?? 0;
+        const qrUsagePct     = maxQrs === -1 ? 0 : Math.round((qrCount / maxQrs) * 100);
 
-## LO QUE PUEDES HACER
+        const tenantContext = `\n\n## DATOS REALES DEL TENANT (usa esto para dar consejos concretos)
+Usuario: ${userName}
+Email: ${userData?.email || "desconocido"}
+Plan: ${userPlan} | Rubro: ${userRubro}
+QRs creados: ${qrCount} de ${maxQrs === -1 ? "ilimitados" : maxQrs} (${maxQrs === -1 ? "sin límite" : qrUsagePct + "% del límite"})
+Escaneos este mes: ${scansThisMonth}
+Puntos TRACE activos: ${tracePoints}
+Respuestas TRACE este mes: ${traceResponses}`;
 
-### 1. Responder preguntas sobre funciones de la plataforma
-Conoces a fondo todas las funciones de Intap Code:
-
-Códigos QR: crear QR individuales con slug personalizado, editar URL de destino sin cambiar el QR físico (QR dinámico), activar/desactivar, descargar en PNG/SVG/PDF, organizar en proyectos, carga masiva CSV (Pro y Enterprise).
-
-Acortador de enlaces: crear enlaces cortos con slug personalizado, redireccionamiento via qr.intaprd.com/{slug}.
-
-Analíticas: total de escaneos por QR, distribución por países (Starter+), distribución por dispositivos (Starter+).
-
-Trace: crear puntos de rastreo con formularios personalizados, ver respuestas por punto, analizar patrones.
-
-Planes:
-- Free: 3 QRs, 100 scans/mes — $0
-- Starter: 50 QRs, 5,000 scans/mes — $9/mes
-- Pro: 300 QRs, scans ilimitados, bulk upload — $25/mes
-- Enterprise: QRs ilimitados, equipo de 10, API access — $69/mes
-
-### 2. Guiar al usuario paso a paso en tareas
-Cuando el usuario pida ayuda para hacer algo, responde con pasos numerados, claros y concisos. Ejemplo:
-
-Usuario: ¿Cómo creo mi primer QR?
-Codi:
-1. Ve al menú Mis QRs en el panel izquierdo
-2. Haz clic en + Nuevo QR
-3. Escribe un nombre corto para el slug (ej: mi-tienda)
-4. Pega la URL a donde quieres redirigir
-5. Selecciona una carpeta o déjalo en General
-6. Haz clic en Guardar y Generar
-7. Descarga tu QR en PNG, SVG o PDF
-
-Siempre confirma al final: "¿Pudiste completarlo? ¿Tienes alguna duda en algún paso?"
-
-### 3. Interpretar respuestas de formularios Trace
-Cuando el usuario comparta datos, usa este formato:
-"De las X respuestas recibidas, la mayoría indica [patrón]. Esto sugiere que [interpretación]. Te recomiendo [acción concreta]."
-
-Identifica patrones, señala respuestas atípicas y sugiere preguntas de seguimiento.
-
-### 4. Sugerir upgrades de forma natural
-Usa el contexto del usuario para personalizar:
-- Si tiene plan Free y pregunta por bulk upload: explica que está disponible desde Pro y describe el beneficio.
-- Si está cerca del límite de QRs: menciónalo proactivamente.
-
-## LO QUE NO PUEDES HACER
-- Acceder directamente a la base de datos o modificar configuraciones
-- Dar soporte técnico de infraestructura (Cloudflare, DNS, deploys)
-- Prometer funciones que no están en el plan actual del usuario
-- Compartir información de otros usuarios
-
-## FORMATO DE RESPUESTAS
-- Preguntas simples: máximo 3-4 pasos cortos
-- Análisis de datos: resumen + patrón identificado + recomendación
-- Guías: numeradas, una acción por paso, sin jerga técnica
-- Nunca respondas con párrafos largos sin estructura
-
-## FRASES DE CIERRE
-Termina siempre con una de estas:
-- "¿Hay algo más en lo que pueda ayudarte?"
-- "¿Pudiste completarlo?"
-- "Si tienes más datos de respuestas, compártelos y los analizamos juntos."
-
-## EJEMPLO DE CONVERSACIÓN
-Usuario: Hola, no entiendo para qué sirve Trace
-
-Codi: ¡Hola! Trace es una función de Intap Code que te permite crear puntos de rastreo con formularios personalizados vinculados a un QR.
-
-Es ideal cuando quieres saber quién escaneó tu QR y qué información dejó. Por ejemplo:
-- Un restaurante pone un QR en la mesa → el cliente escanea y deja su nombre y opinión
-- Una tienda pone un QR en un producto → el cliente completa una encuesta de satisfacción
-- Un evento usa QRs en cada stand → los visitantes dejan su contacto al escanear
-
-Cuando alguien completa el formulario, ves todas las respuestas en tiempo real en tu dashboard bajo Trace → Respuestas.
-
-¿Quieres que te guíe para crear tu primer punto Trace?`;
-
-        const knowledgeBase = aiConfig?.knowledge_base ? `\n\nBase de conocimiento del negocio:\n${aiConfig.knowledge_base}` : "";
-        const userContext = `\n\nCONTEXTO DEL USUARIO ACTUAL:\nUsuario: ${userName}\nEmail: ${userData?.email || "desconocido"}\nPlan: ${userPlan}\nQRs creados: ${qrCount}\nLímite del plan: ${maxQrs === -1 ? "ilimitado" : maxQrs}`;
-        // Si el tenant configuró un system_prompt propio en Settings > Agente IA, lo usa como base; si no, usa Codi por defecto
-        const basePrompt = aiConfig?.system_prompt || CODI_SYSTEM_PROMPT;
-        const systemPrompt = basePrompt + knowledgeBase + userContext;
-
-        // Si el tenant configuró su propia API key, tiene prioridad sobre la del plan
-        const effectiveApiKey = aiConfig?.llm_api_key || null;
-        const effectiveProvider = effectiveApiKey ? (aiConfig?.llm_provider || aiProvider) : aiProvider;
-        const effectiveModel    = effectiveApiKey ? (aiConfig?.llm_model    || aiModel)    : aiModel;
+        const systemPrompt = basePrompt + (rubroPrompt ? `\n\n## CONTEXTO DEL RUBRO\n${rubroPrompt}` : "") + tenantContext;
 
         // Build conversation from history (multi-turn)
         const historyContext = history.slice(-8).map(m => `${m.role === "user" ? "Usuario" : "Asistente"}: ${m.content}`).join("\n");
         const fullPrompt = historyContext ? `${historyContext}\nUsuario: ${message}` : message;
 
         try {
-          const response = await callMultiLLM({ provider: effectiveProvider, model: effectiveModel, systemPrompt, userPrompt: fullPrompt, maxTokens, env, overrideKey: effectiveApiKey });
-          return json({ ok: true, message: response || "Recibí tu mensaje pero no pude generar una respuesta. Intenta de nuevo.", provider: effectiveProvider, model: effectiveModel });
+          const response = await callMultiLLM({ provider: aiProvider, model: aiModel, systemPrompt, userPrompt: fullPrompt, maxTokens, env });
+          return json({ ok: true, message: response || "Recibí tu mensaje pero no pude generar una respuesta. Intenta de nuevo.", provider: aiProvider, model: aiModel });
         } catch (e) {
           console.error("AI chat error:", e);
           return json({ ok: true, message: "En este momento no puedo conectarme con el asistente. Verifica la configuración en Ajustes > Agente IA." });
