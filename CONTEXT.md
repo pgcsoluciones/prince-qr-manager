@@ -192,3 +192,12 @@ intap-code/
 **PGC Soluciones** — Juan Luis
 GitHub: `pgcsoluciones`
 Dominio principal: `grupoprince.com` / `intaprd.com`
+
+---
+
+## 🗣️ Preferencias de Trabajo
+- **Idioma:** Siempre responder en español
+- **Estilo:** Modo aprendiz — explicar términos y conceptos al desarrollar
+- **Fases:** Máximo 4 pasos por fase, esperar confirmación antes de continuar
+- **Código:** Entregar diffs antes que archivos completos cuando sea posible
+- **Producción:** Todo debe ser production-ready desde el primer entregable
