@@ -1087,13 +1087,13 @@ export default {
         const {
           max_qr, max_tenants, has_analytics, has_bulk, has_custom_domain, price_usd,
           billing_cycles, annual_discount_pct, quarterly_discount_pct, semiannual_discount_pct,
-          features_json, trial_days,
+          features_json, trial_days, ai_provider, ai_model,
         } = body;
         await env.DB.prepare(
           `UPDATE plan_configs SET
             max_qr=?, max_tenants=?, has_analytics=?, has_bulk=?, has_custom_domain=?, price_usd=?,
             billing_cycles=?, annual_discount_pct=?, quarterly_discount_pct=?, semiannual_discount_pct=?,
-            features_json=?, trial_days=?,
+            features_json=?, trial_days=?, ai_provider=COALESCE(?,ai_provider), ai_model=COALESCE(?,ai_model),
             updated_at=CURRENT_TIMESTAMP
            WHERE plan=?`
         ).bind(
@@ -1102,6 +1102,7 @@ export default {
           annual_discount_pct ?? 20, quarterly_discount_pct ?? 10, semiannual_discount_pct ?? 15,
           features_json ? JSON.stringify(features_json) : '{}',
           trial_days ?? 14,
+          ai_provider || null, ai_model || null,
           plan
         ).run();
         return json({ ok: true });
@@ -2490,18 +2491,24 @@ export default {
         const { message, history = [] } = await request.json();
         if (!message) return json({ ok: false, error: "Mensaje requerido" }, 400);
 
-        const aiConfig = await env.DB.prepare("SELECT * FROM tenant_ai_config WHERE user_id=?").bind(user.sub).first().catch(() => null);
-        const provider = aiConfig?.llm_provider || "claude";
-        const apiKey = aiConfig?.llm_api_key || null;
-        const maxTokens = aiConfig?.max_tokens_per_response || 1000;
-
-        // Build dynamic user context for Codi
-        const userData = await env.DB.prepare("SELECT email, plan, company_name FROM users WHERE id=?").bind(user.sub).first().catch(() => null);
-        const planData = await getPlan(env.DB, userData?.plan || "free").catch(() => null);
-        const qrCount = await countUserLinks(env.DB, user.sub).catch(() => 0);
+        // Fetch user data, plan config and QR count in parallel
+        const [userData, aiConfig] = await Promise.all([
+          env.DB.prepare("SELECT email, plan, company_name FROM users WHERE id=?").bind(user.sub).first().catch(() => null),
+          env.DB.prepare("SELECT * FROM tenant_ai_config WHERE user_id=?").bind(user.sub).first().catch(() => null),
+        ]);
         const userPlan = userData?.plan || "free";
-        const maxQrs = planData?.max_qrs ?? 3;
+        const [planData, qrCount] = await Promise.all([
+          getPlan(env.DB, userPlan).catch(() => null),
+          countUserLinks(env.DB, user.sub).catch(() => 0),
+        ]);
+
+        // Routing: plan_configs defines which provider+model to use
+        const aiProvider = planData?.ai_provider || "anthropic";
+        const aiModel    = planData?.ai_model    || "claude-haiku-4-5-20251001";
+        const maxTokens  = aiConfig?.max_tokens_per_response || 1000;
+
         const userName = userData?.company_name || userData?.email || "Usuario";
+        const maxQrs   = planData?.max_qrs ?? 3;
 
         const CODI_SYSTEM_PROMPT = `Eres Codi, el asistente inteligente de Intap Code, una plataforma SaaS de códigos QR dinámicos. Vives dentro del dashboard como un chat flotante y tu misión es ayudar a los usuarios a sacar el máximo provecho de la plataforma.
 
@@ -2541,15 +2548,13 @@ FRASES DE CIERRE: Termina siempre con "¿Hay algo más en lo que pueda ayudarte?
         const userContext = `\n\nCONTEXTO DEL USUARIO ACTUAL:\nUsuario: ${userName}\nEmail: ${userData?.email || "desconocido"}\nPlan: ${userPlan}\nQRs creados: ${qrCount}\nLímite del plan: ${maxQrs === -1 ? "ilimitado" : maxQrs}`;
         const systemPrompt = CODI_SYSTEM_PROMPT + knowledgeBase + userContext;
 
-        // Build conversation context from history
+        // Build conversation from history (multi-turn)
         const historyContext = history.slice(-8).map(m => `${m.role === "user" ? "Usuario" : "Asistente"}: ${m.content}`).join("\n");
         const fullPrompt = historyContext ? `${historyContext}\nUsuario: ${message}` : message;
 
         try {
-          const effectiveKey = apiKey || env.ANTHROPIC_API_KEY;
-          const effectiveProvider = effectiveKey === env.ANTHROPIC_API_KEY ? "claude" : provider;
-          const response = await callLLM({ provider: effectiveProvider, apiKey: effectiveKey, systemPrompt, userPrompt: fullPrompt, maxTokens, env });
-          return json({ ok: true, message: response || "Recibí tu mensaje pero no pude generar una respuesta. Intenta de nuevo." });
+          const response = await callMultiLLM({ provider: aiProvider, model: aiModel, systemPrompt, userPrompt: fullPrompt, maxTokens, env });
+          return json({ ok: true, message: response || "Recibí tu mensaje pero no pude generar una respuesta. Intenta de nuevo.", provider: aiProvider, model: aiModel });
         } catch (e) {
           console.error("AI chat error:", e);
           return json({ ok: true, message: "En este momento no puedo conectarme con el asistente. Verifica la configuración en Ajustes > Agente IA." });
@@ -2936,6 +2941,54 @@ FRASES DE CIERRE: Termina siempre con "¿Hay algo más en lo que pueda ayudarte?
 // ──────────────────────────────────────────────
 
 // ── Multi-LLM router ──────────────────────────────────────────────────────────
+// Routes the Codi chat to the correct provider based on plan_configs.
+// provider: "anthropic" | "openai" | "google" | "cloudflare"
+async function callMultiLLM({ provider, model, systemPrompt, userPrompt, maxTokens = 1000, env }) {
+  if (provider === "anthropic") {
+    const key = env.ANTHROPIC_API_KEY;
+    if (!key) throw new Error("ANTHROPIC_API_KEY not set");
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model, max_tokens: maxTokens, system: systemPrompt, messages: [{ role: "user", content: userPrompt }] }),
+    });
+    const data = await res.json();
+    return data.content?.[0]?.text || null;
+  }
+
+  if (provider === "openai") {
+    const key = env.OPENAI_API_KEY;
+    if (!key) throw new Error("OPENAI_API_KEY not set");
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+      body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }] }),
+    });
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || null;
+  }
+
+  if (provider === "google") {
+    const key = env.GOOGLE_AI_KEY;
+    if (!key) throw new Error("GOOGLE_AI_KEY not set");
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ system_instruction: { parts: [{ text: systemPrompt }] }, contents: [{ role: "user", parts: [{ text: userPrompt }] }], generationConfig: { maxOutputTokens: maxTokens } }),
+    });
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  }
+
+  if (provider === "cloudflare") {
+    if (!env.AI) throw new Error("Cloudflare AI binding not available");
+    const result = await env.AI.run(model, { messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], max_tokens: maxTokens });
+    return result?.response || null;
+  }
+
+  throw new Error(`Provider desconocido: ${provider}`);
+}
+
 // Calls the correct LLM API based on tenant config. Falls back to Claude.
 // Each provider uses its own key: tenant's own key takes priority over platform key.
 async function callLLM({ provider = "claude", apiKey, systemPrompt, userPrompt, maxTokens = 400, env }) {
