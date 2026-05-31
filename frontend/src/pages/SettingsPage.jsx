@@ -37,7 +37,7 @@ export default function SettingsPage() {
   const [generalForm, setGeneral]   = useState({ company_name: "", timezone: "UTC", language: "es", logo_url: "" });
   const [notifForm, setNotif]       = useState({ alert_email: "", whatsapp: "", weekly_report: false });
   const [integForm, setInteg]       = useState({ webhook_url: "", api_key: "" });
-  const [aiForm, setAiForm]         = useState({ llm_provider: "claude", llm_api_key: "", system_prompt: DEFAULT_PROMPT, weekly_report_enabled: true });
+  const [aiForm, setAiForm]         = useState({ llm_provider: "claude", llm_api_key: "", system_prompt: DEFAULT_PROMPT, weekly_report_enabled: true, max_tokens: 1000, knowledge_base: "" });
   const [empresaForm, setEmpresa]   = useState({ company_name: "", company_address: "", company_phone: "", company_email: "", company_logo: "", brand_color: "#2563eb", cover_image: "", cover_message: "¡Gracias por tu visita!" });
 
   useEffect(() => {
@@ -64,6 +64,8 @@ export default function SettingsPage() {
               llm_provider: aiCfg.config.llm_provider || "claude",
               system_prompt: aiCfg.config.system_prompt || DEFAULT_PROMPT,
               weekly_report_enabled: aiCfg.config.weekly_report_enabled !== 0,
+              max_tokens: aiCfg.config.max_tokens || 1000,
+              knowledge_base: aiCfg.config.knowledge_base || "",
             }));
           }
         } catch (_) {}
@@ -325,6 +327,36 @@ export default function SettingsPage() {
                 className="text-xs text-slate-400 hover:text-slate-600 underline mt-1">
                 Restaurar por defecto
               </button>
+            </div>
+
+            {/* Max tokens */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Límite de tokens por respuesta
+              </label>
+              <p className="text-xs text-slate-400 mb-2">Controla la longitud máxima de cada respuesta del agente. 500=corto, 1000=normal, 2000=detallado.</p>
+              <select className="input" value={aiForm.max_tokens || 1000} onChange={e => setAiForm(c => ({...c, max_tokens: Number(e.target.value)}))}>
+                <option value={300}>Corto (300 tokens)</option>
+                <option value={500}>Moderado (500 tokens)</option>
+                <option value={1000}>Normal (1000 tokens)</option>
+                <option value={2000}>Detallado (2000 tokens)</option>
+                <option value={4000}>Extenso (4000 tokens)</option>
+              </select>
+            </div>
+
+            {/* Knowledge base */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Base de conocimiento del agente
+              </label>
+              <p className="text-xs text-slate-400 mb-2">Agrega información específica de tu negocio: productos, procesos, FAQs, políticas. El agente usará esto para dar respuestas más precisas.</p>
+              <textarea
+                rows={6}
+                placeholder="Ej: Somos una empresa de logística. Nuestros productos son X, Y, Z. El proceso de entrega es... Las preguntas frecuentes son..."
+                value={aiForm.knowledge_base || ""}
+                onChange={e => setAiForm(c => ({...c, knowledge_base: e.target.value}))}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 resize-y"
+              />
             </div>
 
             {/* Example prompts */}
