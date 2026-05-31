@@ -32,3 +32,7 @@ database_id = "90c45dd2-374a-4d09-9bb6-e078214c49d3"
 [[r2_buckets]]
 binding = "ASSETS"
 bucket_name = "intap-assets"
+
+# Workers AI — modelos gratuitos para plan Free
+[ai]
+binding = "AI"
