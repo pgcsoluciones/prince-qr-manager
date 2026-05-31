@@ -3,6 +3,11 @@ import { useAuth } from "../context/AuthContext.jsx";
 
 const BASE = import.meta.env.VITE_API_URL || "https://api.code.intaprd.com";
 
+const INACTIVITY_WARN_MS  = 23 * 60 * 1000; // aviso a los 23 min
+const INACTIVITY_CLOSE_MS = 25 * 60 * 1000; // cierre a los 25 min
+
+const FAREWELL_WORDS = ["adiós", "adios", "hasta luego", "bye", "chau", "nos vemos", "gracias, eso es todo", "eso es todo", "goodbye", "hasta pronto"];
+
 const QUICK_QUESTIONS = [
   "¿Cómo crear mi primer QR?",
   "¿Para qué sirve Trace?",
@@ -12,6 +17,11 @@ const QUICK_QUESTIONS = [
 
 function getTime() {
   return new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+}
+
+function isFarewell(text) {
+  const lower = text.toLowerCase().trim();
+  return FAREWELL_WORDS.some((w) => lower.includes(w));
 }
 
 function loadSession() {
@@ -27,6 +37,10 @@ function saveSession(messages) {
   try {
     sessionStorage.setItem("ai_chat_messages", JSON.stringify(messages));
   } catch {}
+}
+
+function clearSession() {
+  try { sessionStorage.removeItem("ai_chat_messages"); } catch {}
 }
 
 function buildWelcome(user) {
@@ -52,39 +66,105 @@ function DotsLoader() {
 
 export default function AIChat() {
   const { user } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen]       = useState(false);
   const [messages, setMessages] = useState(() => loadSession() || [buildWelcome(user)]);
-  const [input, setInput] = useState("");
+  const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef(null);
-  const textareaRef = useRef(null);
+  const [warned, setWarned]   = useState(false); // aviso de inactividad mostrado
 
-  // Reset welcome message when user loads (token from localStorage may load after mount)
+  const messagesEndRef  = useRef(null);
+  const textareaRef     = useRef(null);
+  const warnTimerRef    = useRef(null);
+  const closeTimerRef   = useRef(null);
+
+  // ── helpers ────────────────────────────────────────────────────────────────
+
+  const resetChat = useCallback((keepOpen = false) => {
+    clearSession();
+    setWarned(false);
+    setMessages([buildWelcome(user)]);
+    if (!keepOpen) setOpen(false);
+  }, [user]);
+
+  const addSystemMsg = useCallback((content, type = "info") => {
+    setMessages((prev) => [
+      ...prev,
+      { id: Date.now().toString() + "_sys", role: "system", content, type, time: getTime() },
+    ]);
+  }, []);
+
+  // ── inactivity timers ──────────────────────────────────────────────────────
+
+  const clearTimers = useCallback(() => {
+    clearTimeout(warnTimerRef.current);
+    clearTimeout(closeTimerRef.current);
+  }, []);
+
+  const startTimers = useCallback(() => {
+    clearTimers();
+    setWarned(false);
+
+    warnTimerRef.current = setTimeout(() => {
+      setWarned(true);
+      addSystemMsg("⏱ Llevas un rato sin escribir. El chat se cerrará en 2 minutos por inactividad. Escribe algo para continuar.", "warning");
+    }, INACTIVITY_WARN_MS);
+
+    closeTimerRef.current = setTimeout(() => {
+      addSystemMsg("👋 Sesión cerrada por inactividad. ¡Hasta pronto!");
+      setTimeout(() => resetChat(false), 1500);
+    }, INACTIVITY_CLOSE_MS);
+  }, [clearTimers, addSystemMsg, resetChat]);
+
+  // Start timers when chat opens; clear when it closes
+  useEffect(() => {
+    if (open) {
+      startTimers();
+    } else {
+      clearTimers();
+    }
+    return clearTimers;
+  }, [open, startTimers, clearTimers]);
+
+  // ── scroll & session persistence ──────────────────────────────────────────
+
+  useEffect(() => {
+    if (open) setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+  }, [messages, open]);
+
+  useEffect(() => { saveSession(messages); }, [messages]);
+
+  // Reset welcome when user loads from localStorage
   useEffect(() => {
     if (user) {
       setMessages((prev) => {
-        if (prev.length === 1 && prev[0].id === "welcome") {
-          return [buildWelcome(user)];
-        }
+        if (prev.length === 1 && prev[0].id === "welcome") return [buildWelcome(user)];
         return prev;
       });
     }
   }, [user?.id]);
 
-  useEffect(() => {
-    if (open) {
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-    }
-  }, [messages, open]);
-
-  useEffect(() => {
-    saveSession(messages);
-  }, [messages]);
+  // ── send message ───────────────────────────────────────────────────────────
 
   const sendMessage = useCallback(
     async (text) => {
       const trimmed = text.trim();
       if (!trimmed || loading) return;
+
+      // Reset inactivity timers on user activity
+      startTimers();
+
+      // Detect farewell
+      if (isFarewell(trimmed)) {
+        const userMsg = { id: Date.now().toString(), role: "user", content: trimmed, time: getTime() };
+        setMessages((prev) => [
+          ...prev,
+          userMsg,
+          { id: Date.now().toString() + "_bye", role: "assistant", content: "¡Hasta luego! Que tengas un excelente día. Aquí estaré cuando me necesites. 👋", time: getTime() },
+        ]);
+        setInput("");
+        setTimeout(() => resetChat(false), 2500);
+        return;
+      }
 
       const userMsg = { id: Date.now().toString(), role: "user", content: trimmed, time: getTime() };
       const nextMessages = [...messages, userMsg];
@@ -92,9 +172,7 @@ export default function AIChat() {
       setInput("");
       setLoading(true);
 
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto";
-      }
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
 
       try {
         const token = localStorage.getItem("qr_token") || "";
@@ -110,37 +188,25 @@ export default function AIChat() {
           }),
         });
         const data = await res.json();
-        const reply =
-          data.reply || data.message || data.content || "Lo siento, no pude procesar tu solicitud.";
-        const assistantMsg = {
-          id: Date.now().toString() + "_a",
-          role: "assistant",
-          content: reply,
-          time: getTime(),
-        };
-        setMessages((prev) => [...prev, assistantMsg]);
+        const reply = data.reply || data.message || data.content || "Lo siento, no pude procesar tu solicitud.";
+        setMessages((prev) => [
+          ...prev,
+          { id: Date.now().toString() + "_a", role: "assistant", content: reply, time: getTime() },
+        ]);
       } catch {
         setMessages((prev) => [
           ...prev,
-          {
-            id: Date.now().toString() + "_err",
-            role: "assistant",
-            content: "Hubo un error al conectar con el asistente. Inténtalo de nuevo.",
-            time: getTime(),
-          },
+          { id: Date.now().toString() + "_err", role: "assistant", content: "Hubo un error al conectar con el asistente. Inténtalo de nuevo.", time: getTime() },
         ]);
       } finally {
         setLoading(false);
       }
     },
-    [messages, loading]
+    [messages, loading, startTimers, resetChat]
   );
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(input);
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
   };
 
   const handleTextareaInput = (e) => {
@@ -148,13 +214,16 @@ export default function AIChat() {
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 80) + "px";
     setInput(el.value);
+    // Reset inactivity when user types
+    startTimers();
   };
 
-  const showQuickQuestions = messages.length <= 1;
+  const showQuickQuestions = messages.filter((m) => m.role !== "system").length <= 1;
+
+  // ── render ─────────────────────────────────────────────────────────────────
 
   return (
     <>
-      {/* Chat dialog */}
       {open && (
         <div
           className="fixed bottom-24 right-6 z-50 flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
@@ -182,23 +251,31 @@ export default function AIChat() {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 min-h-0">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex flex-col gap-0.5 ${msg.role === "user" ? "items-end" : "items-start"}`}
-              >
-                <div
-                  className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed max-w-[85%] whitespace-pre-wrap ${
-                    msg.role === "user"
-                      ? "bg-blue-600 text-white rounded-tr-sm"
-                      : "bg-slate-100 text-slate-800 rounded-tl-sm"
-                  }`}
-                >
-                  {msg.content}
+            {messages.map((msg) => {
+              if (msg.role === "system") {
+                return (
+                  <div key={msg.id} className="flex justify-center">
+                    <span className={`text-xs px-3 py-1.5 rounded-full ${msg.type === "warning" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"}`}>
+                      {msg.content}
+                    </span>
+                  </div>
+                );
+              }
+              return (
+                <div key={msg.id} className={`flex flex-col gap-0.5 ${msg.role === "user" ? "items-end" : "items-start"}`}>
+                  <div
+                    className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed max-w-[85%] whitespace-pre-wrap ${
+                      msg.role === "user"
+                        ? "bg-blue-600 text-white rounded-tr-sm"
+                        : "bg-slate-100 text-slate-800 rounded-tl-sm"
+                    }`}
+                  >
+                    {msg.content}
+                  </div>
+                  <span className="text-[10px] text-slate-400 px-1">{msg.time}</span>
                 </div>
-                <span className="text-[10px] text-slate-400 px-1">{msg.time}</span>
-              </div>
-            ))}
+              );
+            })}
 
             {loading && (
               <div className="flex flex-col items-start gap-0.5">
@@ -206,7 +283,6 @@ export default function AIChat() {
               </div>
             )}
 
-            {/* Quick questions */}
             {showQuickQuestions && !loading && (
               <div className="flex flex-wrap gap-2 mt-1">
                 {QUICK_QUESTIONS.map((q) => (
@@ -245,11 +321,7 @@ export default function AIChat() {
               aria-label="Enviar"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
               </svg>
             </button>
           </div>
@@ -259,11 +331,9 @@ export default function AIChat() {
       {/* Floating button */}
       <div className="fixed bottom-6 right-6 z-50">
         <div className="relative group">
-          {/* Tooltip */}
           <span className="absolute bottom-full right-0 mb-2 px-2 py-1 rounded-lg bg-slate-800 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none select-none">
             Codi — Asistente IA
           </span>
-
           <button
             onClick={() => setOpen((o) => !o)}
             className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-blue-300"
@@ -275,16 +345,10 @@ export default function AIChat() {
               </svg>
             ) : (
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
               </svg>
             )}
           </button>
-
-          {/* Online status dot */}
           <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-400 border-2 border-white" />
         </div>
       </div>

@@ -119,6 +119,11 @@ function Icon({ name, className = "w-4 h-4" }) {
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ),
+    home: (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+      </svg>
+    ),
     shield: (
       <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
@@ -141,10 +146,11 @@ function LogoMark({ size = "md" }) {
 }
 
 /* ── Single nav item ── */
-function NavItem({ to, iconName, label, onClick, badge }) {
+function NavItem({ to, iconName, label, onClick, badge, end }) {
   return (
     <NavLink
       to={to}
+      end={end}
       onClick={onClick}
       className={({ isActive }) =>
         `nav-item ${isActive ? "nav-item-active" : ""}`
@@ -227,20 +233,26 @@ function SidebarContent({ user, isSuperadmin, isEnterprise, onNav, onLogout }) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100 flex-shrink-0">
+      {/* Logo — clicable para ir al inicio */}
+      <a
+        href="/dashboard"
+        onClick={(e) => { e.preventDefault(); window.location.href = "/dashboard"; }}
+        className="flex items-center gap-3 px-5 py-4 border-b border-slate-100 flex-shrink-0 hover:bg-slate-50 transition-colors cursor-pointer"
+        title="Ir al inicio"
+      >
         <LogoMark />
         <div className="leading-none">
           <p className="font-bold text-slate-900 text-sm">Intap Code</p>
           <p className="text-[11px] text-slate-400 mt-0.5">QR Manager</p>
         </div>
-      </div>
+      </a>
 
       {/* Navigation */}
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto min-h-0">
         <p className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
           Principal
         </p>
+        <NavItem to="/dashboard"           iconName="home"   label="Inicio"     onClick={onNav} end />
         <NavItem to="/dashboard/links"     iconName="qr"     label="Mis QRs"    onClick={onNav} />
         <NavItem to="/dashboard/shortener" iconName="link"   label="Acortador"  onClick={onNav} />
         <NavItem to="/dashboard/projects"  iconName="folder" label="Proyectos"  onClick={onNav} />
