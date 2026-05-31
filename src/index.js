@@ -1078,6 +1078,72 @@ export default {
         return json({ ok: true, plans: result.results });
       }
 
+      // GET /api/admin/ai/models?provider=anthropic|openai|google|cloudflare
+      if (path === "/api/admin/ai/models" && method === "GET") {
+        const user = await getUser(request, env);
+        const err  = requireAuth(user, "superadmin");
+        if (err) return err;
+        const provider = url.searchParams.get("provider") || "anthropic";
+
+        try {
+          if (provider === "anthropic") {
+            const key = env.ANTHROPIC_API_KEY;
+            if (!key) return json({ ok: false, error: "ANTHROPIC_API_KEY no configurada" }, 400);
+            const res  = await fetch("https://api.anthropic.com/v1/models?limit=100", {
+              headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
+            });
+            const data = await res.json();
+            const models = (data.data || [])
+              .filter(m => m.id.startsWith("claude-"))
+              .map(m => ({ id: m.id, name: m.display_name || m.id }));
+            return json({ ok: true, models });
+          }
+
+          if (provider === "openai") {
+            const key = env.OPENAI_API_KEY;
+            if (!key) return json({ ok: false, error: "OPENAI_API_KEY no configurada" }, 400);
+            const res  = await fetch("https://api.openai.com/v1/models", {
+              headers: { Authorization: `Bearer ${key}` },
+            });
+            const data = await res.json();
+            const models = (data.data || [])
+              .filter(m => m.id.startsWith("gpt-"))
+              .sort((a, b) => b.created - a.created)
+              .map(m => ({ id: m.id, name: m.id }));
+            return json({ ok: true, models });
+          }
+
+          if (provider === "google") {
+            const key = env.GOOGLE_AI_KEY;
+            if (!key) return json({ ok: false, error: "GOOGLE_AI_KEY no configurada" }, 400);
+            const res  = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=50`);
+            const data = await res.json();
+            const models = (data.models || [])
+              .filter(m => m.name.includes("gemini") && m.supportedGenerationMethods?.includes("generateContent"))
+              .map(m => ({ id: m.name.replace("models/", ""), name: m.displayName || m.name.replace("models/", "") }));
+            return json({ ok: true, models });
+          }
+
+          if (provider === "cloudflare") {
+            // Workers AI no tiene endpoint público de listado; devolvemos lista curada
+            const models = [
+              { id: "@cf/meta/llama-3.1-8b-instruct",          name: "Llama 3.1 8B Instruct" },
+              { id: "@cf/meta/llama-3.1-70b-instruct",         name: "Llama 3.1 70B Instruct" },
+              { id: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",name: "Llama 3.3 70B (Fast)" },
+              { id: "@cf/mistral/mistral-7b-instruct-v0.1",    name: "Mistral 7B Instruct" },
+              { id: "@cf/google/gemma-7b-it",                  name: "Gemma 7B IT" },
+              { id: "@cf/qwen/qwen1.5-14b-chat-awq",           name: "Qwen 1.5 14B Chat" },
+            ];
+            return json({ ok: true, models });
+          }
+
+          return json({ ok: false, error: "Proveedor no soportado" }, 400);
+        } catch (e) {
+          console.error("AI models fetch error:", e);
+          return json({ ok: false, error: "Error consultando modelos: " + e.message }, 500);
+        }
+      }
+
       if (path.startsWith("/api/admin/plans/") && method === "PUT") {
         const user = await getUser(request, env);
         const err  = requireAuth(user, "superadmin");
