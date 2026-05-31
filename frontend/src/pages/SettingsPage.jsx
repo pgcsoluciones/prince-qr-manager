@@ -7,11 +7,11 @@ import PageHeader from "../components/PageHeader.jsx";
 
 const TABS = ["Empresa", "General", "Notificaciones", "Agente IA", "Integraciones", "Peligroso"];
 
-const LLM_OPTIONS = [
-  { id: "claude",  label: "Claude (Anthropic)",   desc: "El más capaz. Usa la clave de la plataforma por defecto." },
-  { id: "openai",  label: "GPT-4o mini (OpenAI)", desc: "Rápido y económico. Requiere tu propia API key." },
-  { id: "gemini",  label: "Gemini Flash (Google)", desc: "Excelente para análisis de texto. Requiere tu propia API key." },
-  { id: "groq",    label: "Llama 3.1 (Groq)",     desc: "Ultra rápido y gratuito con cuota generosa." },
+const LLM_PROVIDERS = [
+  { id: "anthropic",  label: "Anthropic",  placeholder: "claude-sonnet-4-6" },
+  { id: "openai",     label: "OpenAI",     placeholder: "gpt-4o" },
+  { id: "google",     label: "Google AI",  placeholder: "gemini-1.5-pro" },
+  { id: "cloudflare", label: "Cloudflare", placeholder: "@cf/meta/llama-3.1-8b-instruct" },
 ];
 
 const DEFAULT_PROMPT = `Eres un asistente de operaciones y calidad llamado "Intap". Ayudas a interpretar métricas, checklists y feedback de clientes.
@@ -37,7 +37,9 @@ export default function SettingsPage() {
   const [generalForm, setGeneral]   = useState({ company_name: "", timezone: "UTC", language: "es", logo_url: "" });
   const [notifForm, setNotif]       = useState({ alert_email: "", whatsapp: "", weekly_report: false });
   const [integForm, setInteg]       = useState({ webhook_url: "", api_key: "" });
-  const [aiForm, setAiForm]         = useState({ llm_provider: "claude", llm_api_key: "", system_prompt: DEFAULT_PROMPT, weekly_report_enabled: true, max_tokens: 1000, knowledge_base: "" });
+  const [aiForm, setAiForm]         = useState({ llm_provider: "anthropic", llm_model: "", llm_api_key: "", system_prompt: DEFAULT_PROMPT, weekly_report_enabled: true, max_tokens: 1000, knowledge_base: "" });
+  const [modelCache, setModelCache] = useState({});
+  const [fetchingModels, setFetchingModels] = useState(false);
   const [empresaForm, setEmpresa]   = useState({ company_name: "", company_address: "", company_phone: "", company_email: "", company_logo: "", brand_color: "#2563eb", cover_image: "", cover_message: "¡Gracias por tu visita!" });
 
   useEffect(() => {
@@ -61,7 +63,8 @@ export default function SettingsPage() {
           if (aiCfg?.config) {
             setAiForm(f => ({
               ...f,
-              llm_provider: aiCfg.config.llm_provider || "claude",
+              llm_provider: aiCfg.config.llm_provider || "anthropic",
+              llm_model: aiCfg.config.llm_model || "",
               system_prompt: aiCfg.config.system_prompt || DEFAULT_PROMPT,
               weekly_report_enabled: aiCfg.config.weekly_report_enabled !== 0,
               max_tokens: aiCfg.config.max_tokens || 1000,
@@ -135,6 +138,19 @@ export default function SettingsPage() {
       return;
     }
     toast("Esta función requiere confirmación adicional por seguridad.", "warning");
+  };
+
+  const fetchModels = async (provider) => {
+    if (modelCache[provider] !== undefined || fetchingModels) return;
+    setFetchingModels(true);
+    try {
+      const data = await api.get(`/api/admin/ai/models?provider=${provider}`);
+      setModelCache(prev => ({ ...prev, [provider]: data.ok ? (data.models || []) : [] }));
+    } catch {
+      setModelCache(prev => ({ ...prev, [provider]: [] }));
+    } finally {
+      setFetchingModels(false);
+    }
   };
 
   if (loading) return <div className="p-8 text-slate-400 text-sm">Cargando...</div>;
@@ -285,32 +301,78 @@ export default function SettingsPage() {
             </div>
 
             {/* LLM selector */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-3">Modelo de IA</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {LLM_OPTIONS.map(opt => (
-                  <button key={opt.id} onClick={() => setAiForm(f => ({ ...f, llm_provider: opt.id }))}
-                    className={`text-left p-3 rounded-xl border-2 transition-all ${
-                      aiForm.llm_provider === opt.id ? "border-primary bg-primary/5" : "border-slate-200 hover:border-slate-300"
-                    }`}>
-                    <p className="font-medium text-sm text-slate-800">{opt.label}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{opt.desc}</p>
-                  </button>
-                ))}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Proveedor */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Proveedor</label>
+                <select
+                  className="input"
+                  value={aiForm.llm_provider || "anthropic"}
+                  onChange={e => {
+                    setAiForm(f => ({ ...f, llm_provider: e.target.value, llm_model: "" }));
+                    fetchModels(e.target.value);
+                  }}
+                >
+                  {LLM_PROVIDERS.map(p => (
+                    <option key={p.id} value={p.id}>{p.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Modelo */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-slate-700">Modelo</label>
+                  {!fetchingModels && modelCache[aiForm.llm_provider]?.length > 0 && (
+                    <button
+                      onClick={() => { setModelCache(p => { const n={...p}; delete n[aiForm.llm_provider]; return n; }); fetchModels(aiForm.llm_provider); }}
+                      className="text-[10px] text-slate-400 hover:text-blue-500 transition-colors"
+                    >↻ Actualizar</button>
+                  )}
+                </div>
+                {fetchingModels ? (
+                  <div className="h-9 bg-slate-100 rounded-lg animate-pulse" />
+                ) : (modelCache[aiForm.llm_provider]?.length > 0) ? (
+                  <select
+                    className="input"
+                    value={aiForm.llm_model || ""}
+                    onChange={e => setAiForm(f => ({ ...f, llm_model: e.target.value }))}
+                    onFocus={() => fetchModels(aiForm.llm_provider)}
+                  >
+                    <option value="">— Selecciona un modelo —</option>
+                    {modelCache[aiForm.llm_provider].map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      className="input flex-1"
+                      placeholder={LLM_PROVIDERS.find(p => p.id === aiForm.llm_provider)?.placeholder || "nombre-del-modelo"}
+                      value={aiForm.llm_model || ""}
+                      onChange={e => setAiForm(f => ({ ...f, llm_model: e.target.value }))}
+                      onFocus={() => fetchModels(aiForm.llm_provider)}
+                    />
+                    <button
+                      onClick={() => fetchModels(aiForm.llm_provider)}
+                      className="px-3 text-xs rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors whitespace-nowrap"
+                    >Cargar</button>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* API Key propia */}
-            {aiForm.llm_provider !== "claude" && (
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Tu API Key de {aiForm.llm_provider} <span className="text-slate-400">(opcional — si no la pones, usamos la clave de la plataforma)</span>
-                </label>
-                <input type="password" className="input font-mono" placeholder="sk-..."
-                  value={aiForm.llm_api_key}
-                  onChange={e => setAiForm(f => ({ ...f, llm_api_key: e.target.value }))} />
-              </div>
-            )}
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Tu API Key de {LLM_PROVIDERS.find(p => p.id === aiForm.llm_provider)?.label || aiForm.llm_provider}{" "}
+                <span className="text-slate-400">(opcional — si no la pones, usamos la clave de la plataforma)</span>
+              </label>
+              <input type="password" className="input font-mono" placeholder="sk-..."
+                value={aiForm.llm_api_key || ""}
+                onChange={e => setAiForm(f => ({ ...f, llm_api_key: e.target.value }))} />
+            </div>
 
             {/* System prompt / personalidad */}
             <div>
