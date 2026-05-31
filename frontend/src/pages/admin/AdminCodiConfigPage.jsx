@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../../utils/api.js";
 import { toast } from "../../components/Toast.jsx";
 
@@ -21,6 +21,8 @@ export default function AdminCodiConfigPage() {
   const [saving, setSaving]           = useState(false);
   const [tenants, setTenants]         = useState([]);
   const [savingRubro, setSavingRubro] = useState({});
+  const [avatar, setAvatar]           = useState(null);
+  const fileInputRef                  = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -32,6 +34,7 @@ export default function AdminCodiConfigPage() {
       if (codiRes.ok) {
         setBasePrompt(codiRes.config?.codi_base_prompt || "");
         setRubros(codiRes.config?.codi_rubros_prompts || {});
+        setAvatar(codiRes.config?.codi_avatar || null);
       }
       if (tenantsRes.ok) setTenants(tenantsRes.users || []);
     } catch {
@@ -49,6 +52,7 @@ export default function AdminCodiConfigPage() {
       await api.put("/api/admin/codi/config", {
         codi_base_prompt: basePrompt,
         codi_rubros_prompts: rubros,
+        codi_avatar: avatar,
       });
       toast.success("Configuración de Codi guardada");
     } catch {
@@ -56,6 +60,16 @@ export default function AdminCodiConfigPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleAvatarFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { toast.error("Solo se permiten imágenes"); return; }
+    if (file.size > 500 * 1024) { toast.error("La imagen debe pesar menos de 500 KB"); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => setAvatar(ev.target.result);
+    reader.readAsDataURL(file);
   };
 
   const saveTenantRubro = async (userId, rubro) => {
@@ -84,12 +98,12 @@ export default function AdminCodiConfigPage() {
         </p>
       </div>
 
-      {/* Prompt base */}
+      {/* Avatar de Codi */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="font-semibold text-slate-900">Prompt base de Codi</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Se aplica a todos los tenants sin importar su rubro.</p>
+            <h2 className="font-semibold text-slate-900">Avatar de Codi</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Imagen que aparece en el chat. Máx 500 KB.</p>
           </div>
           <button
             onClick={savePrompts}
@@ -98,6 +112,42 @@ export default function AdminCodiConfigPage() {
           >
             {saving ? "Guardando…" : "Guardar todo"}
           </button>
+        </div>
+        <div className="flex items-center gap-6">
+          <div className="relative flex-shrink-0">
+            {avatar ? (
+              <img src={avatar} alt="Avatar Codi" className="w-20 h-20 rounded-full object-cover border-2 border-slate-200 shadow-sm" />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-3xl border-2 border-slate-200 shadow-sm">
+                🤖
+              </div>
+            )}
+            {avatar && (
+              <button
+                onClick={() => setAvatar(null)}
+                className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center text-xs hover:bg-red-600 transition-colors"
+                title="Eliminar avatar"
+              >✕</button>
+            )}
+          </div>
+          <div className="flex-1">
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarFile} />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-4 py-2 rounded-lg border border-slate-300 text-sm text-slate-700 hover:bg-slate-50 transition-colors font-medium"
+            >
+              {avatar ? "Cambiar imagen" : "Subir imagen"}
+            </button>
+            <p className="text-xs text-slate-400 mt-2">PNG, JPG o WebP · Cuadrada recomendada</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Prompt base */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="mb-4">
+          <h2 className="font-semibold text-slate-900">Prompt base de Codi</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Se aplica a todos los tenants sin importar su rubro.</p>
         </div>
         <textarea
           rows={10}

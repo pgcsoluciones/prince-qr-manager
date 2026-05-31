@@ -1080,12 +1080,22 @@ export default {
 
       // ── Codi platform config ──────────────────────────────────────────────
 
+      // GET /api/codi/config — any authenticated user (avatar + public config)
+      if (path === "/api/codi/config" && method === "GET") {
+        const user = await getUser(request, env);
+        const err  = requireAuth(user);
+        if (err) return err;
+        const rows = await env.DB.prepare("SELECT key, value FROM platform_config WHERE key = 'codi_avatar'").all();
+        const avatar = rows.results?.[0]?.value || null;
+        return json({ ok: true, avatar });
+      }
+
       // GET /api/admin/codi/config
       if (path === "/api/admin/codi/config" && method === "GET") {
         const user = await getUser(request, env);
         const err  = requireAuth(user, "superadmin");
         if (err) return err;
-        const rows = await env.DB.prepare("SELECT key, value FROM platform_config WHERE key IN ('codi_base_prompt','codi_rubros_prompts')").all();
+        const rows = await env.DB.prepare("SELECT key, value FROM platform_config WHERE key IN ('codi_base_prompt','codi_rubros_prompts','codi_avatar')").all();
         const config = {};
         for (const row of (rows.results || [])) {
           config[row.key] = row.key === "codi_rubros_prompts" ? JSON.parse(row.value) : row.value;
@@ -1098,13 +1108,16 @@ export default {
         const user = await getUser(request, env);
         const err  = requireAuth(user, "superadmin");
         if (err) return err;
-        const { codi_base_prompt, codi_rubros_prompts } = await request.json();
+        const { codi_base_prompt, codi_rubros_prompts, codi_avatar } = await request.json();
         const stmts = [];
         if (codi_base_prompt !== undefined) {
           stmts.push(env.DB.prepare("INSERT OR REPLACE INTO platform_config (key, value, updated_at) VALUES ('codi_base_prompt', ?, datetime('now'))").bind(codi_base_prompt));
         }
         if (codi_rubros_prompts !== undefined) {
           stmts.push(env.DB.prepare("INSERT OR REPLACE INTO platform_config (key, value, updated_at) VALUES ('codi_rubros_prompts', ?, datetime('now'))").bind(JSON.stringify(codi_rubros_prompts)));
+        }
+        if (codi_avatar !== undefined) {
+          stmts.push(env.DB.prepare("INSERT OR REPLACE INTO platform_config (key, value, updated_at) VALUES ('codi_avatar', ?, datetime('now'))").bind(codi_avatar));
         }
         if (stmts.length) await env.DB.batch(stmts);
         return json({ ok: true });

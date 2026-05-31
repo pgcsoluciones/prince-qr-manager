@@ -70,12 +70,22 @@ export default function AIChat() {
   const [messages, setMessages] = useState(() => loadSession() || [buildWelcome(user)]);
   const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
-  const [warned, setWarned]   = useState(false); // aviso de inactividad mostrado
+  const [warned, setWarned]   = useState(false);
+  const [avatar, setAvatar]   = useState(null);
 
   const messagesEndRef  = useRef(null);
   const textareaRef     = useRef(null);
   const warnTimerRef    = useRef(null);
   const closeTimerRef   = useRef(null);
+
+  useEffect(() => {
+    if (!user) return;
+    const token = localStorage.getItem("qr_token") || "";
+    fetch(`${BASE}/api/codi/config`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => { if (d.avatar) setAvatar(d.avatar); })
+      .catch(() => {});
+  }, [user?.id]);
 
   // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -231,8 +241,12 @@ export default function AIChat() {
         >
           {/* Header */}
           <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 flex-shrink-0">
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-              🤖
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
+              {avatar ? (
+                <img src={avatar} alt="Codi" className="w-full h-full object-cover" />
+              ) : (
+                <span>🤖</span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-white text-sm leading-none">Codi</p>
@@ -336,13 +350,15 @@ export default function AIChat() {
           </span>
           <button
             onClick={() => setOpen((o) => !o)}
-            className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-blue-300"
+            className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-blue-300 overflow-hidden"
             aria-label={open ? "Cerrar asistente" : "Abrir asistente IA"}
           >
             {open ? (
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
+            ) : avatar ? (
+              <img src={avatar} alt="Codi" className="w-full h-full object-cover" />
             ) : (
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
