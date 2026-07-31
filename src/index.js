@@ -12,6 +12,7 @@ import {
   CODI_EMPTY_AGENT_STATE,
   CODI_AGENT_RESPONSE_SCHEMA,
 } from "./codi-agent-core.js";
+import { handleSupportTicketApi } from "./support-ticket-api.js";
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -431,6 +432,21 @@ export default {
     const JWT_SECRET = env.JWT_SECRET || "changeme-set-in-cloudflare-dashboard";
 
     try {
+      // ── Support tickets: authenticated tenant or Super Admin ──────────────
+      if (path.startsWith("/api/support/tickets")) {
+        const supportUser = await getUser(request, env);
+        const authError = requireAuth(supportUser);
+        if (authError) return authError;
+
+        const supportResponse = await handleSupportTicketApi({
+          request,
+          env,
+          user: supportUser,
+        });
+
+        if (supportResponse) return supportResponse;
+      }
+
       // ══════════════════════════════════════════
       // REDIRECCIÓN PÚBLICA /:slug
       // ══════════════════════════════════════════
