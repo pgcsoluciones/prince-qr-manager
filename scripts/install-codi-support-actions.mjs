@@ -79,23 +79,30 @@ if (!index.includes("sanitizeCodiUiAction")) {
 
   index = replaceOnce(
     index,
-    'agent_state: normalizedAgentState,',
-    'agent_state: normalizedAgentState,\n            ui_action: sanitizeCodiUiAction(parsed.ui_action),',
+    '    last_user_result:\n      allowedResults.includes(\n        source.last_user_result\n      )\n        ? source.last_user_result\n        : CODI_EMPTY_AGENT_STATE.last_user_result,\n\n    completed_steps:',
+    '    last_user_result:\n      allowedResults.includes(\n        source.last_user_result\n      )\n        ? source.last_user_result\n        : CODI_EMPTY_AGENT_STATE.last_user_result,\n\n    last_offered_action:\n      cleanCodiAgentText(source.last_offered_action),\n\n    last_action_result:\n      source.last_action_result && typeof source.last_action_result === "object"\n        ? source.last_action_result\n        : null,\n\n    support_ticket_draft:\n      sanitizeSupportDraft(source.support_ticket_draft),\n\n    completed_steps:',
+    "normalización soporte"
+  );
+
+  index = replaceOnce(
+    index,
+    '      state: safePreviousState,\n      structured: false,',
+    '      state: safePreviousState,\n      ui_action: { type: "none", payload: null },\n      structured: false,',
+    "ui_action fallback"
+  );
+
+  index = replaceOnce(
+    index,
+    '    state:\n      normalizeCodiAgentState(\n        parsed.state ||\n        safePreviousState\n      ),\n\n    structured: true,',
+    '    state:\n      normalizeCodiAgentState(\n        parsed.state ||\n        safePreviousState\n      ),\n\n    ui_action:\n      sanitizeCodiUiAction(parsed.ui_action),\n\n    structured: true,',
     "respuesta ui_action"
   );
 
   index = replaceOnce(
     index,
-    'const normalizedAgentState = {\n',
-    'const normalizedAgentState = {\n',
-    "estado normalizado"
-  );
-
-  index = replaceOnce(
-    index,
-    'last_user_result: parsed.state?.last_user_result || "unknown",',
-    'last_user_result: parsed.state?.last_user_result || "unknown",\n            last_offered_action: typeof parsed.state?.last_offered_action === "string" ? parsed.state.last_offered_action : null,\n            last_action_result: parsed.state?.last_action_result && typeof parsed.state.last_action_result === "object" ? parsed.state.last_action_result : null,\n            support_ticket_draft: sanitizeSupportDraft(parsed.state?.support_ticket_draft),',
-    "normalización soporte"
+    '          agent_state:\n            parsedCodi.state,',
+    '          agent_state:\n            parsedCodi.state,\n          ui_action:\n            parsedCodi.ui_action,',
+    "respuesta HTTP ui_action"
   );
 
   fs.writeFileSync(indexPath, index);
@@ -113,7 +120,7 @@ if (!chat.includes("executeCodiUiAction")) {
   chat = replaceOnce(
     chat,
     '        const reply =\n          data.reply ||',
-    `        let reply =\n          data.reply ||`,
+    '        let reply =\n          data.reply ||',
     "reply mutable"
   );
 
