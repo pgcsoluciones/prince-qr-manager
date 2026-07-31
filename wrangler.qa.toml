@@ -1,0 +1,12 @@
+name = "prince-qr-manager-support-qa"
+main = "src/support-qa-worker.js"
+compatibility_date = "2024-05-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "qa"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pgc-landing-saas-db"
+database_id = "f1c1eab5-6c9d-414d-b08c-870fde708898"
