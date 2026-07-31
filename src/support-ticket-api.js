@@ -76,12 +76,32 @@ function ticketIdFromPath(path) {
 }
 
 async function loadRequester(env, userId) {
-  return env.DB.prepare(
-    `SELECT u.id, u.email, u.plan, tp.company_name, tp.company_phone
-     FROM users u
-     LEFT JOIN tenant_profiles tp ON tp.tenant_id = u.id
-     WHERE u.id = ?`
-  ).bind(userId).first();
+  try {
+    return await env.DB.prepare(
+      `SELECT u.id, u.email, u.plan, tp.company_name, tp.company_phone
+       FROM users u
+       LEFT JOIN tenant_profiles tp ON tp.tenant_id = u.id
+       WHERE u.id = ?`
+    ).bind(userId).first();
+  } catch (error) {
+    const message = String(error?.message || error || "");
+    const compatibleMissingSchema =
+      message.includes("no such table: tenant_profiles") ||
+      message.includes("no such column: u.plan");
+
+    if (!compatibleMissingSchema) throw error;
+
+    return env.DB.prepare(
+      `SELECT
+         u.id,
+         u.email,
+         COALESCE(u.plan_id, 'free') AS plan,
+         u.name AS company_name,
+         u.contact_phone AS company_phone
+       FROM users u
+       WHERE u.id = ?`
+    ).bind(userId).first();
+  }
 }
 
 async function loadTicket(env, ticketId) {
