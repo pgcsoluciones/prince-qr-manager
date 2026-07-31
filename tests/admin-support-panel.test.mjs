@@ -58,9 +58,10 @@ test("mensajes públicos y notas internas", () => {
 });
 
 test("la API protege aislamiento y permisos", () => {
-  assert.match(api, /tenant_id/);
-  assert.match(api, /superadmin/);
-  assert.match(api, /is_internal/);
+  assert.match(api, /ticket\.tenant_id === user\?\.sub/);
+  assert.match(api, /user\?\.role === "superadmin"/);
+  assert.match(api, /body\?\.visibility === "internal"/);
+  assert.match(api, /visibility = isSuperadmin\(user\)/);
   assert.match(api, /assigned_to_user_id/);
 });
 
