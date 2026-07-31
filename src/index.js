@@ -1203,12 +1203,26 @@ export default {
           if (provider === "cloudflare") {
             // Workers AI no tiene endpoint público de listado; devolvemos lista curada
             const models = [
-              { id: "@cf/meta/llama-3.1-8b-instruct",          name: "Llama 3.1 8B Instruct" },
-              { id: "@cf/meta/llama-3.1-70b-instruct",         name: "Llama 3.1 70B Instruct" },
-              { id: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",name: "Llama 3.3 70B (Fast)" },
-              { id: "@cf/mistral/mistral-7b-instruct-v0.1",    name: "Mistral 7B Instruct" },
-              { id: "@cf/google/gemma-7b-it",                  name: "Gemma 7B IT" },
-              { id: "@cf/qwen/qwen1.5-14b-chat-awq",           name: "Qwen 1.5 14B Chat" },
+              {
+                id: "@cf/meta/llama-3.1-8b-instruct-fast",
+                name: "Llama 3.1 8B Instruct — Fast",
+              },
+              {
+                id: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+                name: "Llama 3.3 70B — Fast",
+              },
+              {
+                id: "@cf/zai-org/glm-4.7-flash",
+                name: "GLM 4.7 Flash",
+              },
+              {
+                id: "@cf/google/gemma-4-26b-a4b-it",
+                name: "Gemma 4 26B",
+              },
+              {
+                id: "@cf/moonshotai/kimi-k2.6",
+                name: "Kimi K2.6",
+              },
             ];
             return json({ ok: true, models });
           }
@@ -2657,8 +2671,13 @@ export default {
 
         // Platform-controlled routing — tenant cannot override
         const aiProvider = planData?.ai_provider || "anthropic";
-        const aiModel    = planData?.ai_model    || "claude-haiku-4-5-20251001";
-        const maxTokens  = planData?.max_tokens_per_response || 1000;
+        const configuredAiModel =
+          planData?.ai_model || "claude-haiku-4-5-20251001";
+        const aiModel =
+          aiProvider === "cloudflare"
+            ? normalizeCloudflareModel(configuredAiModel)
+            : configuredAiModel;
+        const maxTokens = planData?.max_tokens_per_response || 1000;
 
         const userName = userData?.company_name || userData?.email || "Usuario";
         const maxQrs   = planData?.max_qr ?? 3;
@@ -3102,6 +3121,31 @@ Respuestas TRACE este mes: ${traceResponses}`;
 // ── Multi-LLM router ──────────────────────────────────────────────────────────
 // Routes the Codi chat to the correct provider based on plan_configs.
 // provider: "anthropic" | "openai" | "google" | "cloudflare"
+function normalizeCloudflareModel(model) {
+  const replacements = {
+    "@cf/meta/llama-3.1-8b-instruct":
+      "@cf/meta/llama-3.1-8b-instruct-fast",
+
+    "@cf/meta/llama-3.1-70b-instruct":
+      "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+
+    "@cf/mistral/mistral-7b-instruct-v0.1":
+      "@cf/meta/llama-3.1-8b-instruct-fast",
+
+    "@cf/google/gemma-7b-it":
+      "@cf/meta/llama-3.1-8b-instruct-fast",
+
+    "@hf/google/gemma-7b-it":
+      "@cf/meta/llama-3.1-8b-instruct-fast",
+  };
+
+  return (
+    replacements[model] ||
+    model ||
+    "@cf/meta/llama-3.1-8b-instruct-fast"
+  );
+}
+
 async function getApiKey(provider, env) {
   const dbKeyMap = { anthropic: "api_key_anthropic", openai: "api_key_openai", google: "api_key_google" };
   const dbKey = dbKeyMap[provider];
