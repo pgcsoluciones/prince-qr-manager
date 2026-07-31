@@ -240,6 +240,26 @@ function getConversationId(userId) {
   }
 }
 
+async function executeCodiUiAction(action, token, conversationId) {
+  if (!action || action.type === "none") return null;
+  if (!["start_support_ticket", "update_support_ticket_draft", "submit_support_ticket"].includes(action.type)) {
+    throw new Error("Acción de Codi no permitida");
+  }
+  if (action.type !== "submit_support_ticket") {
+    return { ok: true, draft_only: true, action: action.type };
+  }
+  const payload = action.payload && typeof action.payload === "object" ? action.payload : {};
+  const idempotencyKey = `codi:${conversationId}:support-ticket`;
+  const res = await fetch(`${BASE}/api/support/tickets`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ ...payload, source: "codi", idempotency_key: idempotencyKey }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.error || "No se pudo crear el ticket");
+  return data;
+}
+
 function buildWelcome(user) {
   const name = user?.company_name || user?.email?.split("@")[0] || null;
   const greeting = name ? `¡Hola, ${name}! ` : "¡Hola! ";
@@ -517,11 +537,38 @@ export default function AIChat() {
           );
         }
 
-        const reply =
+        let reply =
           data.reply ||
           data.message ||
           data.content ||
           "Lo siento, no pude procesar tu solicitud.";
+
+        if (data.ui_action && data.ui_action.type !== "none") {
+          try {
+            const actionResult = await executeCodiUiAction(
+              data.ui_action,
+              token,
+              conversationIdRef.current
+            );
+            if (data.ui_action.type === "submit_support_ticket" && actionResult?.ticket) {
+              agentStateRef.current = {
+                ...(agentStateRef.current || {}),
+                last_action_result: { ok: true, ...actionResult.ticket },
+                last_offered_action: "submit_support_ticket",
+              };
+              saveAgentState(user?.id, agentStateRef.current);
+              reply = `${reply}\n\n**Ticket creado:** ${actionResult.ticket.ticket_number} · Estado: ${actionResult.ticket.status} · Prioridad de servicio: ${actionResult.ticket.service_priority}.`;
+            }
+          } catch (actionError) {
+            agentStateRef.current = {
+              ...(agentStateRef.current || {}),
+              last_action_result: { ok: false, error: actionError.message },
+              last_offered_action: data.ui_action.type,
+            };
+            saveAgentState(user?.id, agentStateRef.current);
+            reply = `No pude crear el ticket todavía: ${actionError.message}. Conservé los datos para intentarlo nuevamente.`;
+          }
+        }
 
         await waitForMinimumTyping();
 

@@ -13,6 +13,7 @@ import {
   CODI_AGENT_RESPONSE_SCHEMA,
 } from "./codi-agent-core.js";
 import { handleSupportTicketApi } from "./support-ticket-api.js";
+import { sanitizeCodiUiAction, sanitizeSupportDraft } from "./codi-support-contract.js";
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -2833,6 +2834,9 @@ ${rubroPrompt}`
             agent_state:
               agentOutput.state,
 
+            ui_action:
+              agentOutput.ui_action,
+
             provider:
               aiProvider,
 
@@ -3397,6 +3401,17 @@ function normalizeCodiAgentState(value) {
         ? source.last_user_result
         : CODI_EMPTY_AGENT_STATE.last_user_result,
 
+    last_offered_action:
+      cleanCodiAgentText(source.last_offered_action),
+
+    last_action_result:
+      source.last_action_result && typeof source.last_action_result === "object"
+        ? source.last_action_result
+        : null,
+
+    support_ticket_draft:
+      sanitizeSupportDraft(source.support_ticket_draft),
+
     completed_steps:
       cleanCodiAgentList(
         source.completed_steps
@@ -3496,6 +3511,7 @@ function parseCodiAgentOutput(
         ),
 
       state: safePreviousState,
+      ui_action: { type: "none", payload: null },
       structured: false,
     };
   }
@@ -3511,6 +3527,9 @@ function parseCodiAgentOutput(
         parsed.state ||
         safePreviousState
       ),
+
+    ui_action:
+      sanitizeCodiUiAction(parsed.ui_action),
 
     structured: true,
   };

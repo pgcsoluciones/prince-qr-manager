@@ -1,3 +1,5 @@
+import { CODI_SUPPORT_EMPTY_DRAFT, CODI_SUPPORT_INSTRUCTIONS } from "./codi-support-contract.js";
+
 export const CODI_EMPTY_AGENT_STATE = Object.freeze({
   active_goal: null,
   module: null,
@@ -10,6 +12,9 @@ export const CODI_EMPTY_AGENT_STATE = Object.freeze({
   transition: "stay",
   last_confirmed_action: null,
   last_user_result: "unknown",
+  last_offered_action: null,
+  last_action_result: null,
+  support_ticket_draft: CODI_SUPPORT_EMPTY_DRAFT,
   completed_steps: [],
   pending_steps: [],
   status: "idle",
@@ -23,6 +28,19 @@ export const CODI_AGENT_RESPONSE_SCHEMA = {
     reply: {
       type: "string",
       minLength: 1,
+    },
+
+    ui_action: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        type: {
+          type: "string",
+          enum: ["none", "start_support_ticket", "update_support_ticket_draft", "submit_support_ticket"],
+        },
+        payload: { type: ["object", "null"] },
+      },
+      required: ["type", "payload"],
     },
 
     state: {
@@ -100,6 +118,15 @@ export const CODI_AGENT_RESPONSE_SCHEMA = {
           ],
         },
 
+        last_offered_action: { type: ["string", "null"] },
+
+        last_action_result: { type: ["object", "null"] },
+
+        support_ticket_draft: {
+          type: "object",
+          additionalProperties: true,
+        },
+
         completed_steps: {
           type: "array",
           maxItems: 20,
@@ -139,6 +166,9 @@ export const CODI_AGENT_RESPONSE_SCHEMA = {
         "transition",
         "last_confirmed_action",
         "last_user_result",
+        "last_offered_action",
+        "last_action_result",
+        "support_ticket_draft",
         "completed_steps",
         "pending_steps",
         "status",
@@ -148,6 +178,7 @@ export const CODI_AGENT_RESPONSE_SCHEMA = {
 
   required: [
     "reply",
+    "ui_action",
     "state",
   ],
 };
@@ -316,6 +347,8 @@ Actualiza el estado en cada turno:
 Los nombres de etapas y acciones pueden variar según la tarea.
 El estado organiza el razonamiento; no contiene respuestas prefabricadas.
 
+${CODI_SUPPORT_INSTRUCTIONS}
+
 ## SALIDA OBLIGATORIA
 
 Devuelve exactamente un objeto JSON válido, sin bloque de código,
@@ -325,6 +358,7 @@ Estructura:
 
 {
   "reply": "Respuesta natural para el usuario",
+  "ui_action": { "type": "none", "payload": null },
   "state": {
     "active_goal": null,
     "module": null,
@@ -337,6 +371,9 @@ Estructura:
     "transition": "stay",
     "last_confirmed_action": null,
     "last_user_result": "unknown",
+    "last_offered_action": null,
+    "last_action_result": null,
+    "support_ticket_draft": {},
     "completed_steps": [],
     "pending_steps": [],
     "status": "idle"
