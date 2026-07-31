@@ -2630,12 +2630,17 @@ export default {
         const user = await getUser(request, env);
         const err = requireAuth(user);
         if (err) return err;
-        const { message, history = [] } = await request.json();
+        const { message, history = [], conversation_id = null } = await request.json();
         if (!message) return json({ ok: false, error: "Mensaje requerido" }, 400);
 
         // Fetch all data in parallel: user, plan, platform config, tenant data
         const [userData, platformRows] = await Promise.all([
-          env.DB.prepare("SELECT email, plan, company_name, rubro FROM users WHERE id=?").bind(user.sub).first().catch(() => null),
+          env.DB.prepare(
+            `SELECT u.email, u.plan, u.rubro, tp.company_name
+             FROM users u
+             LEFT JOIN tenant_profiles tp ON tp.tenant_id = u.id
+             WHERE u.id = ?`
+          ).bind(user.sub).first().catch(() => null),
           env.DB.prepare("SELECT key, value FROM platform_config WHERE key IN ('codi_base_prompt','codi_rubros_prompts')").all().catch(() => ({ results: [] })),
         ]);
         const userPlan = userData?.plan || "free";
@@ -2645,7 +2650,7 @@ export default {
         const [planData, qrCount, scansRow, traceRows, traceResponsesRow] = await Promise.all([
           getPlan(env.DB, userPlan).catch(() => null),
           countUserLinks(env.DB, user.sub).catch(() => 0),
-          env.DB.prepare("SELECT COUNT(*) as c FROM qr_analytics qa JOIN short_links sl ON qa.slug=sl.slug WHERE sl.user_id=? AND qa.created_at >= date('now','-30 days')").bind(user.sub).first().catch(() => null),
+          env.DB.prepare("SELECT COUNT(*) as c FROM qr_analytics qa JOIN short_links sl ON qa.slug=sl.slug WHERE sl.user_id=? AND qa.scanned_at >= date('now','-30 days')").bind(user.sub).first().catch(() => null),
           env.DB.prepare("SELECT COUNT(*) as c FROM trace_points WHERE user_id=?").bind(user.sub).first().catch(() => null),
           env.DB.prepare("SELECT COUNT(*) as c FROM trace_responses tr JOIN trace_points tp ON tr.point_id=tp.id WHERE tp.user_id=? AND tr.created_at >= date('now','-30 days')").bind(user.sub).first().catch(() => null),
         ]);
@@ -2656,7 +2661,7 @@ export default {
         const maxTokens  = planData?.max_tokens_per_response || 1000;
 
         const userName = userData?.company_name || userData?.email || "Usuario";
-        const maxQrs   = planData?.max_qrs ?? 3;
+        const maxQrs   = planData?.max_qr ?? 3;
 
         // Build system prompt from platform_config (controlled by superadmin only)
         const configMap = {};
@@ -2682,9 +2687,29 @@ Respuestas TRACE este mes: ${traceResponses}`;
 
         const systemPrompt = basePrompt + (rubroPrompt ? `\n\n## CONTEXTO DEL RUBRO\n${rubroPrompt}` : "") + tenantContext;
 
-        // Build conversation from history (multi-turn)
-        const historyContext = history.slice(-8).map(m => `${m.role === "user" ? "Usuario" : "Asistente"}: ${m.content}`).join("\n");
-        const fullPrompt = historyContext ? `${historyContext}\nUsuario: ${message}` : message;
+        // Build a continuous conversation for the same authenticated user.
+        // The current message is excluded from history to prevent duplication.
+        const normalizedHistory = history
+          .filter((m) =>
+            m &&
+            (m.role === "user" || m.role === "assistant") &&
+            typeof m.content === "string" &&
+            m.content.trim()
+          )
+          .slice(-10);
+
+        const historyContext = normalizedHistory
+          .map((m) => `${m.role === "user" ? "Usuario" : "Codi"}: ${m.content}`)
+          .join("\n");
+
+        const fullPrompt = [
+          "IMPORTANTE: Esta es una conversación continua con el mismo usuario autenticado. No lo saludes ni lo trates como un usuario nuevo en cada mensaje.",
+          conversation_id ? `ID de conversación: ${conversation_id}` : null,
+          historyContext
+            ? `HISTORIAL DE LA MISMA CONVERSACIÓN:\n${historyContext}`
+            : null,
+          `MENSAJE ACTUAL DEL MISMO USUARIO:\n${message}`,
+        ].filter(Boolean).join("\n\n");
 
         try {
           const response = await callMultiLLM({ provider: aiProvider, model: aiModel, systemPrompt, userPrompt: fullPrompt, maxTokens, env });

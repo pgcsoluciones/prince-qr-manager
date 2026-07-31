@@ -24,23 +24,66 @@ function isFarewell(text) {
   return FAREWELL_WORDS.some((w) => lower.includes(w));
 }
 
-function loadSession() {
+function sessionKey(userId, type) {
+  return `ai_chat_${type}_${userId || "anonymous"}`;
+}
+
+function loadSession(userId) {
   try {
-    const raw = sessionStorage.getItem("ai_chat_messages");
+    const key = sessionKey(userId, "messages");
+    let raw = sessionStorage.getItem(key);
+
+    // Migrar una sola vez el historial de la versión anterior.
+    if (!raw && userId) {
+      const legacy = sessionStorage.getItem("ai_chat_messages");
+
+      if (legacy) {
+        raw = legacy;
+        sessionStorage.setItem(key, legacy);
+        sessionStorage.removeItem("ai_chat_messages");
+      }
+    }
+
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
 }
 
-function saveSession(messages) {
+function saveSession(userId, messages) {
+  if (!userId) return;
+
   try {
-    sessionStorage.setItem("ai_chat_messages", JSON.stringify(messages));
+    sessionStorage.setItem(
+      sessionKey(userId, "messages"),
+      JSON.stringify(messages)
+    );
   } catch {}
 }
 
-function clearSession() {
-  try { sessionStorage.removeItem("ai_chat_messages"); } catch {}
+function clearSession(userId) {
+  try {
+    sessionStorage.removeItem(sessionKey(userId, "messages"));
+    sessionStorage.removeItem(sessionKey(userId, "conversation_id"));
+    sessionStorage.removeItem("ai_chat_messages");
+  } catch {}
+}
+
+function getConversationId(userId) {
+  const key = sessionKey(userId, "conversation_id");
+
+  try {
+    let id = sessionStorage.getItem(key);
+
+    if (!id) {
+      id = crypto.randomUUID();
+      sessionStorage.setItem(key, id);
+    }
+
+    return id;
+  } catch {
+    return crypto.randomUUID();
+  }
 }
 
 function buildWelcome(user) {
@@ -67,7 +110,9 @@ function DotsLoader() {
 export default function AIChat() {
   const { user } = useAuth();
   const [open, setOpen]       = useState(false);
-  const [messages, setMessages] = useState(() => loadSession() || [buildWelcome(user)]);
+  const [messages, setMessages] = useState(
+    () => loadSession(user?.id) || [buildWelcome(user)]
+  );
   const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
   const [warned, setWarned]   = useState(false);
@@ -77,6 +122,8 @@ export default function AIChat() {
   const textareaRef     = useRef(null);
   const warnTimerRef    = useRef(null);
   const closeTimerRef   = useRef(null);
+  const conversationIdRef = useRef(getConversationId(user?.id));
+  const sessionUserIdRef = useRef(user?.id || null);
 
   useEffect(() => {
     if (!user) return;
@@ -90,7 +137,9 @@ export default function AIChat() {
   // ── helpers ────────────────────────────────────────────────────────────────
 
   const resetChat = useCallback((keepOpen = false) => {
-    clearSession();
+    clearSession(user?.id);
+    conversationIdRef.current = getConversationId(user?.id);
+    sessionUserIdRef.current = user?.id || null;
     setWarned(false);
     setMessages([buildWelcome(user)]);
     if (!keepOpen) setOpen(false);
@@ -141,16 +190,19 @@ export default function AIChat() {
     if (open) setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
   }, [messages, open]);
 
-  useEffect(() => { saveSession(messages); }, [messages]);
-
-  // Reset welcome when user loads from localStorage
+  // Persist only the conversation belonging to the active user.
   useEffect(() => {
-    if (user) {
-      setMessages((prev) => {
-        if (prev.length === 1 && prev[0].id === "welcome") return [buildWelcome(user)];
-        return prev;
-      });
-    }
+    if (!user?.id || sessionUserIdRef.current !== user.id) return;
+    saveSession(user.id, messages);
+  }, [messages, user?.id]);
+
+  // Load the correct conversation when the authenticated user changes.
+  useEffect(() => {
+    if (!user?.id) return;
+
+    sessionUserIdRef.current = user.id;
+    conversationIdRef.current = getConversationId(user.id);
+    setMessages(loadSession(user.id) || [buildWelcome(user)]);
   }, [user?.id]);
 
   // ── send message ───────────────────────────────────────────────────────────
@@ -191,10 +243,18 @@ export default function AIChat() {
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({
             message: trimmed,
-            history: nextMessages
-              .filter((m) => m.role !== "system")
+            conversation_id: conversationIdRef.current,
+            history: messages
+              .filter(
+                (m) =>
+                  m.id !== "welcome" &&
+                  (m.role === "user" || m.role === "assistant")
+              )
               .slice(-10)
-              .map((m) => ({ role: m.role, content: m.content })),
+              .map((m) => ({
+                role: m.role,
+                content: m.content,
+              })),
           }),
         });
         const data = await res.json();
