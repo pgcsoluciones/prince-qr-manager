@@ -152,6 +152,15 @@ PUT    /api/admin/plans/:plan   — editar límites de plan (superadmin)
 - **Pages:** `prince-qr-frontend` → `code.intaprd.com`
 - **Framework:** React 18 + Vite + Tailwind
 
+### Comando de deploy (SIEMPRE usar este):
+```bash
+cd frontend
+npm run build
+wrangler pages deploy dist --project-name=prince-qr-frontend
+```
+
+> ⚠️ El proyecto `intap-code` en Pages.dev fue creado por error — NO usarlo. El proyecto correcto es `prince-qr-frontend`.
+
 ### Pantallas a construir:
 | Pantalla | Acceso |
 |---|---|

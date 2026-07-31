@@ -7,16 +7,25 @@ import PageHeader from "../components/PageHeader.jsx";
 
 const TABS = ["Empresa", "General", "Notificaciones", "Agente IA", "Integraciones", "Peligroso"];
 
-const LLM_OPTIONS = [
-  { id: "claude",  label: "Claude (Anthropic)",   desc: "El más capaz. Usa la clave de la plataforma por defecto." },
-  { id: "openai",  label: "GPT-4o mini (OpenAI)", desc: "Rápido y económico. Requiere tu propia API key." },
-  { id: "gemini",  label: "Gemini Flash (Google)", desc: "Excelente para análisis de texto. Requiere tu propia API key." },
-  { id: "groq",    label: "Llama 3.1 (Groq)",     desc: "Ultra rápido y gratuito con cuota generosa." },
+const LLM_PROVIDERS = [
+  { id: "anthropic",  label: "Anthropic",  placeholder: "claude-sonnet-4-6" },
+  { id: "openai",     label: "OpenAI",     placeholder: "gpt-4o" },
+  { id: "google",     label: "Google AI",  placeholder: "gemini-1.5-pro" },
+  { id: "cloudflare", label: "Cloudflare", placeholder: "@cf/meta/llama-3.1-8b-instruct" },
 ];
 
-const DEFAULT_PROMPT = `Eres un asistente de operaciones y calidad llamado "Intap". Ayudas a interpretar métricas, checklists y feedback de clientes.
-Siempre respondes en español, de forma clara, directa y accionable.
-Cuando das recomendaciones, las basas en los datos reales del negocio.`;
+const DEFAULT_PROMPT = `Eres Codi, el asistente inteligente de Intap Code, una plataforma SaaS de códigos QR dinámicos. Vives dentro del dashboard como un chat flotante y tu misión es ayudar a los usuarios a sacar el máximo provecho de la plataforma.
+
+Tu tono es amigable, directo y profesional. Respondes siempre en el idioma del usuario. Nunca inventes funciones que no existen ni prometas soporte técnico avanzado.
+
+Puedes ayudar con: crear y gestionar QRs dinámicos, módulo Trace (formularios de rastreo), analíticas, proyectos, bulk upload (Pro+) y elección de plan. Cuando el usuario necesite una función de un plan superior, sugiérelo de forma natural.
+
+Formato de respuestas:
+- Preguntas simples: máximo 3-4 pasos cortos
+- Guías: numeradas, una acción por paso
+- Análisis Trace: resumen + patrón + recomendación concreta
+- Termina siempre con "¿Hay algo más en lo que pueda ayudarte?" o "¿Pudiste completarlo?"`;
+
 
 const TIMEZONES = [
   "America/Mexico_City", "America/Bogota", "America/Lima", "America/Buenos_Aires",
@@ -37,8 +46,17 @@ export default function SettingsPage() {
   const [generalForm, setGeneral]   = useState({ company_name: "", timezone: "UTC", language: "es", logo_url: "" });
   const [notifForm, setNotif]       = useState({ alert_email: "", whatsapp: "", weekly_report: false });
   const [integForm, setInteg]       = useState({ webhook_url: "", api_key: "" });
-  const [aiForm, setAiForm]         = useState({ llm_provider: "claude", llm_api_key: "", system_prompt: DEFAULT_PROMPT, weekly_report_enabled: true, max_tokens: 1000, knowledge_base: "" });
+  const [aiForm, setAiForm]         = useState({ llm_provider: "anthropic", llm_model: "", llm_api_key: "", system_prompt: DEFAULT_PROMPT, weekly_report_enabled: true, max_tokens: 1000, knowledge_base: "" });
+  const [modelCache, setModelCache] = useState({});
+  const [fetchingModels, setFetchingModels] = useState(false);
   const [empresaForm, setEmpresa]   = useState({ company_name: "", company_address: "", company_phone: "", company_email: "", company_logo: "", brand_color: "#2563eb", cover_image: "", cover_message: "¡Gracias por tu visita!" });
+
+  // Auto-load models when Agente IA tab is active
+  useEffect(() => {
+    if (activeTab === "Agente IA" && aiForm.llm_provider) {
+      fetchModels(aiForm.llm_provider);
+    }
+  }, [activeTab, aiForm.llm_provider]); // eslint-disable-line
 
   useEffect(() => {
     (async () => {
@@ -61,7 +79,8 @@ export default function SettingsPage() {
           if (aiCfg?.config) {
             setAiForm(f => ({
               ...f,
-              llm_provider: aiCfg.config.llm_provider || "claude",
+              llm_provider: aiCfg.config.llm_provider || "anthropic",
+              llm_model: aiCfg.config.llm_model || "",
               system_prompt: aiCfg.config.system_prompt || DEFAULT_PROMPT,
               weekly_report_enabled: aiCfg.config.weekly_report_enabled !== 0,
               max_tokens: aiCfg.config.max_tokens || 1000,
@@ -135,6 +154,19 @@ export default function SettingsPage() {
       return;
     }
     toast("Esta función requiere confirmación adicional por seguridad.", "warning");
+  };
+
+  const fetchModels = async (provider) => {
+    if (modelCache[provider] !== undefined || fetchingModels) return;
+    setFetchingModels(true);
+    try {
+      const data = await api.get(`/api/ai/models?provider=${provider}`);
+      setModelCache(prev => ({ ...prev, [provider]: data.ok ? (data.models || []) : [] }));
+    } catch {
+      setModelCache(prev => ({ ...prev, [provider]: [] }));
+    } finally {
+      setFetchingModels(false);
+    }
   };
 
   if (loading) return <div className="p-8 text-slate-400 text-sm">Cargando...</div>;
@@ -278,141 +310,59 @@ export default function SettingsPage() {
 
       {/* Agente IA */}
       {activeTab === "Agente IA" && (
-        ["pro","enterprise"].includes(user?.plan) || user?.role === "superadmin" ? (
-          <div className="space-y-6">
-            <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl text-sm text-blue-700">
-              Tu agente IA analiza las métricas de TRACE y genera reportes semanales. Puedes personalizarlo para que se adapte a tu negocio.
-            </div>
-
-            {/* LLM selector */}
+        <div className="space-y-6">
+          {/* Info banner */}
+          <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex gap-3">
+            <span className="text-2xl">🤖</span>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-3">Modelo de IA</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {LLM_OPTIONS.map(opt => (
-                  <button key={opt.id} onClick={() => setAiForm(f => ({ ...f, llm_provider: opt.id }))}
-                    className={`text-left p-3 rounded-xl border-2 transition-all ${
-                      aiForm.llm_provider === opt.id ? "border-primary bg-primary/5" : "border-slate-200 hover:border-slate-300"
-                    }`}>
-                    <p className="font-medium text-sm text-slate-800">{opt.label}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{opt.desc}</p>
-                  </button>
-                ))}
-              </div>
+              <p className="font-semibold text-blue-800 text-sm">Codi — Tu asistente de Intap Code</p>
+              <p className="text-blue-700 text-xs mt-0.5">El agente IA está configurado y administrado por Intap Code según tu plan. Está activo en el chat flotante del dashboard.</p>
             </div>
-
-            {/* API Key propia */}
-            {aiForm.llm_provider !== "claude" && (
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Tu API Key de {aiForm.llm_provider} <span className="text-slate-400">(opcional — si no la pones, usamos la clave de la plataforma)</span>
-                </label>
-                <input type="password" className="input font-mono" placeholder="sk-..."
-                  value={aiForm.llm_api_key}
-                  onChange={e => setAiForm(f => ({ ...f, llm_api_key: e.target.value }))} />
-              </div>
-            )}
-
-            {/* System prompt / personalidad */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Personalidad del agente
-              </label>
-              <p className="text-xs text-slate-500 mb-2">
-                Define cómo se comporta tu agente al generar reportes y responder análisis. Puedes darle un nombre, un tono, y contexto de tu industria.
-              </p>
-              <textarea rows={6} className="input font-mono text-xs resize-y"
-                value={aiForm.system_prompt}
-                onChange={e => setAiForm(f => ({ ...f, system_prompt: e.target.value }))} />
-              <button onClick={() => setAiForm(f => ({ ...f, system_prompt: DEFAULT_PROMPT }))}
-                className="text-xs text-slate-400 hover:text-slate-600 underline mt-1">
-                Restaurar por defecto
-              </button>
-            </div>
-
-            {/* Max tokens */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Límite de tokens por respuesta
-              </label>
-              <p className="text-xs text-slate-400 mb-2">Controla la longitud máxima de cada respuesta del agente. 500=corto, 1000=normal, 2000=detallado.</p>
-              <select className="input" value={aiForm.max_tokens || 1000} onChange={e => setAiForm(c => ({...c, max_tokens: Number(e.target.value)}))}>
-                <option value={300}>Corto (300 tokens)</option>
-                <option value={500}>Moderado (500 tokens)</option>
-                <option value={1000}>Normal (1000 tokens)</option>
-                <option value={2000}>Detallado (2000 tokens)</option>
-                <option value={4000}>Extenso (4000 tokens)</option>
-              </select>
-            </div>
-
-            {/* Knowledge base */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Base de conocimiento del agente
-              </label>
-              <p className="text-xs text-slate-400 mb-2">Agrega información específica de tu negocio: productos, procesos, FAQs, políticas. El agente usará esto para dar respuestas más precisas.</p>
-              <textarea
-                rows={6}
-                placeholder="Ej: Somos una empresa de logística. Nuestros productos son X, Y, Z. El proceso de entrega es... Las preguntas frecuentes son..."
-                value={aiForm.knowledge_base || ""}
-                onChange={e => setAiForm(c => ({...c, knowledge_base: e.target.value}))}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 resize-y"
-              />
-            </div>
-
-            {/* Example prompts */}
-            <div>
-              <p className="text-xs font-medium text-slate-500 mb-2">Ejemplos de personalización:</p>
-              <div className="space-y-2">
-                {[
-                  { label: "Hotel", text: "Eres un experto en hospitalidad y atención al huésped. Analiza los datos con enfoque en experiencia del cliente y estándares hoteleros." },
-                  { label: "Restaurante", text: "Eres un consultor de restaurantes. Prioriza la higiene, la satisfacción del comensal y la eficiencia operativa en cocina." },
-                  { label: "Logística", text: "Eres un especialista en última milla y cadena de suministro. Enfócate en tiempos de entrega, incidencias y cumplimiento de SLA." },
-                ].map(ex => (
-                  <button key={ex.label} onClick={() => setAiForm(f => ({ ...f, system_prompt: ex.text }))}
-                    className="w-full text-left p-2.5 rounded-lg border border-slate-200 hover:border-primary hover:bg-primary/5 transition-all">
-                    <span className="text-xs font-medium text-slate-600">{ex.label}: </span>
-                    <span className="text-xs text-slate-500">{ex.text.slice(0, 80)}...</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Weekly report toggle */}
-            <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-slate-200 hover:bg-slate-50">
-              <input type="checkbox" className="w-4 h-4" checked={aiForm.weekly_report_enabled}
-                onChange={e => setAiForm(f => ({ ...f, weekly_report_enabled: e.target.checked }))} />
-              <div>
-                <p className="text-sm font-medium text-slate-700">Reporte semanal automático</p>
-                <p className="text-xs text-slate-400">Cada lunes recibirás un análisis generado por IA con recomendaciones.</p>
-              </div>
-            </label>
-
-            <button onClick={async () => {
-              setSaving(true);
-              try {
-                const payload = { ...aiForm };
-                if (!payload.llm_api_key) delete payload.llm_api_key;
-                await fetch(`${import.meta.env.VITE_API_URL || "https://api.code.intaprd.com"}/api/settings/ai`, {
-                  method: "PUT",
-                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("qr_token")}` },
-                  body: JSON.stringify(payload),
-                });
-                toast("Agente IA configurado correctamente");
-              } catch (e) { toast(e.message, "error"); }
-              finally { setSaving(false); }
-            }} disabled={saving} className="btn-primary">
-              {saving ? "Guardando..." : "Guardar configuración del agente"}
-            </button>
           </div>
-        ) : (
-          <div className="p-8 text-center">
-            <div className="text-4xl mb-3">🤖</div>
-            <h3 className="font-semibold text-slate-800 mb-1">Agente IA disponible en plan Pro</h3>
-            <p className="text-sm text-slate-500 mb-4">Personaliza tu agente de análisis, elige el modelo de IA y activa reportes semanales automáticos.</p>
-            <button className="btn-primary">Actualizar a Pro</button>
+
+          {/* Plan info */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+              <p className="text-xs text-slate-500 mb-1">Plan IA activo</p>
+              <p className="font-semibold text-slate-800 capitalize">{user?.plan || "free"}</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+              <p className="text-xs text-slate-500 mb-1">Rubro asignado</p>
+              <p className="font-semibold text-slate-800 capitalize">{user?.rubro || "General"}</p>
+            </div>
           </div>
-        )
+
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+            El modelo, prompt y comportamiento de Codi son administrados por el equipo de Intap Code para garantizar calidad y control de costos. Si necesitas ajustes específicos para tu negocio, contáctanos.
+          </div>
+
+          {/* Weekly report toggle — único control que el tenant puede tocar */}
+          <label className="flex items-center gap-3 cursor-pointer p-4 rounded-xl border border-slate-200 hover:bg-slate-50">
+            <input type="checkbox" className="w-4 h-4" checked={aiForm.weekly_report_enabled}
+              onChange={e => setAiForm(f => ({ ...f, weekly_report_enabled: e.target.checked }))} />
+            <div>
+              <p className="text-sm font-medium text-slate-700">Reporte semanal automático</p>
+              <p className="text-xs text-slate-400">Cada lunes recibirás un análisis generado por Codi con recomendaciones para tu negocio.</p>
+            </div>
+          </label>
+
+          <button onClick={async () => {
+            setSaving(true);
+            try {
+              await fetch(`${import.meta.env.VITE_API_URL || "https://api.code.intaprd.com"}/api/settings/ai`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("qr_token")}` },
+                body: JSON.stringify({ weekly_report_enabled: aiForm.weekly_report_enabled }),
+              });
+              toast("Preferencia guardada");
+            } catch (e) { toast(e.message, "error"); }
+            finally { setSaving(false); }
+          }} disabled={saving} className="btn-primary w-fit">
+            {saving ? "Guardando..." : "Guardar preferencia"}
+          </button>
+        </div>
       )}
+
 
       {/* Integraciones */}
       {activeTab === "Integraciones" && (

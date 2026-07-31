@@ -25,6 +25,12 @@ function Icon({ name, className = "w-4 h-4" }) {
         <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2" />
       </svg>
     ),
+    support: (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M18 10c0 3.314-2.686 6-6 6a6.7 6.7 0 01-2.4-.44L5 17l1.44-3.6A5.97 5.97 0 016 10c0-3.314 2.686-6 6-6s6 2.686 6 6z" />
+        <path strokeLinecap="round" d="M9.5 10h.01M12 10h.01M14.5 10h.01" />
+      </svg>
+    ),
     bell: (
       <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -68,9 +74,11 @@ const NAV_ITEMS = [
   { to: "/admin/overview",       icon: "overview",       label: "Overview"        },
   { to: "/admin/tenants",        icon: "tenants",        label: "Tenants"         },
   { to: "/admin/notifications",  icon: "bell",           label: "Notificaciones"  },
+  { to: "/admin/support",        icon: "support",        label: "Soporte"         },
   { to: "/admin/plans",          icon: "plans",          label: "Planes"          },
   { to: "/admin/billing",        icon: "subscriptions",  label: "Facturación"     },
   { to: "/admin/ai-models",      icon: "ai",             label: "Modelos IA"      },
+  { to: "/admin/codi-config",   icon: "ai",             label: "Codi Config"     },
 ];
 
 function SidebarContent({ user, onNav, onLogout }) {

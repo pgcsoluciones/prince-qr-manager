@@ -176,7 +176,7 @@ export default function HelpSystem() {
       {/* Floating button */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-24 sm:bottom-6 right-4 z-50 w-11 h-11 rounded-full bg-primary text-white shadow-lg
+        className="fixed bottom-24 sm:bottom-24 right-6 z-50 w-10 h-10 rounded-full bg-primary text-white shadow-lg
                    flex items-center justify-center text-lg font-bold hover:bg-primary-dark transition-all
                    hover:scale-110 active:scale-95"
         aria-label="Abrir ayuda"

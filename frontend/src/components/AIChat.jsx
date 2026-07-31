@@ -1,81 +1,501 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const BASE = import.meta.env.VITE_API_URL || "https://api.code.intaprd.com";
 
+const INACTIVITY_WARN_MS  = 23 * 60 * 1000; // aviso a los 23 min
+const INACTIVITY_CLOSE_MS = 25 * 60 * 1000; // cierre a los 25 min
+
+// UX de respuesta: feedback inmediato y tiempo mínimo visible.
+const MIN_TYPING_MS = 5000;
+const WRITING_LABEL_DELAY_MS = 2500;
+const LONG_WAIT_LABEL_MS = 8000;
+
+const FAREWELL_WORDS = ["adiós", "adios", "hasta luego", "bye", "chau", "nos vemos", "gracias, eso es todo", "eso es todo", "goodbye", "hasta pronto"];
+
 const QUICK_QUESTIONS = [
-  "¿Cómo crear un QR TRACE?",
-  "Analiza mis métricas",
+  "¿Cómo crear mi primer QR?",
+  "¿Para qué sirve Trace?",
   "¿Qué plan me conviene?",
+  "¿Cómo descargo mi QR?",
 ];
 
 function getTime() {
   return new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
 }
 
-function loadSession() {
+function isFarewell(text) {
+  const lower = text.toLowerCase().trim();
+  return FAREWELL_WORDS.some((w) => lower.includes(w));
+}
+
+function sessionKey(userId, type) {
+  return `ai_chat_${type}_${userId || "anonymous"}`;
+}
+
+function readStoredValue(key) {
   try {
-    const raw = sessionStorage.getItem("ai_chat_messages");
-    return raw ? JSON.parse(raw) : null;
+    const persistent =
+      localStorage.getItem(key);
+
+    if (persistent !== null) {
+      return persistent;
+    }
+  } catch {}
+
+  try {
+    const temporary =
+      sessionStorage.getItem(key);
+
+    if (temporary !== null) {
+      try {
+        localStorage.setItem(
+          key,
+          temporary
+        );
+      } catch {}
+
+      return temporary;
+    }
+  } catch {}
+
+  return null;
+}
+
+function writeStoredValue(key, value) {
+  try {
+    localStorage.setItem(
+      key,
+      value
+    );
+  } catch {}
+
+  try {
+    sessionStorage.setItem(
+      key,
+      value
+    );
+  } catch {}
+}
+
+function removeStoredValue(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch {}
+
+  try {
+    sessionStorage.removeItem(key);
+  } catch {}
+}
+
+function loadSession(userId) {
+  try {
+    const key =
+      sessionKey(
+        userId,
+        "messages"
+      );
+
+    let raw =
+      readStoredValue(key);
+
+    if (!raw && userId) {
+      raw =
+        readStoredValue(
+          "ai_chat_messages"
+        );
+
+      if (raw) {
+        writeStoredValue(
+          key,
+          raw
+        );
+
+        removeStoredValue(
+          "ai_chat_messages"
+        );
+      }
+    }
+
+    return raw
+      ? JSON.parse(raw)
+      : null;
   } catch {
     return null;
   }
 }
 
-function saveSession(messages) {
+function saveSession(userId, messages) {
+  if (!userId) return;
+
   try {
-    sessionStorage.setItem("ai_chat_messages", JSON.stringify(messages));
+    writeStoredValue(
+      sessionKey(
+        userId,
+        "messages"
+      ),
+      JSON.stringify(messages)
+    );
   } catch {}
 }
 
-const WELCOME = {
-  id: "welcome",
-  role: "assistant",
-  content: "¡Hola! Soy tu asistente de operaciones de Intap. Puedo ayudarte con métricas, QRs TRACE, planes y más. ¿En qué te ayudo hoy?",
-  time: getTime(),
-};
+function loadAgentState(userId) {
+  if (!userId) return null;
 
-function DotsLoader() {
+  try {
+    const raw =
+      readStoredValue(
+        sessionKey(
+          userId,
+          "agent_state"
+        )
+      );
+
+    return raw
+      ? JSON.parse(raw)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveAgentState(
+  userId,
+  agentState
+) {
+  if (!userId) return;
+
+  const key =
+    sessionKey(
+      userId,
+      "agent_state"
+    );
+
+  if (!agentState) {
+    removeStoredValue(key);
+    return;
+  }
+
+  try {
+    writeStoredValue(
+      key,
+      JSON.stringify(
+        agentState
+      )
+    );
+  } catch {}
+}
+
+function clearSession(userId) {
+  removeStoredValue(
+    sessionKey(
+      userId,
+      "messages"
+    )
+  );
+
+  removeStoredValue(
+    sessionKey(
+      userId,
+      "conversation_id"
+    )
+  );
+
+  removeStoredValue(
+    sessionKey(
+      userId,
+      "agent_state"
+    )
+  );
+
+  removeStoredValue(
+    "ai_chat_messages"
+  );
+}
+
+function getConversationId(userId) {
+  const key =
+    sessionKey(
+      userId,
+      "conversation_id"
+    );
+
+  try {
+    let id =
+      readStoredValue(key);
+
+    if (!id) {
+      id =
+        crypto.randomUUID();
+
+      writeStoredValue(
+        key,
+        id
+      );
+    }
+
+    return id;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+
+async function executeCodiUiAction(action, token, conversationId) {
+  if (!action || action.type === "none") return null;
+  if (!["start_support_ticket", "update_support_ticket_draft", "submit_support_ticket"].includes(action.type)) {
+    throw new Error("Acción de Codi no permitida");
+  }
+  if (action.type !== "submit_support_ticket") {
+    return { ok: true, draft_only: true, action: action.type };
+  }
+  const payload = action.payload && typeof action.payload === "object" ? action.payload : {};
+  const idempotencyKey = `codi:${conversationId}:support-ticket`;
+  const res = await fetch(`${BASE}/api/support/tickets`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ ...payload, source: "codi", idempotency_key: idempotencyKey }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.error || "No se pudo crear el ticket");
+  return data;
+}
+
+function buildWelcome(user) {
+  const name = user?.company_name || user?.email?.split("@")[0] || null;
+  const greeting = name ? `¡Hola, ${name}! ` : "¡Hola! ";
+  return {
+    id: "welcome",
+    role: "assistant",
+    content: `${greeting}Soy **Codi**, tu asistente de Intap Code. Puedo ayudarte a crear QRs, entender Trace, analizar métricas y elegir el plan ideal. ¿En qué te ayudo hoy?`,
+    time: getTime(),
+  };
+}
+
+function DotsLoader({ label = "Codi está escribiendo…" }) {
   return (
-    <div className="flex items-end gap-1 px-4 py-3 bg-slate-100 rounded-2xl rounded-tl-sm w-fit max-w-[80%]">
-      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+    <div
+      className="flex flex-col items-start gap-1"
+      role="status"
+      aria-live="polite"
+      aria-label={label}
+    >
+      <div className="flex items-end gap-1 px-4 py-3 bg-slate-100 rounded-2xl rounded-tl-sm w-fit">
+        <span
+          className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce"
+          style={{ animationDelay: "0ms" }}
+        />
+        <span
+          className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce"
+          style={{ animationDelay: "150ms" }}
+        />
+        <span
+          className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce"
+          style={{ animationDelay: "300ms" }}
+        />
+      </div>
+
+      <span className="text-[11px] text-slate-400 px-1">
+        {label}
+      </span>
     </div>
   );
 }
 
 export default function AIChat() {
-  const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState(() => loadSession() || [WELCOME]);
-  const [input, setInput] = useState("");
+  const { user } = useAuth();
+  const [open, setOpen]       = useState(false);
+  const [messages, setMessages] = useState(
+    () => loadSession(user?.id) || [buildWelcome(user)]
+  );
+  const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
-  const messagesEndRef = useRef(null);
-  const textareaRef = useRef(null);
+  const [loadingLabel, setLoadingLabel] = useState(
+    "Codi está consultando…"
+  );
+  const [warned, setWarned]   = useState(false);
+  const [avatar, setAvatar]   = useState(null);
 
+  const messagesEndRef  = useRef(null);
+  const textareaRef     = useRef(null);
+  const warnTimerRef    = useRef(null);
+  const closeTimerRef   = useRef(null);
+  const conversationIdRef =
+    useRef(
+      getConversationId(
+        user?.id
+      )
+    );
+
+  const agentStateRef =
+    useRef(
+      loadAgentState(
+        user?.id
+      )
+    );
+
+  const sessionUserIdRef =
+    useRef(
+      user?.id || null
+    );
+
+  useEffect(() => {
+    if (!user) return;
+    const token = localStorage.getItem("qr_token") || "";
+    fetch(`${BASE}/api/codi/config`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => { if (d.avatar) setAvatar(d.avatar); })
+      .catch(() => {});
+  }, [user?.id]);
+
+  // ── helpers ────────────────────────────────────────────────────────────────
+
+  const resetChat = useCallback((keepOpen = false) => {
+    clearSession(user?.id);
+    conversationIdRef.current =
+      getConversationId(
+        user?.id
+      );
+
+    agentStateRef.current = null;
+
+    saveAgentState(
+      user?.id,
+      null
+    );
+
+    sessionUserIdRef.current =
+      user?.id || null;
+    setWarned(false);
+    setMessages([buildWelcome(user)]);
+    if (!keepOpen) setOpen(false);
+  }, [user]);
+
+  const addSystemMsg = useCallback((content, type = "info") => {
+    setMessages((prev) => [
+      ...prev,
+      { id: Date.now().toString() + "_sys", role: "system", content, type, time: getTime() },
+    ]);
+  }, []);
+
+  // ── inactivity timers ──────────────────────────────────────────────────────
+
+  const clearTimers = useCallback(() => {
+    clearTimeout(warnTimerRef.current);
+    clearTimeout(closeTimerRef.current);
+  }, []);
+
+  const startTimers = useCallback(() => {
+    clearTimers();
+    setWarned(false);
+
+    warnTimerRef.current = setTimeout(() => {
+      setWarned(true);
+      addSystemMsg("⏱ Llevas un rato sin escribir. El chat se cerrará en 2 minutos por inactividad. Escribe algo para continuar.", "warning");
+    }, INACTIVITY_WARN_MS);
+
+    closeTimerRef.current = setTimeout(() => {
+      addSystemMsg("👋 Sesión cerrada por inactividad. ¡Hasta pronto!");
+      setTimeout(() => resetChat(false), 1500);
+    }, INACTIVITY_CLOSE_MS);
+  }, [clearTimers, addSystemMsg, resetChat]);
+
+  // Start timers when chat opens; clear when it closes
   useEffect(() => {
     if (open) {
-      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+      startTimers();
+    } else {
+      clearTimers();
     }
-  }, [messages, open]);
+    return clearTimers;
+  }, [open, startTimers, clearTimers]);
+
+  // ── scroll & session persistence ──────────────────────────────────────────
 
   useEffect(() => {
-    saveSession(messages);
-  }, [messages]);
+    if (open) setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+  }, [messages, open]);
+
+  // Persist only the conversation belonging to the active user.
+  useEffect(() => {
+    if (!user?.id || sessionUserIdRef.current !== user.id) return;
+    saveSession(user.id, messages);
+  }, [messages, user?.id]);
+
+  // Load the correct conversation when the authenticated user changes.
+  useEffect(() => {
+    if (!user?.id) return;
+
+    sessionUserIdRef.current =
+      user.id;
+
+    conversationIdRef.current =
+      getConversationId(
+        user.id
+      );
+
+    agentStateRef.current =
+      loadAgentState(
+        user.id
+      );
+
+    setMessages(
+      loadSession(user.id) ||
+      [buildWelcome(user)]
+    );
+  }, [user?.id]);
+
+  // ── send message ───────────────────────────────────────────────────────────
 
   const sendMessage = useCallback(
     async (text) => {
       const trimmed = text.trim();
       if (!trimmed || loading) return;
 
+      // Reset inactivity timers on user activity
+      startTimers();
+
+      // Detect farewell
+      if (isFarewell(trimmed)) {
+        const userMsg = { id: Date.now().toString(), role: "user", content: trimmed, time: getTime() };
+        setMessages((prev) => [
+          ...prev,
+          userMsg,
+          { id: Date.now().toString() + "_bye", role: "assistant", content: "¡Hasta luego! Que tengas un excelente día. Aquí estaré cuando me necesites. 👋", time: getTime() },
+        ]);
+        setInput("");
+        setTimeout(() => resetChat(false), 2500);
+        return;
+      }
+
       const userMsg = { id: Date.now().toString(), role: "user", content: trimmed, time: getTime() };
       const nextMessages = [...messages, userMsg];
       setMessages(nextMessages);
       setInput("");
+      const requestStartedAt = Date.now();
+
+      setLoadingLabel("Codi está consultando…");
       setLoading(true);
 
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto";
-      }
+      const writingTimer = setTimeout(() => {
+        setLoadingLabel("Codi está escribiendo…");
+      }, WRITING_LABEL_DELAY_MS);
+
+      const longWaitTimer = setTimeout(() => {
+        setLoadingLabel("Codi sigue consultando…");
+      }, LONG_WAIT_LABEL_MS);
+
+      const waitForMinimumTyping = async () => {
+        const elapsed = Date.now() - requestStartedAt;
+        const remaining = MIN_TYPING_MS - elapsed;
+
+        if (remaining > 0) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, remaining)
+          );
+        }
+      };
+
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
 
       try {
         const token = localStorage.getItem("qr_token") || "";
@@ -84,44 +504,104 @@ export default function AIChat() {
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({
             message: trimmed,
-            history: nextMessages
-              .filter((m) => m.role !== "system")
-              .slice(-10)
-              .map((m) => ({ role: m.role, content: m.content })),
+            conversation_id: conversationIdRef.current,
+            agent_state: agentStateRef.current,
+            history: messages
+              .filter(
+                (m) =>
+                  m.id !== "welcome" &&
+                  (m.role === "user" || m.role === "assistant")
+              )
+              .slice(-24)
+              .map((m) => ({
+                role: m.role,
+                content: m.content,
+              })),
           }),
         });
-        const data = await res.json();
-        const reply =
-          data.reply || data.message || data.content || "Lo siento, no pude procesar tu solicitud.";
-        const assistantMsg = {
-          id: Date.now().toString() + "_a",
-          role: "assistant",
-          content: reply,
-          time: getTime(),
-        };
-        setMessages((prev) => [...prev, assistantMsg]);
-      } catch {
+        const data =
+          await res.json();
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            data,
+            "agent_state"
+          )
+        ) {
+          agentStateRef.current =
+            data.agent_state || null;
+
+          saveAgentState(
+            user?.id,
+            agentStateRef.current
+          );
+        }
+
+        let reply =
+          data.reply ||
+          data.message ||
+          data.content ||
+          "Lo siento, no pude procesar tu solicitud.";
+
+        if (data.ui_action && data.ui_action.type !== "none") {
+          try {
+            const actionResult = await executeCodiUiAction(
+              data.ui_action,
+              token,
+              conversationIdRef.current
+            );
+            if (data.ui_action.type === "submit_support_ticket" && actionResult?.ticket) {
+              agentStateRef.current = {
+                ...(agentStateRef.current || {}),
+                last_action_result: { ok: true, ...actionResult.ticket },
+                last_offered_action: "submit_support_ticket",
+              };
+              saveAgentState(user?.id, agentStateRef.current);
+              reply = `${reply}\n\n**Ticket creado:** ${actionResult.ticket.ticket_number} · Estado: ${actionResult.ticket.status} · Prioridad de servicio: ${actionResult.ticket.service_priority}.`;
+            }
+          } catch (actionError) {
+            agentStateRef.current = {
+              ...(agentStateRef.current || {}),
+              last_action_result: { ok: false, error: actionError.message },
+              last_offered_action: data.ui_action.type,
+            };
+            saveAgentState(user?.id, agentStateRef.current);
+            reply = `No pude crear el ticket todavía: ${actionError.message}. Conservé los datos para intentarlo nuevamente.`;
+          }
+        }
+
+        await waitForMinimumTyping();
+
         setMessages((prev) => [
           ...prev,
-          {
-            id: Date.now().toString() + "_err",
-            role: "assistant",
-            content: "Hubo un error al conectar con el asistente. Inténtalo de nuevo.",
-            time: getTime(),
-          },
+          { id: Date.now().toString() + "_a", role: "assistant", content: reply, time: getTime() },
+        ]);
+      } catch {
+        await waitForMinimumTyping();
+
+        setMessages((prev) => [
+          ...prev,
+          { id: Date.now().toString() + "_err", role: "assistant", content: "Hubo un error al conectar con el asistente. Inténtalo de nuevo.", time: getTime() },
         ]);
       } finally {
+        clearTimeout(writingTimer);
+        clearTimeout(longWaitTimer);
+
         setLoading(false);
+        setLoadingLabel("Codi está consultando…");
       }
     },
-    [messages, loading]
+    [
+      messages,
+      loading,
+      startTimers,
+      resetChat,
+      user?.id,
+    ]
   );
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(input);
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
   };
 
   const handleTextareaInput = (e) => {
@@ -129,13 +609,16 @@ export default function AIChat() {
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 80) + "px";
     setInput(el.value);
+    // Reset inactivity when user types
+    startTimers();
   };
 
-  const showQuickQuestions = messages.length <= 1;
+  const showQuickQuestions = messages.filter((m) => m.role !== "system").length <= 1;
+
+  // ── render ─────────────────────────────────────────────────────────────────
 
   return (
     <>
-      {/* Chat dialog */}
       {open && (
         <div
           className="fixed bottom-24 right-6 z-50 flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden"
@@ -143,12 +626,16 @@ export default function AIChat() {
         >
           {/* Header */}
           <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 flex-shrink-0">
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-              🤖
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
+              {avatar ? (
+                <img src={avatar} alt="Codi" className="w-full h-full object-cover" />
+              ) : (
+                <span>🤖</span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-white text-sm leading-none">Intap IA</p>
-              <p className="text-blue-200 text-xs mt-0.5">En línea · Tu asistente de operaciones</p>
+              <p className="font-semibold text-white text-sm leading-none">Codi</p>
+              <p className="text-blue-200 text-xs mt-0.5">En línea · Tu asistente de Intap Code</p>
             </div>
             <button
               onClick={() => setOpen(false)}
@@ -163,31 +650,38 @@ export default function AIChat() {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 min-h-0">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex flex-col gap-0.5 ${msg.role === "user" ? "items-end" : "items-start"}`}
-              >
-                <div
-                  className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed max-w-[85%] whitespace-pre-wrap ${
-                    msg.role === "user"
-                      ? "bg-blue-600 text-white rounded-tr-sm"
-                      : "bg-slate-100 text-slate-800 rounded-tl-sm"
-                  }`}
-                >
-                  {msg.content}
+            {messages.map((msg) => {
+              if (msg.role === "system") {
+                return (
+                  <div key={msg.id} className="flex justify-center">
+                    <span className={`text-xs px-3 py-1.5 rounded-full ${msg.type === "warning" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"}`}>
+                      {msg.content}
+                    </span>
+                  </div>
+                );
+              }
+              return (
+                <div key={msg.id} className={`flex flex-col gap-0.5 ${msg.role === "user" ? "items-end" : "items-start"}`}>
+                  <div
+                    className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed max-w-[85%] whitespace-pre-wrap ${
+                      msg.role === "user"
+                        ? "bg-blue-600 text-white rounded-tr-sm"
+                        : "bg-slate-100 text-slate-800 rounded-tl-sm"
+                    }`}
+                  >
+                    {msg.content}
+                  </div>
+                  <span className="text-[10px] text-slate-400 px-1">{msg.time}</span>
                 </div>
-                <span className="text-[10px] text-slate-400 px-1">{msg.time}</span>
-              </div>
-            ))}
+              );
+            })}
 
             {loading && (
               <div className="flex flex-col items-start gap-0.5">
-                <DotsLoader />
+                <DotsLoader label={loadingLabel} />
               </div>
             )}
 
-            {/* Quick questions */}
             {showQuickQuestions && !loading && (
               <div className="flex flex-wrap gap-2 mt-1">
                 {QUICK_QUESTIONS.map((q) => (
@@ -226,11 +720,7 @@ export default function AIChat() {
               aria-label="Enviar"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
               </svg>
             </button>
           </div>
@@ -240,32 +730,26 @@ export default function AIChat() {
       {/* Floating button */}
       <div className="fixed bottom-6 right-6 z-50">
         <div className="relative group">
-          {/* Tooltip */}
           <span className="absolute bottom-full right-0 mb-2 px-2 py-1 rounded-lg bg-slate-800 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none select-none">
-            Asistente IA
+            Codi — Asistente IA
           </span>
-
           <button
             onClick={() => setOpen((o) => !o)}
-            className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-blue-300"
+            className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-blue-300 overflow-hidden"
             aria-label={open ? "Cerrar asistente" : "Abrir asistente IA"}
           >
             {open ? (
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
+            ) : avatar ? (
+              <img src={avatar} alt="Codi" className="w-full h-full object-cover" />
             ) : (
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
               </svg>
             )}
           </button>
-
-          {/* Online status dot */}
           <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-green-400 border-2 border-white" />
         </div>
       </div>
