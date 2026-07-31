@@ -6,6 +6,11 @@ const BASE = import.meta.env.VITE_API_URL || "https://api.code.intaprd.com";
 const INACTIVITY_WARN_MS  = 23 * 60 * 1000; // aviso a los 23 min
 const INACTIVITY_CLOSE_MS = 25 * 60 * 1000; // cierre a los 25 min
 
+// UX de respuesta: feedback inmediato y tiempo mínimo visible.
+const MIN_TYPING_MS = 5000;
+const WRITING_LABEL_DELAY_MS = 2500;
+const LONG_WAIT_LABEL_MS = 8000;
+
 const FAREWELL_WORDS = ["adiós", "adios", "hasta luego", "bye", "chau", "nos vemos", "gracias, eso es todo", "eso es todo", "goodbye", "hasta pronto"];
 
 const QUICK_QUESTIONS = [
@@ -28,23 +33,93 @@ function sessionKey(userId, type) {
   return `ai_chat_${type}_${userId || "anonymous"}`;
 }
 
+function readStoredValue(key) {
+  try {
+    const persistent =
+      localStorage.getItem(key);
+
+    if (persistent !== null) {
+      return persistent;
+    }
+  } catch {}
+
+  try {
+    const temporary =
+      sessionStorage.getItem(key);
+
+    if (temporary !== null) {
+      try {
+        localStorage.setItem(
+          key,
+          temporary
+        );
+      } catch {}
+
+      return temporary;
+    }
+  } catch {}
+
+  return null;
+}
+
+function writeStoredValue(key, value) {
+  try {
+    localStorage.setItem(
+      key,
+      value
+    );
+  } catch {}
+
+  try {
+    sessionStorage.setItem(
+      key,
+      value
+    );
+  } catch {}
+}
+
+function removeStoredValue(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch {}
+
+  try {
+    sessionStorage.removeItem(key);
+  } catch {}
+}
+
 function loadSession(userId) {
   try {
-    const key = sessionKey(userId, "messages");
-    let raw = sessionStorage.getItem(key);
+    const key =
+      sessionKey(
+        userId,
+        "messages"
+      );
 
-    // Migrar una sola vez el historial de la versión anterior.
+    let raw =
+      readStoredValue(key);
+
     if (!raw && userId) {
-      const legacy = sessionStorage.getItem("ai_chat_messages");
+      raw =
+        readStoredValue(
+          "ai_chat_messages"
+        );
 
-      if (legacy) {
-        raw = legacy;
-        sessionStorage.setItem(key, legacy);
-        sessionStorage.removeItem("ai_chat_messages");
+      if (raw) {
+        writeStoredValue(
+          key,
+          raw
+        );
+
+        removeStoredValue(
+          "ai_chat_messages"
+        );
       }
     }
 
-    return raw ? JSON.parse(raw) : null;
+    return raw
+      ? JSON.parse(raw)
+      : null;
   } catch {
     return null;
   }
@@ -54,30 +129,109 @@ function saveSession(userId, messages) {
   if (!userId) return;
 
   try {
-    sessionStorage.setItem(
-      sessionKey(userId, "messages"),
+    writeStoredValue(
+      sessionKey(
+        userId,
+        "messages"
+      ),
       JSON.stringify(messages)
     );
   } catch {}
 }
 
-function clearSession(userId) {
+function loadAgentState(userId) {
+  if (!userId) return null;
+
   try {
-    sessionStorage.removeItem(sessionKey(userId, "messages"));
-    sessionStorage.removeItem(sessionKey(userId, "conversation_id"));
-    sessionStorage.removeItem("ai_chat_messages");
+    const raw =
+      readStoredValue(
+        sessionKey(
+          userId,
+          "agent_state"
+        )
+      );
+
+    return raw
+      ? JSON.parse(raw)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveAgentState(
+  userId,
+  agentState
+) {
+  if (!userId) return;
+
+  const key =
+    sessionKey(
+      userId,
+      "agent_state"
+    );
+
+  if (!agentState) {
+    removeStoredValue(key);
+    return;
+  }
+
+  try {
+    writeStoredValue(
+      key,
+      JSON.stringify(
+        agentState
+      )
+    );
   } catch {}
 }
 
+function clearSession(userId) {
+  removeStoredValue(
+    sessionKey(
+      userId,
+      "messages"
+    )
+  );
+
+  removeStoredValue(
+    sessionKey(
+      userId,
+      "conversation_id"
+    )
+  );
+
+  removeStoredValue(
+    sessionKey(
+      userId,
+      "agent_state"
+    )
+  );
+
+  removeStoredValue(
+    "ai_chat_messages"
+  );
+}
+
 function getConversationId(userId) {
-  const key = sessionKey(userId, "conversation_id");
+  const key =
+    sessionKey(
+      userId,
+      "conversation_id"
+    );
 
   try {
-    let id = sessionStorage.getItem(key);
+    let id =
+      readStoredValue(key);
 
     if (!id) {
-      id = crypto.randomUUID();
-      sessionStorage.setItem(key, id);
+      id =
+        crypto.randomUUID();
+
+      writeStoredValue(
+        key,
+        id
+      );
     }
 
     return id;
@@ -97,12 +251,32 @@ function buildWelcome(user) {
   };
 }
 
-function DotsLoader() {
+function DotsLoader({ label = "Codi está escribiendo…" }) {
   return (
-    <div className="flex items-end gap-1 px-4 py-3 bg-slate-100 rounded-2xl rounded-tl-sm w-fit max-w-[80%]">
-      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+    <div
+      className="flex flex-col items-start gap-1"
+      role="status"
+      aria-live="polite"
+      aria-label={label}
+    >
+      <div className="flex items-end gap-1 px-4 py-3 bg-slate-100 rounded-2xl rounded-tl-sm w-fit">
+        <span
+          className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce"
+          style={{ animationDelay: "0ms" }}
+        />
+        <span
+          className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce"
+          style={{ animationDelay: "150ms" }}
+        />
+        <span
+          className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce"
+          style={{ animationDelay: "300ms" }}
+        />
+      </div>
+
+      <span className="text-[11px] text-slate-400 px-1">
+        {label}
+      </span>
     </div>
   );
 }
@@ -115,6 +289,9 @@ export default function AIChat() {
   );
   const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingLabel, setLoadingLabel] = useState(
+    "Codi está consultando…"
+  );
   const [warned, setWarned]   = useState(false);
   const [avatar, setAvatar]   = useState(null);
 
@@ -122,8 +299,24 @@ export default function AIChat() {
   const textareaRef     = useRef(null);
   const warnTimerRef    = useRef(null);
   const closeTimerRef   = useRef(null);
-  const conversationIdRef = useRef(getConversationId(user?.id));
-  const sessionUserIdRef = useRef(user?.id || null);
+  const conversationIdRef =
+    useRef(
+      getConversationId(
+        user?.id
+      )
+    );
+
+  const agentStateRef =
+    useRef(
+      loadAgentState(
+        user?.id
+      )
+    );
+
+  const sessionUserIdRef =
+    useRef(
+      user?.id || null
+    );
 
   useEffect(() => {
     if (!user) return;
@@ -138,8 +331,20 @@ export default function AIChat() {
 
   const resetChat = useCallback((keepOpen = false) => {
     clearSession(user?.id);
-    conversationIdRef.current = getConversationId(user?.id);
-    sessionUserIdRef.current = user?.id || null;
+    conversationIdRef.current =
+      getConversationId(
+        user?.id
+      );
+
+    agentStateRef.current = null;
+
+    saveAgentState(
+      user?.id,
+      null
+    );
+
+    sessionUserIdRef.current =
+      user?.id || null;
     setWarned(false);
     setMessages([buildWelcome(user)]);
     if (!keepOpen) setOpen(false);
@@ -200,9 +405,23 @@ export default function AIChat() {
   useEffect(() => {
     if (!user?.id) return;
 
-    sessionUserIdRef.current = user.id;
-    conversationIdRef.current = getConversationId(user.id);
-    setMessages(loadSession(user.id) || [buildWelcome(user)]);
+    sessionUserIdRef.current =
+      user.id;
+
+    conversationIdRef.current =
+      getConversationId(
+        user.id
+      );
+
+    agentStateRef.current =
+      loadAgentState(
+        user.id
+      );
+
+    setMessages(
+      loadSession(user.id) ||
+      [buildWelcome(user)]
+    );
   }, [user?.id]);
 
   // ── send message ───────────────────────────────────────────────────────────
@@ -232,7 +451,29 @@ export default function AIChat() {
       const nextMessages = [...messages, userMsg];
       setMessages(nextMessages);
       setInput("");
+      const requestStartedAt = Date.now();
+
+      setLoadingLabel("Codi está consultando…");
       setLoading(true);
+
+      const writingTimer = setTimeout(() => {
+        setLoadingLabel("Codi está escribiendo…");
+      }, WRITING_LABEL_DELAY_MS);
+
+      const longWaitTimer = setTimeout(() => {
+        setLoadingLabel("Codi sigue consultando…");
+      }, LONG_WAIT_LABEL_MS);
+
+      const waitForMinimumTyping = async () => {
+        const elapsed = Date.now() - requestStartedAt;
+        const remaining = MIN_TYPING_MS - elapsed;
+
+        if (remaining > 0) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, remaining)
+          );
+        }
+      };
 
       if (textareaRef.current) textareaRef.current.style.height = "auto";
 
@@ -244,35 +485,72 @@ export default function AIChat() {
           body: JSON.stringify({
             message: trimmed,
             conversation_id: conversationIdRef.current,
+            agent_state: agentStateRef.current,
             history: messages
               .filter(
                 (m) =>
                   m.id !== "welcome" &&
                   (m.role === "user" || m.role === "assistant")
               )
-              .slice(-10)
+              .slice(-24)
               .map((m) => ({
                 role: m.role,
                 content: m.content,
               })),
           }),
         });
-        const data = await res.json();
-        const reply = data.reply || data.message || data.content || "Lo siento, no pude procesar tu solicitud.";
+        const data =
+          await res.json();
+
+        if (
+          Object.prototype.hasOwnProperty.call(
+            data,
+            "agent_state"
+          )
+        ) {
+          agentStateRef.current =
+            data.agent_state || null;
+
+          saveAgentState(
+            user?.id,
+            agentStateRef.current
+          );
+        }
+
+        const reply =
+          data.reply ||
+          data.message ||
+          data.content ||
+          "Lo siento, no pude procesar tu solicitud.";
+
+        await waitForMinimumTyping();
+
         setMessages((prev) => [
           ...prev,
           { id: Date.now().toString() + "_a", role: "assistant", content: reply, time: getTime() },
         ]);
       } catch {
+        await waitForMinimumTyping();
+
         setMessages((prev) => [
           ...prev,
           { id: Date.now().toString() + "_err", role: "assistant", content: "Hubo un error al conectar con el asistente. Inténtalo de nuevo.", time: getTime() },
         ]);
       } finally {
+        clearTimeout(writingTimer);
+        clearTimeout(longWaitTimer);
+
         setLoading(false);
+        setLoadingLabel("Codi está consultando…");
       }
     },
-    [messages, loading, startTimers, resetChat]
+    [
+      messages,
+      loading,
+      startTimers,
+      resetChat,
+      user?.id,
+    ]
   );
 
   const handleKeyDown = (e) => {
@@ -353,7 +631,7 @@ export default function AIChat() {
 
             {loading && (
               <div className="flex flex-col items-start gap-0.5">
-                <DotsLoader />
+                <DotsLoader label={loadingLabel} />
               </div>
             )}
 
