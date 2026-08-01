@@ -1,0 +1,27 @@
+name = "prince-qr-manager-preview"
+main = "src/index.js"
+compatibility_date = "2024-05-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "preview"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "prince-qr-db-preview"
+database_id = "69758b1b-6970-475a-8c91-69848ab18d9b"
+
+[[kv_namespaces]]
+binding = "QR_CACHE"
+id = "d95458ca732142bc81cf4bac3aaabae1"
+
+[[kv_namespaces]]
+binding = "QR_LINKS"
+id = "ca34f325557e495c8dfc6acc57cc0ef7"
+
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "intap-assets-preview"
+
+[ai]
+binding = "AI"
