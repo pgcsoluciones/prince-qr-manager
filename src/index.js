@@ -15,6 +15,7 @@ import {
 import { handleSupportTicketApi } from "./support-ticket-api.js";
 import { sanitizeCodiUiAction, sanitizeSupportDraft } from "./codi-support-contract.js";
 import { handleTraceV1Processes } from "./trace-v1-processes-api.js";
+import { handleTraceV1Stages } from "./trace-v1-stages-api.js";
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -425,6 +426,13 @@ function serveTraceForm(tracePoint, profile = null, staffMode = false) {
 
 export default {
   async fetch(request, env, ctx) {
+    const traceV1StagesResponse =
+      await handleTraceV1Stages(request, env);
+
+    if (traceV1StagesResponse) {
+      return traceV1StagesResponse;
+    }
+
     const traceV1ProcessesResponse =
       await handleTraceV1Processes(request, env);
 
