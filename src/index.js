@@ -17,6 +17,7 @@ import { sanitizeCodiUiAction, sanitizeSupportDraft } from "./codi-support-contr
 import { handleTraceV1Processes } from "./trace-v1-processes-api.js";
 import { handleTraceV1Stages } from "./trace-v1-stages-api.js";
 import { handleTraceV1Fields } from "./trace-v1-fields-api.js";
+import { handleTraceV1Versions } from "./trace-v1-versions-api.js";
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -427,6 +428,13 @@ function serveTraceForm(tracePoint, profile = null, staffMode = false) {
 
 export default {
   async fetch(request, env, ctx) {
+    const traceV1VersionsResponse =
+      await handleTraceV1Versions(request, env);
+
+    if (traceV1VersionsResponse) {
+      return traceV1VersionsResponse;
+    }
+
     const traceV1FieldsResponse =
       await handleTraceV1Fields(request, env);
 

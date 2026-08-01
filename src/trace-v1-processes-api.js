@@ -561,7 +561,11 @@ async function updateProcess(request, env, auth, processId) {
 export async function handleTraceV1Processes(request, env) {
   const url = new URL(request.url);
 
-  if (!url.pathname.startsWith("/api/trace/v1/processes")) {
+  const processRouteMatch = url.pathname.match(
+    /^\/api\/trace\/v1\/processes(?:\/([^/]+))?\/?$/
+  );
+
+  if (!processRouteMatch) {
     return null;
   }
 
@@ -576,9 +580,9 @@ export async function handleTraceV1Processes(request, env) {
 
   if (auth.error) return auth.error;
 
-  const basePath = "/api/trace/v1/processes";
-  const remainder = url.pathname.slice(basePath.length);
-  const processId = remainder.replace(/^\/+|\/+$/g, "") || null;
+  const processId = processRouteMatch[1]
+    ? decodeURIComponent(processRouteMatch[1])
+    : null;
 
   if (!processId && request.method === "GET") {
     return listProcesses(env, auth.tenantId, url);
@@ -586,17 +590,6 @@ export async function handleTraceV1Processes(request, env) {
 
   if (!processId && request.method === "POST") {
     return createProcess(request, env, auth);
-  }
-
-  if (processId && processId.includes("/")) {
-    return json(
-      {
-        ok: false,
-        error: "not_found",
-        message: "Ruta no encontrada.",
-      },
-      404
-    );
   }
 
   if (processId && request.method === "GET") {
