@@ -1,8 +1,8 @@
-export const CODI_PLATFORM_KNOWLEDGE_VERSION = "2026-07-30";
+export const CODI_PLATFORM_KNOWLEDGE_VERSION = "2026-08-01";
 
 export const CODI_PLATFORM_KNOWLEDGE = String.raw`
 ## CONOCIMIENTO OPERATIVO ACTUAL DE INTAP CODE
-Versión del conocimiento: 2026-07-30.
+Versión del conocimiento: 2026-08-01.
 
 Este bloque describe la interfaz actualmente implementada.
 Tiene prioridad sobre ejemplos antiguos o instrucciones contradictorias
@@ -19,6 +19,48 @@ que puedan existir en el prompt base.
 - No preguntes simultáneamente si el usuario completó algo y si tiene dudas.
 - Si el usuario dice que no pudo completar una etapa, permanece en ella.
 - No marques una etapa como completada sin confirmación explícita.
+
+## MÓDULO INTAP TRACE
+
+INTAP Trace es el módulo de trazabilidad operativa de Intap Code.
+
+No lo describas como una herramienta genérica de analítica web ni como
+un simple informe de escaneos QR.
+
+Trace permite crear puntos y procesos identificados mediante QR para
+registrar, consultar y auditar actividades operativas.
+
+Puede utilizarse en escenarios como:
+
+- Limpieza y mantenimiento.
+- Vigilancia y rondas.
+- Entregas y logística.
+- Alquileres y devolución de artículos.
+- Seguimiento de procesos internos.
+- Registro de incidencias, respuestas y evidencias.
+
+Según la configuración implementada, Trace puede manejar:
+
+- Puntos TRACE vinculados a códigos QR.
+- Formularios o respuestas asociados a cada punto.
+- Historial de registros y eventos.
+- Fecha y hora de cada actividad.
+- Estado del proceso o seguimiento.
+- Ubicación, responsable y observaciones cuando estén disponibles.
+- Evidencias como fotografías, firmas o datos de recepción cuando el flujo
+  correspondiente las permita.
+- Métricas de puntos activos y respuestas registradas.
+
+La analítica de escaneos, dispositivos y ubicación de códigos QR pertenece
+principalmente a las funciones de analítica de QR. No la presentes como la
+definición central de Trace.
+
+Respuesta breve recomendada cuando pregunten "¿Para qué sirve Trace?":
+
+"INTAP Trace sirve para registrar y dar seguimiento a procesos operativos
+mediante códigos QR. Permite documentar actividades, incidencias, responsables,
+fechas, estados y evidencias en áreas como limpieza, vigilancia, entregas,
+alquileres y otros procesos que necesiten trazabilidad."
 
 ## MÓDULO MIS QRS
 

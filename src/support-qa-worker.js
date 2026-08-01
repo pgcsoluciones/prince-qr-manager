@@ -48,15 +48,27 @@ export default {
       });
     }
 
-    if (!url.pathname.startsWith("/api/support/tickets")) {
-      return json({ ok: false, error: "Ruta no disponible en QA" }, 404);
-    }
-
     try {
       const user = await getUser(request, env);
 
       if (!user) {
         return json({ ok: false, error: "No autenticado" }, 401);
+      }
+
+      if (url.pathname === "/api/auth/me" && request.method === "GET") {
+        return json({
+          ok: true,
+          user: {
+            id: user.sub,
+            email: user.email,
+            role: user.role,
+            plan: user.plan,
+          },
+        });
+      }
+
+      if (!url.pathname.startsWith("/api/support/tickets")) {
+        return json({ ok: false, error: "Ruta no disponible en QA" }, 404);
       }
 
       return handleSupportTicketApi({ request, env, user });

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const BASE = import.meta.env.VITE_API_URL || "https://api.code.intaprd.com";
+const SUPPORT_BASE = import.meta.env.VITE_SUPPORT_API_URL || BASE;
 
 const INACTIVITY_WARN_MS  = 23 * 60 * 1000; // aviso a los 23 min
 const INACTIVITY_CLOSE_MS = 25 * 60 * 1000; // cierre a los 25 min
@@ -250,9 +251,10 @@ async function executeCodiUiAction(action, token, conversationId) {
   }
   const payload = action.payload && typeof action.payload === "object" ? action.payload : {};
   const idempotencyKey = `codi:${conversationId}:support-ticket`;
-  const res = await fetch(`${BASE}/api/support/tickets`, {
+  const supportToken = localStorage.getItem("qr_support_token") || token;
+  const res = await fetch(`${SUPPORT_BASE}/api/support/tickets`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${supportToken}` },
     body: JSON.stringify({ ...payload, source: "codi", idempotency_key: idempotencyKey }),
   });
   const data = await res.json().catch(() => ({}));

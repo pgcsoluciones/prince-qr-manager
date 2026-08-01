@@ -13,7 +13,11 @@ import {
   CODI_AGENT_RESPONSE_SCHEMA,
 } from "./codi-agent-core.js";
 import { handleSupportTicketApi } from "./support-ticket-api.js";
-import { sanitizeCodiUiAction, sanitizeSupportDraft } from "./codi-support-contract.js";
+import {
+  enforceSupportTicketConfirmation,
+  sanitizeCodiUiAction,
+  sanitizeSupportDraft,
+} from "./codi-support-contract.js";
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -2818,11 +2822,20 @@ ${rubroPrompt}`
                 CODI_AGENT_RESPONSE_SCHEMA,
             });
 
-          const agentOutput =
+          const parsedAgentOutput =
             parseCodiAgentOutput(
               rawResponse,
               previousAgentState
             );
+
+          const agentOutput =
+            enforceSupportTicketConfirmation({
+              message,
+              previousState:
+                previousAgentState,
+              agentOutput:
+                parsedAgentOutput,
+            });
 
           return json({
             ok: true,
@@ -3473,7 +3486,15 @@ function extractCodiJson(text) {
 
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(candidate);
+      let parsed =
+        JSON.parse(candidate);
+
+      if (
+        typeof parsed === "string"
+      ) {
+        parsed =
+          JSON.parse(parsed);
+      }
 
       if (
         parsed &&
@@ -3510,9 +3531,19 @@ function parseCodiAgentOutput(
           rawResponse
         ),
 
-      state: safePreviousState,
-      ui_action: { type: "none", payload: null },
-      structured: false,
+      state:
+        safePreviousState,
+
+      ui_action: {
+        type:
+          "none",
+
+        payload:
+          null,
+      },
+
+      structured:
+        false,
     };
   }
 
@@ -3608,7 +3639,30 @@ function normalizeChatMessages(history, currentMessage) {
 function sanitizeCodiResponse(text) {
   if (!text) return null;
 
-  const cleaned = String(text)
+  const raw =
+    String(text).trim();
+
+  const parsed =
+    extractCodiJson(raw);
+
+  if (
+    parsed &&
+    typeof parsed.reply === "string"
+  ) {
+    return sanitizeCodiResponse(
+      parsed.reply
+    );
+  }
+
+  if (
+    /^\s*\{[\s\S]*"(?:state|agent_state|ui_action)"[\s\S]*\}\s*$/.test(
+      raw
+    )
+  ) {
+    return "Recibí tu mensaje, pero no pude interpretar correctamente la respuesta. Intenta nuevamente.";
+  }
+
+  const cleaned = raw
     // Defense in depth: internal identifiers must never reach the UI.
     .replace(
       /^\s*\*\*ID de conversación:\*\*\s*.*$/gim,

@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-const API = import.meta.env.VITE_API_URL || "https://api.code.intaprd.com";
+const MAIN_API = import.meta.env.VITE_API_URL || "https://api.code.intaprd.com";
+const API = import.meta.env.VITE_SUPPORT_API_URL || MAIN_API;
 
 async function apiFetch(path, options = {}) {
-  const token = localStorage.getItem("qr_token") || "";
+  const token =
+    localStorage.getItem("qr_support_token") ||
+    localStorage.getItem("qr_token") ||
+    "";
   const response = await fetch(`${API}${path}`, {
     ...options,
     headers: {
