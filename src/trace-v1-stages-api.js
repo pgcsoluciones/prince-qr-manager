@@ -1,4 +1,5 @@
 import jwt from "@tsndr/cloudflare-worker-jwt";
+import { getTraceDatabase } from "./trace/shared/database.js";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -131,7 +132,7 @@ async function authenticate(request, env) {
     };
   }
 
-  const user = await env.DB.prepare(
+  const user = await getTraceDatabase(env).prepare(
     `SELECT id, email, role, plan, enterprise_id, is_active
      FROM users
      WHERE id = ?
@@ -160,7 +161,7 @@ async function authenticate(request, env) {
 }
 
 async function getEditableProcess(env, tenantId, processId) {
-  return env.DB.prepare(
+  return getTraceDatabase(env).prepare(
     `SELECT
        p.id,
        p.tenant_id,
@@ -211,7 +212,7 @@ async function requireEditableProcess(env, tenantId, processId) {
 }
 
 async function listStages(env, process) {
-  const result = await env.DB.prepare(
+  const result = await getTraceDatabase(env).prepare(
     `SELECT
        s.*,
        (
@@ -274,7 +275,7 @@ async function createStage(request, env, process) {
     );
   }
 
-  const maxOrder = await env.DB.prepare(
+  const maxOrder = await getTraceDatabase(env).prepare(
     `SELECT COALESCE(MAX(stage_order), 0) AS max_order
      FROM trace_stages
      WHERE process_version_id = ?`
@@ -298,7 +299,7 @@ async function createStage(request, env, process) {
       ? body.settings
       : {};
 
-  await env.DB.prepare(
+  await getTraceDatabase(env).prepare(
     `INSERT INTO trace_stages (
        id,
        process_version_id,
@@ -334,7 +335,7 @@ async function createStage(request, env, process) {
     )
     .run();
 
-  const created = await env.DB.prepare(
+  const created = await getTraceDatabase(env).prepare(
     `SELECT s.*, 0 AS fields_count
      FROM trace_stages s
      WHERE s.id = ?
@@ -353,7 +354,7 @@ async function createStage(request, env, process) {
 }
 
 async function updateStage(request, env, process, stageId) {
-  const existing = await env.DB.prepare(
+  const existing = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_stages
      WHERE id = ?
@@ -437,7 +438,7 @@ async function updateStage(request, env, process, stageId) {
         ? body.settings
         : {};
 
-  await env.DB.prepare(
+  await getTraceDatabase(env).prepare(
     `UPDATE trace_stages
      SET
        name = ?,
@@ -481,7 +482,7 @@ async function updateStage(request, env, process, stageId) {
     )
     .run();
 
-  const updated = await env.DB.prepare(
+  const updated = await getTraceDatabase(env).prepare(
     `SELECT
        s.*,
        (
@@ -503,7 +504,7 @@ async function updateStage(request, env, process, stageId) {
 }
 
 async function deleteStage(env, process, stageId) {
-  const existing = await env.DB.prepare(
+  const existing = await getTraceDatabase(env).prepare(
     `SELECT id
      FROM trace_stages
      WHERE id = ?
@@ -524,7 +525,7 @@ async function deleteStage(env, process, stageId) {
     );
   }
 
-  await env.DB.prepare(
+  await getTraceDatabase(env).prepare(
     `DELETE FROM trace_stages
      WHERE id = ?
        AND process_version_id = ?`
@@ -565,7 +566,7 @@ async function reorderStages(request, env, process) {
     );
   }
 
-  const current = await env.DB.prepare(
+  const current = await getTraceDatabase(env).prepare(
     `SELECT id
      FROM trace_stages
      WHERE process_version_id = ?
@@ -593,7 +594,7 @@ async function reorderStages(request, env, process) {
   }
 
   const temporaryUpdates = requestedIds.map((stageId, index) =>
-    env.DB.prepare(
+    getTraceDatabase(env).prepare(
       `UPDATE trace_stages
        SET stage_order = ?
        WHERE id = ?
@@ -606,7 +607,7 @@ async function reorderStages(request, env, process) {
   );
 
   const finalUpdates = requestedIds.map((stageId, index) =>
-    env.DB.prepare(
+    getTraceDatabase(env).prepare(
       `UPDATE trace_stages
        SET stage_order = ?
        WHERE id = ?
@@ -618,7 +619,7 @@ async function reorderStages(request, env, process) {
     )
   );
 
-  await env.DB.batch([
+  await getTraceDatabase(env).batch([
     ...temporaryUpdates,
     ...finalUpdates,
   ]);

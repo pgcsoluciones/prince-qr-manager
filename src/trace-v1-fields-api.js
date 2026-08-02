@@ -1,4 +1,5 @@
 import jwt from "@tsndr/cloudflare-worker-jwt";
+import { getTraceDatabase } from "./trace/shared/database.js";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -168,7 +169,7 @@ async function authenticate(request, env) {
     };
   }
 
-  const user = await env.DB.prepare(
+  const user = await getTraceDatabase(env).prepare(
     `SELECT
        id,
        email,
@@ -208,7 +209,7 @@ async function getEditableStage(
   processId,
   stageId
 ) {
-  return env.DB.prepare(
+  return getTraceDatabase(env).prepare(
     `SELECT
        p.id AS process_id,
        p.tenant_id,
@@ -274,7 +275,7 @@ async function requireEditableStage(
 }
 
 async function listFields(env, stageId) {
-  const result = await env.DB.prepare(
+  const result = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_stage_fields
      WHERE stage_id = ?
@@ -349,7 +350,7 @@ async function createField(
     );
   }
 
-  const duplicate = await env.DB.prepare(
+  const duplicate = await getTraceDatabase(env).prepare(
     `SELECT id
      FROM trace_stage_fields
      WHERE stage_id = ?
@@ -371,7 +372,7 @@ async function createField(
     );
   }
 
-  const maxOrder = await env.DB.prepare(
+  const maxOrder = await getTraceDatabase(env).prepare(
     `SELECT
        COALESCE(MAX(field_order), 0) AS max_order
      FROM trace_stage_fields
@@ -399,7 +400,7 @@ async function createField(
       ? null
       : body.defaultValue;
 
-  await env.DB.prepare(
+  await getTraceDatabase(env).prepare(
     `INSERT INTO trace_stage_fields (
        id,
        stage_id,
@@ -449,7 +450,7 @@ async function createField(
     )
     .run();
 
-  const created = await env.DB.prepare(
+  const created = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_stage_fields
      WHERE id = ?
@@ -473,7 +474,7 @@ async function updateField(
   stageId,
   fieldId
 ) {
-  const existing = await env.DB.prepare(
+  const existing = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_stage_fields
      WHERE id = ?
@@ -560,7 +561,7 @@ async function updateField(
     );
   }
 
-  const duplicate = await env.DB.prepare(
+  const duplicate = await getTraceDatabase(env).prepare(
     `SELECT id
      FROM trace_stage_fields
      WHERE stage_id = ?
@@ -603,7 +604,7 @@ async function updateField(
       ? parseJson(existing.default_value_json, null)
       : body.defaultValue;
 
-  await env.DB.prepare(
+  await getTraceDatabase(env).prepare(
     `UPDATE trace_stage_fields
      SET
        field_key = ?,
@@ -640,7 +641,7 @@ async function updateField(
     )
     .run();
 
-  const updated = await env.DB.prepare(
+  const updated = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_stage_fields
      WHERE id = ?
@@ -660,7 +661,7 @@ async function deleteField(
   stageId,
   fieldId
 ) {
-  const existing = await env.DB.prepare(
+  const existing = await getTraceDatabase(env).prepare(
     `SELECT id
      FROM trace_stage_fields
      WHERE id = ?
@@ -681,7 +682,7 @@ async function deleteField(
     );
   }
 
-  await env.DB.prepare(
+  await getTraceDatabase(env).prepare(
     `DELETE FROM trace_stage_fields
      WHERE id = ?
        AND stage_id = ?`
@@ -731,7 +732,7 @@ async function reorderFields(
     );
   }
 
-  const current = await env.DB.prepare(
+  const current = await getTraceDatabase(env).prepare(
     `SELECT id
      FROM trace_stage_fields
      WHERE stage_id = ?
@@ -767,7 +768,7 @@ async function reorderFields(
 
   const temporaryUpdates =
     requestedIds.map((fieldId, index) =>
-      env.DB.prepare(
+      getTraceDatabase(env).prepare(
         `UPDATE trace_stage_fields
          SET field_order = ?
          WHERE id = ?
@@ -781,7 +782,7 @@ async function reorderFields(
 
   const finalUpdates =
     requestedIds.map((fieldId, index) =>
-      env.DB.prepare(
+      getTraceDatabase(env).prepare(
         `UPDATE trace_stage_fields
          SET field_order = ?
          WHERE id = ?
@@ -793,7 +794,7 @@ async function reorderFields(
       )
     );
 
-  await env.DB.batch([
+  await getTraceDatabase(env).batch([
     ...temporaryUpdates,
     ...finalUpdates,
   ]);

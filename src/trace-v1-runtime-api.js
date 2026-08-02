@@ -1,4 +1,5 @@
 import jwt from "@tsndr/cloudflare-worker-jwt";
+import { getTraceDatabase } from "./trace/shared/database.js";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -246,7 +247,7 @@ async function authenticate(request, env) {
     };
   }
 
-  const user = await env.DB.prepare(
+  const user = await getTraceDatabase(env).prepare(
     `SELECT
        id,
        email,
@@ -290,7 +291,7 @@ async function getOwnedProcess(
   tenantId,
   processId
 ) {
-  return env.DB.prepare(
+  return getTraceDatabase(env).prepare(
     `SELECT
        id,
        name,
@@ -309,7 +310,7 @@ async function getLatestPublishedVersion(
   env,
   processId
 ) {
-  return env.DB.prepare(
+  return getTraceDatabase(env).prepare(
     `SELECT
        id,
        process_id,
@@ -359,7 +360,7 @@ async function listAssets(
     values.push(processId);
   }
 
-  const result = await env.DB.prepare(
+  const result = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_assets
      WHERE ${clauses.join(" AND ")}
@@ -381,7 +382,7 @@ async function getAsset(
   tenantId,
   assetId
 ) {
-  const asset = await env.DB.prepare(
+  const asset = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_assets
      WHERE id = ?
@@ -403,7 +404,7 @@ async function getAsset(
     );
   }
 
-  const executions = await env.DB.prepare(
+  const executions = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_executions
      WHERE asset_id = ?
@@ -487,7 +488,7 @@ async function createAsset(
     }
   }
 
-  const existing = await env.DB.prepare(
+  const existing = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_assets
      WHERE tenant_id = ?
@@ -513,7 +514,7 @@ async function createAsset(
 
   if (qrSlug) {
     const duplicateSlug =
-      await env.DB.prepare(
+      await getTraceDatabase(env).prepare(
         `SELECT id
          FROM trace_assets
          WHERE qr_slug = ?
@@ -537,7 +538,7 @@ async function createAsset(
 
   const assetId = uuid();
 
-  await env.DB.prepare(
+  await getTraceDatabase(env).prepare(
     `INSERT INTO trace_assets (
        id,
        tenant_id,
@@ -608,7 +609,7 @@ async function createAsset(
     )
     .run();
 
-  const created = await env.DB.prepare(
+  const created = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_assets
      WHERE id = ?
@@ -668,7 +669,7 @@ async function listExecutions(
     values.push(assetId);
   }
 
-  const result = await env.DB.prepare(
+  const result = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_executions
      WHERE ${clauses.join(" AND ")}
@@ -690,7 +691,7 @@ async function getExecution(
   tenantId,
   executionId
 ) {
-  const execution = await env.DB.prepare(
+  const execution = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_executions
      WHERE id = ?
@@ -712,7 +713,7 @@ async function getExecution(
     );
   }
 
-  const stages = await env.DB.prepare(
+  const stages = await getTraceDatabase(env).prepare(
     `SELECT
        es.*,
        s.name AS stage_name,
@@ -735,7 +736,7 @@ async function getExecution(
     .bind(executionId)
     .all();
 
-  const events = await env.DB.prepare(
+  const events = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_events
      WHERE execution_id = ?
@@ -844,7 +845,7 @@ async function createExecution(
   let asset = null;
 
   if (assetId) {
-    asset = await env.DB.prepare(
+    asset = await getTraceDatabase(env).prepare(
       `SELECT *
        FROM trace_assets
        WHERE id = ?
@@ -885,7 +886,7 @@ async function createExecution(
     }
   }
 
-  const existing = await env.DB.prepare(
+  const existing = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_executions
      WHERE tenant_id = ?
@@ -915,7 +916,7 @@ async function createExecution(
     });
   }
 
-  const sourceStages = await env.DB.prepare(
+  const sourceStages = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_stages
      WHERE process_version_id = ?
@@ -947,7 +948,7 @@ async function createExecution(
     ) || auth.user.id;
 
   if (assignedTo) {
-    const assignee = await env.DB.prepare(
+    const assignee = await getTraceDatabase(env).prepare(
       `SELECT id
        FROM users
        WHERE id = ?
@@ -976,7 +977,7 @@ async function createExecution(
   const eventId = uuid();
 
   const statements = [
-    env.DB.prepare(
+    getTraceDatabase(env).prepare(
       `INSERT INTO trace_executions (
          id,
          tenant_id,
@@ -1067,7 +1068,7 @@ async function createExecution(
     });
 
     statements.push(
-      env.DB.prepare(
+      getTraceDatabase(env).prepare(
         `INSERT INTO trace_execution_stages (
            id,
            execution_id,
@@ -1106,7 +1107,7 @@ async function createExecution(
   }
 
   statements.push(
-    env.DB.prepare(
+    getTraceDatabase(env).prepare(
       `INSERT INTO trace_events (
          id,
          tenant_id,
@@ -1168,7 +1169,7 @@ async function createExecution(
     !asset.process_id
   ) {
     statements.push(
-      env.DB.prepare(
+      getTraceDatabase(env).prepare(
         `UPDATE trace_assets
          SET
            process_id = ?,
@@ -1183,7 +1184,7 @@ async function createExecution(
     );
   }
 
-  await env.DB.batch(statements);
+  await getTraceDatabase(env).batch(statements);
 
   const detail = await getExecution(
     env,

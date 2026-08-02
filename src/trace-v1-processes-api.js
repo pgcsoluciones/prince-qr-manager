@@ -1,4 +1,5 @@
 import jwt from "@tsndr/cloudflare-worker-jwt";
+import { getTraceDatabase } from "./trace/shared/database.js";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -111,7 +112,7 @@ async function authenticate(request, env) {
     };
   }
 
-  const user = await env.DB.prepare(
+  const user = await getTraceDatabase(env).prepare(
     `SELECT id, email, role, plan, enterprise_id, is_active
      FROM users
      WHERE id = ?
@@ -190,7 +191,7 @@ async function listProcesses(env, tenantId, url) {
 
   bindings.push(limit, offset);
 
-  const result = await env.DB.prepare(
+  const result = await getTraceDatabase(env).prepare(
     `SELECT
        p.*,
        v.version_number,
@@ -262,8 +263,8 @@ async function createProcess(request, env, auth) {
   const icon = normalizeText(body.icon, 80);
   const settings = normalizeSettings(body.settings);
 
-  await env.DB.batch([
-    env.DB.prepare(
+  await getTraceDatabase(env).batch([
+    getTraceDatabase(env).prepare(
       `INSERT INTO trace_processes (
          id,
          tenant_id,
@@ -293,7 +294,7 @@ async function createProcess(request, env, auth) {
       auth.user.id
     ),
 
-    env.DB.prepare(
+    getTraceDatabase(env).prepare(
       `INSERT INTO trace_process_versions (
          id,
          process_id,
@@ -315,7 +316,7 @@ async function createProcess(request, env, auth) {
     ),
   ]);
 
-  const created = await env.DB.prepare(
+  const created = await getTraceDatabase(env).prepare(
     `SELECT
        p.*,
        v.version_number,
@@ -341,7 +342,7 @@ async function createProcess(request, env, auth) {
 }
 
 async function getProcess(env, tenantId, processId) {
-  const process = await env.DB.prepare(
+  const process = await getTraceDatabase(env).prepare(
     `SELECT
        p.*,
        v.version_number,
@@ -372,7 +373,7 @@ async function getProcess(env, tenantId, processId) {
     );
   }
 
-  const versions = await env.DB.prepare(
+  const versions = await getTraceDatabase(env).prepare(
     `SELECT
        id,
        version_number,
@@ -410,7 +411,7 @@ async function getProcess(env, tenantId, processId) {
 }
 
 async function updateProcess(request, env, auth, processId) {
-  const existing = await env.DB.prepare(
+  const existing = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_processes
      WHERE id = ?
@@ -511,7 +512,7 @@ async function updateProcess(request, env, auth, processId) {
       ? parseJson(existing.settings_json, {})
       : normalizeSettings(body.settings);
 
-  await env.DB.prepare(
+  await getTraceDatabase(env).prepare(
     `UPDATE trace_processes
      SET
        name = ?,
@@ -539,7 +540,7 @@ async function updateProcess(request, env, auth, processId) {
     .run();
 
   if (existing.status === "draft") {
-    await env.DB.prepare(
+    await getTraceDatabase(env).prepare(
       `UPDATE trace_process_versions
        SET
          name = ?,

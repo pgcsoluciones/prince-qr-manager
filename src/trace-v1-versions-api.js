@@ -1,4 +1,5 @@
 import jwt from "@tsndr/cloudflare-worker-jwt";
+import { getTraceDatabase } from "./trace/shared/database.js";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -80,7 +81,7 @@ async function authenticate(request, env) {
     };
   }
 
-  const user = await env.DB.prepare(
+  const user = await getTraceDatabase(env).prepare(
     `SELECT
        id,
        email,
@@ -119,7 +120,7 @@ async function getProcessContext(
   tenantId,
   processId
 ) {
-  return env.DB.prepare(
+  return getTraceDatabase(env).prepare(
     `SELECT
        p.id,
        p.tenant_id,
@@ -147,7 +148,7 @@ async function validatePublication(
   env,
   process
 ) {
-  const stages = await env.DB.prepare(
+  const stages = await getTraceDatabase(env).prepare(
     `SELECT
        s.id,
        s.name,
@@ -252,7 +253,7 @@ async function validatePublication(
     });
   }
 
-  const fields = await env.DB.prepare(
+  const fields = await getTraceDatabase(env).prepare(
     `SELECT
        f.id,
        f.stage_id,
@@ -382,8 +383,8 @@ async function publishVersion(
     );
   }
 
-  await env.DB.batch([
-    env.DB.prepare(
+  await getTraceDatabase(env).batch([
+    getTraceDatabase(env).prepare(
       `UPDATE trace_process_versions
        SET
          status = 'published',
@@ -400,7 +401,7 @@ async function publishVersion(
       processId
     ),
 
-    env.DB.prepare(
+    getTraceDatabase(env).prepare(
       `UPDATE trace_processes
        SET
          status = 'active',
@@ -413,7 +414,7 @@ async function publishVersion(
     ),
   ]);
 
-  const published = await env.DB.prepare(
+  const published = await getTraceDatabase(env).prepare(
     `SELECT
        id,
        process_id,
@@ -505,7 +506,7 @@ async function createDraftVersion(
     );
   }
 
-  const existingDraft = await env.DB.prepare(
+  const existingDraft = await getTraceDatabase(env).prepare(
     `SELECT id
      FROM trace_process_versions
      WHERE process_id = ?
@@ -527,7 +528,7 @@ async function createDraftVersion(
     );
   }
 
-  const sourceStages = await env.DB.prepare(
+  const sourceStages = await getTraceDatabase(env).prepare(
     `SELECT *
      FROM trace_stages
      WHERE process_version_id = ?
@@ -536,7 +537,7 @@ async function createDraftVersion(
     .bind(process.current_version_id)
     .all();
 
-  const sourceFields = await env.DB.prepare(
+  const sourceFields = await getTraceDatabase(env).prepare(
     `SELECT f.*
      FROM trace_stage_fields f
      JOIN trace_stages s
@@ -549,7 +550,7 @@ async function createDraftVersion(
     .bind(process.current_version_id)
     .all();
 
-  const maxVersion = await env.DB.prepare(
+  const maxVersion = await getTraceDatabase(env).prepare(
     `SELECT
        COALESCE(MAX(version_number), 0)
          AS max_version
@@ -571,7 +572,7 @@ async function createDraftVersion(
   }
 
   const statements = [
-    env.DB.prepare(
+    getTraceDatabase(env).prepare(
       `INSERT INTO trace_process_versions (
          id,
          process_id,
@@ -607,7 +608,7 @@ async function createDraftVersion(
 
   for (const stage of sourceStages.results) {
     statements.push(
-      env.DB.prepare(
+      getTraceDatabase(env).prepare(
         `INSERT INTO trace_stages (
            id,
            process_version_id,
@@ -675,7 +676,7 @@ async function createDraftVersion(
     }
 
     statements.push(
-      env.DB.prepare(
+      getTraceDatabase(env).prepare(
         `INSERT INTO trace_stage_fields (
            id,
            stage_id,
@@ -724,7 +725,7 @@ async function createDraftVersion(
   }
 
   statements.push(
-    env.DB.prepare(
+    getTraceDatabase(env).prepare(
       `UPDATE trace_processes
        SET
          current_version_id = ?,
@@ -738,7 +739,7 @@ async function createDraftVersion(
     )
   );
 
-  await env.DB.batch(statements);
+  await getTraceDatabase(env).batch(statements);
 
   return json(
     {
