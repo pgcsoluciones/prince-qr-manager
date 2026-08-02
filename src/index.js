@@ -18,6 +18,7 @@ import { handleTraceV1Processes } from "./trace-v1-processes-api.js";
 import { handleTraceV1Stages } from "./trace-v1-stages-api.js";
 import { handleTraceV1Fields } from "./trace-v1-fields-api.js";
 import { handleTraceV1Versions } from "./trace-v1-versions-api.js";
+import { handleTraceV1Runtime } from "./trace-v1-runtime-api.js";
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -428,6 +429,13 @@ function serveTraceForm(tracePoint, profile = null, staffMode = false) {
 
 export default {
   async fetch(request, env, ctx) {
+    const traceV1RuntimeResponse =
+      await handleTraceV1Runtime(request, env);
+
+    if (traceV1RuntimeResponse) {
+      return traceV1RuntimeResponse;
+    }
+
     const traceV1VersionsResponse =
       await handleTraceV1Versions(request, env);
 
