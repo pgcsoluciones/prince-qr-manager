@@ -5,6 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "preview"
+TRACE_OTP_EXPOSE_CODE = "true"
 
 [[d1_databases]]
 binding = "DB"

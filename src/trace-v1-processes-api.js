@@ -91,6 +91,25 @@ async function authenticate(request, env) {
 
   const decoded = jwt.decode(token);
   const payload = decoded?.payload || {};
+  const sessionType =
+    payload.session_type ||
+    "standard";
+
+  if (sessionType !== "standard") {
+    return {
+      error: json(
+        {
+          ok: false,
+          error:
+            "restricted_session_scope",
+          message:
+            "Esta sesión no tiene acceso a funciones administrativas.",
+        },
+        403
+      ),
+    };
+  }
+
 
   const userId =
     payload.user_id ||
