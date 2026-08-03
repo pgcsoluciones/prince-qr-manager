@@ -21,6 +21,7 @@ import { handleTraceV1Versions } from "./trace-v1-versions-api.js";
 import { handleTraceV1Runtime } from "./trace-v1-runtime-api.js";
 import { handleTraceV1Organization } from "./trace-v1-organization-api.js";
 import { handleTraceV1Access } from "./trace-v1-access-api.js";
+import { handleTraceV1Operational } from "./trace-v1-operational-api.js";
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -443,6 +444,13 @@ export default {
 
     if (traceV1OrganizationResponse) {
       return traceV1OrganizationResponse;
+    }
+
+    const traceV1OperationalResponse =
+      await handleTraceV1Operational(request, env);
+
+    if (traceV1OperationalResponse) {
+      return traceV1OperationalResponse;
     }
 
     const traceV1RuntimeResponse =
