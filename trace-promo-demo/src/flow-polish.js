@@ -24,6 +24,31 @@ function openOperatorFinal() {
   }, 80);
 }
 
+function sanitizePresentationCopy() {
+  const scenario = getScenario();
+
+  document.querySelectorAll('.operator-hint').forEach((node) => {
+    if (node.dataset.operationalCopy === 'true') return;
+    node.dataset.operationalCopy = 'true';
+    node.innerHTML = scenario === 'logistics'
+      ? '<span><strong>Incidencia en proceso</strong><br>Almacén recibió la solicitud y la corrección está pendiente de validación.</span>'
+      : '<span><strong>Incidencia en seguimiento</strong><br>La corrección fue asignada al supervisor y la etapa permanece retenida.</span>';
+  });
+
+  document.querySelectorAll('.report-hero p').forEach((paragraph) => {
+    const text = paragraph.textContent?.trim();
+    if (text === 'Consulta la vista de almacén para revisar y aprobar la respuesta.') {
+      paragraph.textContent = 'Almacén recibió la incidencia. La operación permanece en espera de validación.';
+    }
+  });
+
+  document.querySelectorAll('.empty-role p').forEach((paragraph) => {
+    paragraph.textContent = scenario === 'logistics'
+      ? 'No hay incidencias asignadas a almacén en este momento.'
+      : 'No hay incidencias pendientes de revisión en este momento.';
+  });
+}
+
 function enhanceDepartmentView() {
   const approval = document.querySelector('.approval-box');
   if (!approval || approval.dataset.commentsReady === 'true') return;
@@ -34,7 +59,7 @@ function enhanceDepartmentView() {
   field.className = 'supervisor-comment-field';
   field.innerHTML = `
     <span>Comentario u observación</span>
-    <textarea rows="3" placeholder="Agrega una observación antes de aprobar o devolver la corrección."></textarea>
+    <textarea rows="3" placeholder="Registra una observación antes de aprobar o devolver la corrección."></textarea>
   `;
   const textarea = field.querySelector('textarea');
   textarea.value = state.comments[scenario] || '';
@@ -50,7 +75,7 @@ function enhanceDepartmentView() {
       if (!success || document.querySelector('.return-operator-report')) return;
       const button = document.createElement('button');
       button.className = 'primary return-operator-report';
-      button.innerHTML = 'Volver al operador y ver reporte final →';
+      button.innerHTML = 'Abrir reporte final →';
       button.addEventListener('click', openOperatorFinal);
       success.insertAdjacentElement('afterend', button);
     }, 120);
@@ -133,6 +158,7 @@ function enhancePublicTimeline() {
 }
 
 function enhance() {
+  sanitizePresentationCopy();
   enhanceDepartmentView();
   enhanceOperatorFinal();
   enhancePublicTimeline();
