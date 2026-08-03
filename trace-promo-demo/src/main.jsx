@@ -1,12 +1,12 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import Root from './Root.jsx';
+import LandingApp from './LandingApp.jsx';
 import './styles.css';
 import './evidence.css';
 import './landing.css';
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <Root />
+    <LandingApp />
   </React.StrictMode>,
 );
