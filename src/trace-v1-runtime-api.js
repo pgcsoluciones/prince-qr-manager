@@ -1004,16 +1004,116 @@ async function createExecution(
       100
     );
 
-  const assignedTo =
-    requestedAssignedTo ||
-    auth.user.id;
+  const requestedRoleAssignments =
+    normalizeObject(
+      body.roleAssignments
+    );
 
-  if (assignedTo) {
+  const roleAssignments = {};
+
+  for (
+    const [role, userId]
+    of Object.entries(
+      requestedRoleAssignments
+    )
+  ) {
+    const normalizedRole =
+      normalizeText(role, 100);
+
+    const normalizedUserId =
+      normalizeText(userId, 100);
+
+    if (
+      normalizedRole &&
+      normalizedUserId
+    ) {
+      roleAssignments[
+        normalizedRole
+      ] = normalizedUserId;
+    }
+  }
+
+  const hasRoleAssignments =
+    Object.keys(
+      roleAssignments
+    ).length > 0;
+
+  const defaultAssignedTo =
+    requestedAssignedTo ||
+    (
+      hasRoleAssignments
+        ? null
+        : auth.user.id
+    );
+
+  const stageAssignments =
+    sourceStages.results.map(
+      (stage) => ({
+        stage,
+        assignedTo:
+          roleAssignments[
+            stage.responsible_role
+          ] ||
+          defaultAssignedTo,
+      })
+    );
+
+  const requiredRoles =
+    new Set(
+      sourceStages.results
+        .map(
+          (stage) =>
+            normalizeText(
+              stage.responsible_role,
+              100
+            )
+        )
+        .filter(Boolean)
+    );
+
+  if (hasRoleAssignments) {
+    const missingRoles =
+      [...requiredRoles].filter(
+        (role) =>
+          !roleAssignments[role]
+      );
+
+    if (missingRoles.length) {
+      return json(
+        {
+          ok: false,
+          error:
+            "missing_role_assignments",
+          message:
+            "Faltan usuarios para uno o más roles responsables.",
+          details: {
+            roles: missingRoles,
+          },
+        },
+        422
+      );
+    }
+  }
+
+  const uniqueAssignees =
+    [...new Set(
+      stageAssignments
+        .map(
+          (item) =>
+            item.assignedTo
+        )
+        .filter(Boolean)
+    )];
+
+  for (
+    const userId
+    of uniqueAssignees
+  ) {
     const assignee =
       await findEligibleTenantUser(
         env,
         auth.tenantId,
-        assignedTo
+        userId
       );
 
     if (!assignee) {
@@ -1023,24 +1123,42 @@ async function createExecution(
           error:
             "assignee_not_available_for_tenant",
           message:
-            "El usuario asignado no existe, está inactivo o no pertenece al tenant.",
+            "Uno de los usuarios asignados no existe, está inactivo o no pertenece al tenant.",
+          details: {
+            userId,
+          },
         },
         422
       );
     }
   }
 
+  const assignedTo =
+    stageAssignments[0]
+      ?.assignedTo || null;
+
   const assignmentSource =
-    requestedAssignedTo
+    requestedAssignedTo ||
+    hasRoleAssignments
       ? "manual"
       : "automatic";
 
   const executionStatus =
-    assignedTo ? "assigned" : "pending";
+    uniqueAssignees.length
+      ? "assigned"
+      : "pending";
 
   const eventId = uuid();
-  const participantId =
-    assignedTo ? uuid() : null;
+
+  const participantIds =
+    new Map(
+      uniqueAssignees.map(
+        (userId) => [
+          userId,
+          uuid(),
+        ]
+      )
+    );
 
   const statements = [
     getTraceDatabase(env).prepare(
@@ -1120,11 +1238,14 @@ async function createExecution(
 
   for (
     let index = 0;
-    index < sourceStages.results.length;
+    index < stageAssignments.length;
     index += 1
   ) {
-    const stage =
-      sourceStages.results[index];
+    const {
+      stage,
+      assignedTo:
+        stageAssignedTo,
+    } = stageAssignments[index];
 
     const executionStageId = uuid();
 
@@ -1167,12 +1288,15 @@ async function createExecution(
         index === 0
           ? "available"
           : "pending",
-        assignedTo
+        stageAssignedTo
       )
     );
   }
 
-  if (assignedTo) {
+  for (
+    const userId
+    of uniqueAssignees
+  ) {
     statements.push(
       getTraceDatabase(env).prepare(
         `INSERT INTO trace_execution_participants (
@@ -1210,10 +1334,12 @@ async function createExecution(
            datetime('now')
          )`
       ).bind(
-        participantId,
+        participantIds.get(
+          userId
+        ),
         auth.tenantId,
         executionId,
-        assignedTo,
+        userId,
         assignmentSource,
         auth.user.id
       )
@@ -1275,7 +1401,11 @@ async function createExecution(
           firstStage.id,
         assignedTo,
         assignmentSource,
-        participantId,
+        roleAssignments,
+        participantIds:
+          Object.fromEntries(
+            participantIds
+          ),
       })
     )
   );
