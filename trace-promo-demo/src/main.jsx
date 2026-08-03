@@ -1,13 +1,12 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App.jsx';
+import AppEnhanced from './AppEnhanced.jsx';
 import './styles.css';
 import './evidence.css';
-import './mobileFacade.css';
-import './facadeSectors.js';
+import './incident-flow.css';
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    <AppEnhanced />
   </React.StrictMode>,
 );
