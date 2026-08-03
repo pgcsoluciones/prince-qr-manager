@@ -19,7 +19,10 @@ function Brand() {
 }
 
 function Home({ open }) {
-  useEffect(() => window.scrollTo(0, 0), []);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   return <main className="trace-home page">
     <header className="site-header"><Brand/><button className="primary" onClick={() => open('construction')}>Ver plataforma</button></header>
     <section className="trace-hero">
@@ -46,7 +49,10 @@ function Simulator({ type, back }) {
   const [logistics,setLogistics] = useState({ reported:false, department:'Almacén y empaque', priority:'Alta', detail:'El peso registrado es 0.7 kg menor al esperado.', response:false, approved:false });
   const steps = operatorSteps[type];
 
-  useEffect(() => window.scrollTo(0,0), [step,role]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [step, role]);
+
   const next = () => setStep(value => Math.min(value + 1, steps.length - 1));
   const previous = () => setStep(value => Math.max(value - 1, 0));
   const departmentLabel = type === 'construction' ? 'Vista del supervisor' : 'Vista de almacén';
