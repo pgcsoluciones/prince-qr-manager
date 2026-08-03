@@ -305,6 +305,44 @@ async function authenticate(request, env) {
   };
 }
 
+async function findEligibleTenantUser(
+  env,
+  tenantId,
+  userId
+) {
+  return getTraceDatabase(env)
+    .prepare(
+      `SELECT
+         u.id,
+         u.email,
+         u.role,
+         u.enterprise_id,
+         u.is_active
+       FROM users u
+       WHERE u.id = ?
+         AND u.is_active = 1
+         AND (
+           u.id = ?
+           OR u.enterprise_id = ?
+           OR EXISTS (
+             SELECT 1
+             FROM tenant_members tm
+             WHERE tm.tenant_owner_id = ?
+               AND tm.user_id = u.id
+               AND tm.status = 'active'
+           )
+         )
+       LIMIT 1`
+    )
+    .bind(
+      userId,
+      tenantId,
+      tenantId,
+      tenantId
+    )
+    .first();
+}
+
 async function getOwnedProcess(
   env,
   tenantId,
@@ -960,40 +998,49 @@ async function createExecution(
   const firstStage =
     sourceStages.results[0];
 
-  const assignedTo =
+  const requestedAssignedTo =
     normalizeText(
       body.assignedTo,
       100
-    ) || auth.user.id;
+    );
+
+  const assignedTo =
+    requestedAssignedTo ||
+    auth.user.id;
 
   if (assignedTo) {
-    const assignee = await getTraceDatabase(env).prepare(
-      `SELECT id
-       FROM users
-       WHERE id = ?
-         AND is_active = 1
-       LIMIT 1`
-    )
-      .bind(assignedTo)
-      .first();
+    const assignee =
+      await findEligibleTenantUser(
+        env,
+        auth.tenantId,
+        assignedTo
+      );
 
     if (!assignee) {
       return json(
         {
           ok: false,
-          error: "invalid_assignee",
+          error:
+            "assignee_not_available_for_tenant",
           message:
-            "El usuario asignado no existe o está inactivo.",
+            "El usuario asignado no existe, está inactivo o no pertenece al tenant.",
         },
         422
       );
     }
   }
 
+  const assignmentSource =
+    requestedAssignedTo
+      ? "manual"
+      : "automatic";
+
   const executionStatus =
     assignedTo ? "assigned" : "pending";
 
   const eventId = uuid();
+  const participantId =
+    assignedTo ? uuid() : null;
 
   const statements = [
     getTraceDatabase(env).prepare(
@@ -1125,6 +1172,54 @@ async function createExecution(
     );
   }
 
+  if (assignedTo) {
+    statements.push(
+      getTraceDatabase(env).prepare(
+        `INSERT INTO trace_execution_participants (
+           id,
+           tenant_id,
+           execution_id,
+           department_id,
+           user_id,
+           participation_role,
+           assignment_source,
+           status,
+           substituted_user_id,
+           starts_at,
+           ends_at,
+           settings_json,
+           created_by,
+           created_at,
+           updated_at
+         )
+         VALUES (
+           ?,
+           ?,
+           ?,
+           NULL,
+           ?,
+           'executor',
+           ?,
+           'active',
+           NULL,
+           NULL,
+           NULL,
+           '{}',
+           ?,
+           datetime('now'),
+           datetime('now')
+         )`
+      ).bind(
+        participantId,
+        auth.tenantId,
+        executionId,
+        assignedTo,
+        assignmentSource,
+        auth.user.id
+      )
+    );
+  }
+
   statements.push(
     getTraceDatabase(env).prepare(
       `INSERT INTO trace_events (
@@ -1179,6 +1274,8 @@ async function createExecution(
         firstStageId:
           firstStage.id,
         assignedTo,
+        assignmentSource,
+        participantId,
       })
     )
   );
