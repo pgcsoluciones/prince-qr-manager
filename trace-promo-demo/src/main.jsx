@@ -5,6 +5,8 @@ import './styles.css';
 import './evidence.css';
 import './incident-flow.css';
 import './role-views.css';
+import './flow-polish.css';
+import './flow-polish.js';
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
