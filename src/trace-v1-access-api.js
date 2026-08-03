@@ -1,4 +1,3 @@
-import jwt from "@tsndr/cloudflare-worker-jwt";
 import {
   getTraceDatabase,
 } from "./trace/shared/database.js";
@@ -153,12 +152,6 @@ function toSqlDate(date) {
     .replace(/\.\d{3}Z$/, "");
 }
 
-function toUnixSeconds(date) {
-  return Math.floor(
-    date.getTime() / 1000
-  );
-}
-
 function constantTimeEqual(
   left,
   right
@@ -205,6 +198,60 @@ async function sha256(value) {
       byte.toString(16).padStart(2, "0")
     )
     .join("");
+}
+
+function getTraceAuthPepper(env) {
+  const pepper =
+    typeof env.TRACE_AUTH_PEPPER === "string"
+      ? env.TRACE_AUTH_PEPPER.trim()
+      : "";
+
+  if (!pepper) {
+    throw new Error(
+      "TRACE_AUTH_PEPPER is required."
+    );
+  }
+
+  return pepper;
+}
+
+function base64UrlEncode(bytes) {
+  let binary = "";
+
+  for (
+    let index = 0;
+    index < bytes.length;
+    index += 1
+  ) {
+    binary += String.fromCharCode(
+      bytes[index]
+    );
+  }
+
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function generateOpaqueToken() {
+  const bytes =
+    new Uint8Array(48);
+
+  crypto.getRandomValues(bytes);
+
+  return `trace_op_${base64UrlEncode(
+    bytes
+  )}`;
+}
+
+async function hashOperationalToken(
+  token,
+  pepper
+) {
+  return sha256(
+    `trace-operational-token:${pepper}:${token}`
+  );
 }
 
 function generateOtpCode() {
@@ -256,6 +303,35 @@ function requestIp(request) {
     .trim();
 }
 
+function bearerTokenFromRequest(request) {
+  const authorization =
+    request.headers.get(
+      "Authorization"
+    ) || "";
+
+  const bearerMatch =
+    authorization.match(
+      /^Bearer\s+(.+)$/i
+    );
+
+  if (!bearerMatch) {
+    return null;
+  }
+
+  const token =
+    bearerMatch[1].trim();
+
+  if (
+    !/^trace_op_[A-Za-z0-9_-]{64}$/.test(
+      token
+    )
+  ) {
+    return null;
+  }
+
+  return token;
+}
+
 async function requestFingerprint(
   request
 ) {
@@ -290,6 +366,153 @@ async function requestFingerprint(
         : null,
     userAgent:
       userAgent || null,
+  };
+}
+
+async function findOperationalSession(
+  env,
+  token
+) {
+  const authPepper =
+    getTraceAuthPepper(env);
+
+  const tokenHash =
+    await hashOperationalToken(
+      token,
+      authPepper
+    );
+
+  const db =
+    getTraceDatabase(env);
+
+  const session =
+    await db.prepare(
+      `SELECT
+         s.id,
+         s.tenant_id,
+         s.user_id,
+         s.session_type,
+         s.authentication_method,
+         s.challenge_id,
+         s.project_id,
+         s.execution_id,
+         s.permissions_json,
+         s.status,
+         s.last_activity_at,
+         s.expires_at,
+         s.revoked_at,
+         s.created_at,
+         u.email,
+         u.role,
+         u.plan,
+         u.enterprise_id,
+         u.is_active,
+         u.operational_access_enabled
+       FROM trace_auth_sessions s
+       JOIN users u
+         ON u.id = s.user_id
+       WHERE s.session_token_hash = ?
+         AND s.session_type = 'operational'
+       LIMIT 1`
+    )
+      .bind(tokenHash)
+      .first();
+
+  return {
+    db,
+    session,
+    tokenHash,
+  };
+}
+
+function parsePermissions(value) {
+  if (!value) return {};
+
+  try {
+    const parsed =
+      JSON.parse(value);
+
+    return (
+      parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed)
+    )
+      ? parsed
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function operationalSessionIsActive(
+  session,
+  now = new Date()
+) {
+  if (!session) return false;
+
+  if (
+    session.session_type !==
+      "operational" ||
+    session.status !== "active" ||
+    session.revoked_at ||
+    Number(session.is_active) !== 1 ||
+    Number(
+      session.operational_access_enabled
+    ) !== 1
+  ) {
+    return false;
+  }
+
+  const expectedTenantId =
+    session.enterprise_id ||
+    session.user_id;
+
+  if (
+    expectedTenantId !==
+    session.tenant_id
+  ) {
+    return false;
+  }
+
+  const expiresAt =
+    new Date(
+      `${session.expires_at}Z`
+    );
+
+  return (
+    !Number.isNaN(
+      expiresAt.getTime()
+    ) &&
+    expiresAt > now
+  );
+}
+
+function serializeOperationalSession(
+  session
+) {
+  return {
+    id: session.id,
+    type: session.session_type,
+    authenticationMethod:
+      session.authentication_method,
+    tenantId:
+      session.tenant_id,
+    userId:
+      session.user_id,
+    projectId:
+      session.project_id,
+    executionId:
+      session.execution_id,
+    permissions:
+      parsePermissions(
+        session.permissions_json
+      ),
+    lastActivityAt:
+      session.last_activity_at,
+    expiresAt:
+      session.expires_at,
+    createdAt:
+      session.created_at,
   };
 }
 
@@ -749,13 +972,27 @@ async function requestOtp(
   const code =
     generateOtpCode();
 
-  const secret =
-    env.JWT_SECRET ||
-    "changeme-set-in-cloudflare-dashboard";
+  let authPepper;
+
+  try {
+    authPepper =
+      getTraceAuthPepper(env);
+  } catch {
+    return json(
+      {
+        ok: false,
+        error:
+          "authentication_configuration_error",
+        message:
+          "El acceso operacional no está disponible temporalmente.",
+      },
+      503
+    );
+  }
 
   const codeHash =
     await sha256(
-      `${challengeId}:${code}:${secret}`
+      `trace-otp:${authPepper}:${challengeId}:${code}`
     );
 
   const now =
@@ -1065,13 +1302,27 @@ async function verifyOtp(
     );
   }
 
-  const secret =
-    env.JWT_SECRET ||
-    "changeme-set-in-cloudflare-dashboard";
+  let authPepper;
+
+  try {
+    authPepper =
+      getTraceAuthPepper(env);
+  } catch {
+    return json(
+      {
+        ok: false,
+        error:
+          "authentication_configuration_error",
+        message:
+          "El acceso operacional no está disponible temporalmente.",
+      },
+      503
+    );
+  }
 
   const submittedHash =
     await sha256(
-      `${challengeId}:${code}:${secret}`
+      `trace-otp:${authPepper}:${challengeId}:${code}`
     );
 
   const validCode =
@@ -1184,43 +1435,13 @@ async function verifyOtp(
   };
 
   const token =
-    await jwt.sign(
-      {
-        sub: challenge.user_id,
-        email:
-          challenge.email,
-        role:
-          challenge.role,
-        plan:
-          challenge.plan,
-        tenant_id:
-          challenge.tenant_id,
-        session_id:
-          sessionId,
-        session_type:
-          "operational",
-        authentication_method:
-          authenticationMethod,
-        project_id:
-          challenge.project_id,
-        execution_id:
-          challenge.execution_id,
-        permissions,
-        iat:
-          toUnixSeconds(now),
-        exp:
-          toUnixSeconds(
-            sessionExpiresAt
-          ),
-      },
-      secret,
-      {
-        algorithm: "HS256",
-      }
-    );
+    generateOpaqueToken();
 
   const tokenHash =
-    await sha256(token);
+    await hashOperationalToken(
+      token,
+      authPepper
+    );
 
   const consumeResult =
     await db.prepare(
@@ -1375,6 +1596,357 @@ async function verifyOtp(
   });
 }
 
+async function validateOperationalSession(
+  request,
+  env
+) {
+  const token =
+    bearerTokenFromRequest(
+      request
+    );
+
+  if (!token) {
+    return json(
+      {
+        ok: false,
+        error:
+          "invalid_operational_token",
+        message:
+          "El token operacional no es válido.",
+      },
+      401
+    );
+  }
+
+  let lookup;
+
+  try {
+    lookup =
+      await findOperationalSession(
+        env,
+        token
+      );
+  } catch {
+    return json(
+      {
+        ok: false,
+        error:
+          "authentication_configuration_error",
+        message:
+          "El acceso operacional no está disponible temporalmente.",
+      },
+      503
+    );
+  }
+
+  const {
+    db,
+    session,
+  } = lookup;
+
+  const fingerprint =
+    await requestFingerprint(
+      request
+    );
+
+  if (
+    !operationalSessionIsActive(
+      session
+    )
+  ) {
+    if (
+      session &&
+      session.status === "active" &&
+      !session.revoked_at
+    ) {
+      await db.prepare(
+        `UPDATE trace_auth_sessions
+         SET
+           status = 'expired',
+           updated_at = datetime('now')
+         WHERE id = ?
+           AND status = 'active'
+           AND revoked_at IS NULL
+           AND expires_at <= datetime('now')`
+      )
+        .bind(session.id)
+        .run();
+    }
+
+    await writeAudit(
+      db,
+      {
+        tenantId:
+          session?.tenant_id,
+        userId:
+          session?.user_id,
+        sessionId:
+          session?.id,
+        challengeId:
+          session?.challenge_id,
+        eventType:
+          "session_validate",
+        result:
+          "failure",
+        projectId:
+          session?.project_id,
+        executionId:
+          session?.execution_id,
+        fingerprint,
+        details: {
+          reason:
+            "inactive_or_invalid_session",
+        },
+      }
+    );
+
+    return json(
+      {
+        ok: false,
+        error:
+          "invalid_operational_session",
+        message:
+          "La sesión operacional no está activa.",
+      },
+      401
+    );
+  }
+
+  const activityResult =
+    await db.prepare(
+      `UPDATE trace_auth_sessions
+       SET
+         last_activity_at =
+           datetime('now'),
+         updated_at =
+           datetime('now')
+       WHERE id = ?
+         AND status = 'active'
+         AND revoked_at IS NULL
+         AND expires_at > datetime('now')`
+    )
+      .bind(session.id)
+      .run();
+
+  const activityChanges =
+    Number(
+      activityResult?.meta?.changes ||
+      activityResult?.changes ||
+      0
+    );
+
+  if (activityChanges !== 1) {
+    return json(
+      {
+        ok: false,
+        error:
+          "invalid_operational_session",
+        message:
+          "La sesión operacional no está activa.",
+      },
+      401
+    );
+  }
+
+  await writeAudit(
+    db,
+    {
+      tenantId:
+        session.tenant_id,
+      userId:
+        session.user_id,
+      sessionId:
+        session.id,
+      challengeId:
+        session.challenge_id,
+      eventType:
+        "session_validate",
+      result:
+        "success",
+      projectId:
+        session.project_id,
+      executionId:
+        session.execution_id,
+      fingerprint,
+      details: {
+        sessionType:
+          session.session_type,
+      },
+    }
+  );
+
+  return json({
+    ok: true,
+    data: {
+      session:
+        serializeOperationalSession(
+          {
+            ...session,
+            last_activity_at:
+              toSqlDate(
+                new Date()
+              ),
+          }
+        ),
+      user: {
+        id:
+          session.user_id,
+        email:
+          session.email,
+        role:
+          session.role,
+        plan:
+          session.plan,
+      },
+    },
+  });
+}
+
+async function revokeOperationalSession(
+  request,
+  env
+) {
+  const token =
+    bearerTokenFromRequest(
+      request
+    );
+
+  if (!token) {
+    return json(
+      {
+        ok: false,
+        error:
+          "invalid_operational_token",
+        message:
+          "El token operacional no es válido.",
+      },
+      401
+    );
+  }
+
+  let lookup;
+
+  try {
+    lookup =
+      await findOperationalSession(
+        env,
+        token
+      );
+  } catch {
+    return json(
+      {
+        ok: false,
+        error:
+          "authentication_configuration_error",
+        message:
+          "El acceso operacional no está disponible temporalmente.",
+      },
+      503
+    );
+  }
+
+  const {
+    db,
+    session,
+  } = lookup;
+
+  const fingerprint =
+    await requestFingerprint(
+      request
+    );
+
+  if (
+    !operationalSessionIsActive(
+      session
+    )
+  ) {
+    return json(
+      {
+        ok: false,
+        error:
+          "invalid_operational_session",
+        message:
+          "La sesión operacional no está activa.",
+      },
+      401
+    );
+  }
+
+  const revokeResult =
+    await db.prepare(
+      `UPDATE trace_auth_sessions
+       SET
+         status = 'revoked',
+         revoked_at =
+           datetime('now'),
+         updated_at =
+           datetime('now')
+       WHERE id = ?
+         AND status = 'active'
+         AND revoked_at IS NULL
+         AND expires_at > datetime('now')`
+    )
+      .bind(session.id)
+      .run();
+
+  const changes =
+    Number(
+      revokeResult?.meta?.changes ||
+      revokeResult?.changes ||
+      0
+    );
+
+  if (changes !== 1) {
+    return json(
+      {
+        ok: false,
+        error:
+          "invalid_operational_session",
+        message:
+          "La sesión operacional no está activa.",
+      },
+      401
+    );
+  }
+
+  await writeAudit(
+    db,
+    {
+      tenantId:
+        session.tenant_id,
+      userId:
+        session.user_id,
+      sessionId:
+        session.id,
+      challengeId:
+        session.challenge_id,
+      eventType:
+        "session_revoke",
+      result:
+        "success",
+      projectId:
+        session.project_id,
+      executionId:
+        session.execution_id,
+      fingerprint,
+      details: {
+        revokedBy:
+          "session_holder",
+      },
+    }
+  );
+
+  return json({
+    ok: true,
+    data: {
+      sessionId:
+        session.id,
+      status:
+        "revoked",
+    },
+  });
+}
+
 export async function
 handleTraceV1Access(
   request,
@@ -1426,6 +1998,30 @@ handleTraceV1Access(
       "POST"
   ) {
     return verifyOtp(
+      request,
+      env
+    );
+  }
+
+  if (
+    path ===
+      `${ACCESS_BASE}/session/validate` &&
+    request.method ===
+      "POST"
+  ) {
+    return validateOperationalSession(
+      request,
+      env
+    );
+  }
+
+  if (
+    path ===
+      `${ACCESS_BASE}/session/revoke` &&
+    request.method ===
+      "POST"
+  ) {
+    return revokeOperationalSession(
       request,
       env
     );
