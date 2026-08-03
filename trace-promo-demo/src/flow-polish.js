@@ -113,29 +113,49 @@ function enhanceDepartmentView() {
       if (!success || document.querySelector('.return-operator-report')) return;
       const button = document.createElement('button');
       button.className = 'primary return-operator-report';
-      button.innerHTML = 'Abrir reporte final →';
+      button.innerHTML = 'Abrir estado actualizado →';
       button.addEventListener('click', openOperatorFinal);
       success.insertAdjacentElement('afterend', button);
     }, 120);
   }, { once: true });
 }
 
-function enhanceOperatorFinal() {
-  const heading = document.querySelector('.workspace h1');
-  if (!heading || !['Cierre operativo', 'Despacho'].includes(heading.textContent.trim())) return;
-  const card = document.querySelector('.screen-frame .enhanced-card');
-  if (!card) return;
+function buildStatusMarkup(scenario, approved) {
+  const isLogistics = scenario === 'logistics';
+  const status = approved ? 'Aprobado' : 'En revisión';
+  const operation = approved
+    ? (isLogistics ? 'Liberado para despacho' : 'Etapa liberada')
+    : (isLogistics ? 'Despacho retenido' : 'Etapa retenida');
+  const response = approved
+    ? (isLogistics ? 'Corrección validada por almacén' : 'Corrección validada por supervisión')
+    : (isLogistics ? 'En espera de respuesta de almacén' : 'En espera de validación del supervisor');
+  const incidentId = isLogistics ? 'INC-2048' : 'INC-OBRA-031';
+  const area = isLogistics ? 'Almacén y empaque' : 'Terminaciones y pintura';
 
-  const scenario = getScenario();
-  const approved = state.approved[scenario];
-  const comment = state.comments[scenario];
-  card.querySelector('.runtime-final-report')?.remove();
+  return `
+    <section class="runtime-status-panel" style="margin-top:20px;padding:22px;border:1px solid #dce4ee;border-radius:16px;background:#fff">
+      <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap">
+        <div><span style="color:#1458e8;font-weight:800;letter-spacing:.1em;font-size:12px">ESTADO DE LA INCIDENCIA</span><h3 style="margin:7px 0 4px;font-size:26px">${incidentId}</h3><p style="margin:0;color:#66758c">${response}</p></div>
+        <span style="padding:8px 12px;border-radius:999px;background:${approved ? '#edf9f1' : '#fff5e8'};color:${approved ? '#257343' : '#9a641c'};font-weight:800">${status}</span>
+      </div>
+      <div class="runtime-report-grid" style="margin-top:18px">
+        <article><span>Área responsable</span><strong>${area}</strong></article>
+        <article><span>Estado de operación</span><strong>${operation}</strong></article>
+        <article><span>Última actualización</span><strong>${approved ? 'Hoy · 11:18 a. m.' : 'Hoy · 10:51 a. m.'}</strong></article>
+        <article><span>Siguiente acción</span><strong>${approved ? 'Continuar recorrido' : 'Esperar respuesta'}</strong></article>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px">
+        <button type="button" class="primary runtime-open-report">Ver reporte final →</button>
+        <button type="button" class="secondary runtime-share-whatsapp">Compartir por WhatsApp</button>
+      </div>
+      <p style="margin:12px 0 0;color:#758197;font-size:12px">El mensaje incluye el estado actual y un enlace al registro.</p>
+    </section>
+  `;
+}
 
-  const report = document.createElement('section');
-  report.className = 'runtime-final-report';
-
+function buildFinalReportMarkup(scenario, approved, comment) {
   if (scenario === 'logistics') {
-    report.innerHTML = `
+    return `
       <div class="runtime-report-head"><span>REPORTE FINAL DEL OPERADOR</span><strong>${approved ? 'Pedido liberado y en ruta' : 'Pedido retenido por incidencia'}</strong></div>
       <div class="runtime-report-grid">
         <article><span>Incidencia registrada</span><strong>INC-2048</strong></article>
@@ -152,27 +172,64 @@ function enhanceOperatorFinal() {
         ${approved ? '<p>✓ Corrección aprobada · 11:02 a. m.</p><p>✓ Despacho confirmado · 11:18 a. m.</p><p>● En ruta a destino · 11:22 a. m.</p>' : '<p>○ En espera de corrección de almacén</p>'}
       </div>
     `;
-  } else {
-    report.innerHTML = `
-      <div class="runtime-report-head"><span>REPORTE FINAL DEL OPERADOR</span><strong>${approved ? 'Etapa liberada para continuar' : 'Etapa retenida por incidencia'}</strong></div>
-      <div class="runtime-report-grid">
-        <article><span>Incidencia registrada</span><strong>INC-OBRA-031</strong></article>
-        <article><span>Área responsable</span><strong>Terminaciones y pintura</strong></article>
-        <article><span>Corrección</span><strong>${approved ? 'Acabado nivelado y documentado' : 'Pendiente de validación'}</strong></article>
-        <article><span>Estado final</span><strong>${approved ? 'Etapa liberada' : 'En revisión'}</strong></article>
-      </div>
-      ${comment ? `<div class="runtime-comment"><span>Comentario del supervisor</span><p>${comment.replaceAll('<','&lt;').replaceAll('>','&gt;')}</p></div>` : ''}
-      <div class="runtime-timeline">
-        <p>✓ Punto de control identificado · 8:00 a. m.</p>
-        <p>✓ Avance y observación registrados · 10:42 a. m.</p>
-        <p>✓ Evidencias vinculadas · 10:48 a. m.</p>
-        <p>✓ Incidencia INC-OBRA-031 registrada · 10:51 a. m.</p>
-        ${approved ? '<p>✓ Corrección aprobada por supervisión · 11:18 a. m.</p><p>✓ Etapa liberada para continuar · 11:20 a. m.</p>' : '<p>○ En espera de validación del supervisor</p>'}
-      </div>
-    `;
   }
 
+  return `
+    <div class="runtime-report-head"><span>REPORTE FINAL DEL OPERADOR</span><strong>${approved ? 'Etapa liberada para continuar' : 'Etapa retenida por incidencia'}</strong></div>
+    <div class="runtime-report-grid">
+      <article><span>Incidencia registrada</span><strong>INC-OBRA-031</strong></article>
+      <article><span>Área responsable</span><strong>Terminaciones y pintura</strong></article>
+      <article><span>Corrección</span><strong>${approved ? 'Acabado nivelado y documentado' : 'Pendiente de validación'}</strong></article>
+      <article><span>Estado final</span><strong>${approved ? 'Etapa liberada' : 'En revisión'}</strong></article>
+    </div>
+    ${comment ? `<div class="runtime-comment"><span>Comentario del supervisor</span><p>${comment.replaceAll('<','&lt;').replaceAll('>','&gt;')}</p></div>` : ''}
+    <div class="runtime-timeline">
+      <p>✓ Punto de control identificado · 8:00 a. m.</p>
+      <p>✓ Avance y observación registrados · 10:42 a. m.</p>
+      <p>✓ Evidencias vinculadas · 10:48 a. m.</p>
+      <p>✓ Incidencia INC-OBRA-031 registrada · 10:51 a. m.</p>
+      ${approved ? '<p>✓ Corrección aprobada por supervisión · 11:18 a. m.</p><p>✓ Etapa liberada para continuar · 11:20 a. m.</p>' : '<p>○ En espera de validación del supervisor</p>'}
+    </div>
+  `;
+}
+
+function enhanceOperatorFinal() {
+  const heading = document.querySelector('.workspace h1');
+  if (!heading || !['Cierre operativo', 'Despacho', 'Estado de incidencia', 'Reporte final'].includes(heading.textContent.trim())) return;
+  const card = document.querySelector('.screen-frame .enhanced-card');
+  if (!card || card.dataset.statusReady === 'true') return;
+  card.dataset.statusReady = 'true';
+
+  const scenario = getScenario();
+  const approved = state.approved[scenario];
+  const comment = state.comments[scenario];
+  heading.textContent = 'Estado de incidencia';
+
+  card.querySelector('.runtime-final-report')?.remove();
+  card.insertAdjacentHTML('beforeend', buildStatusMarkup(scenario, approved));
+
+  const report = document.createElement('section');
+  report.className = 'runtime-final-report';
+  report.style.display = 'none';
+  report.innerHTML = buildFinalReportMarkup(scenario, approved, comment);
   card.appendChild(report);
+
+  card.querySelector('.runtime-open-report')?.addEventListener('click', () => {
+    const statusPanel = card.querySelector('.runtime-status-panel');
+    if (statusPanel) statusPanel.style.display = 'none';
+    report.style.display = 'block';
+    heading.textContent = 'Reporte final';
+    report.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  card.querySelector('.runtime-share-whatsapp')?.addEventListener('click', () => {
+    const incidentId = scenario === 'logistics' ? 'INC-2048' : 'INC-OBRA-031';
+    const statusText = approved
+      ? (scenario === 'logistics' ? 'Corrección aprobada. Pedido liberado para despacho.' : 'Corrección aprobada. Etapa liberada para continuar.')
+      : (scenario === 'logistics' ? 'Incidencia en espera de respuesta de almacén.' : 'Incidencia en espera de validación del supervisor.');
+    const message = `${incidentId} · ${statusText}\nAbrir registro: ${window.location.href}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+  });
 }
 
 function enhancePublicTimeline() {
