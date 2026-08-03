@@ -1,52 +1,116 @@
 import { useMemo, useState } from 'react';
 import {
-  ArrowLeft, ArrowRight, Building2, Camera, Check, CheckCircle2,
-  CircleAlert, Clock3, FileCheck2, LockKeyhole, PackageCheck,
-  ScanLine, ShieldCheck, Truck, UsersRound,
+  ArrowLeft,
+  ArrowRight,
+  Building2,
+  Camera,
+  Check,
+  ClipboardCheck,
+  Clock3,
+  FileCheck2,
+  MapPin,
+  PackageCheck,
+  ScanLine,
+  ShieldCheck,
+  Truck,
+  UserRound,
 } from 'lucide-react';
 
-const flows = {
+const scenarios = {
   construction: {
-    label: 'Construcción', context: 'Apartamento 304 · Residencial Vista Real',
-    intro: 'Gestiona avances, evidencias, incidencias y supervisión en una sola línea de tiempo verificable.',
+    name: 'Construcción',
+    subject: 'Apartamento 304',
+    intro: 'Registrar avance, evidencia e incidencia desde el lugar de trabajo.',
     steps: [
-      ['Contexto identificado','El código del apartamento abre la tarea correcta para el responsable asignado.',ScanLine,'Registrado','8:12 a. m.'],
-      ['Avance registrado','Luis Gómez reporta 65 % de avance en la primera mano de pintura.',Building2,'En progreso','8:15 a. m.'],
-      ['Evidencia vinculada','Dos fotografías quedan asociadas a la etapa, responsable y ubicación.',Camera,'Verificado','10:48 a. m.'],
-      ['Incidencia reportada','Se detecta una corrección pendiente en el muro norte.',CircleAlert,'Atención requerida','10:51 a. m.',true],
-      ['Supervisión realizada','María Santos revisa la evidencia y solicita la corrección antes de continuar.',ShieldCheck,'Revisado','11:18 a. m.'],
-      ['Historial actualizado','Cada acción queda fechada, atribuida y disponible para auditoría.',Clock3,'Trazabilidad completa','11:19 a. m.'],
-    ].map(([title,copy,icon,status,meta,warning])=>({title,copy,icon,status,meta,warning})),
+      { role: 'operador', title: 'Identificación', subtitle: 'Escanea el QR del apartamento', view: 'scan' },
+      { role: 'operador', title: 'Registro de control', subtitle: 'Completa el control de primera pintura', view: 'control' },
+      { role: 'operador', title: 'Evidencia', subtitle: 'Adjunta fotografías del trabajo', view: 'evidence' },
+      { role: 'supervisor', title: 'Revisión', subtitle: 'Evalúa el registro y solicita corrección', view: 'review' },
+      { role: 'public', title: 'Vista del cliente', subtitle: 'Consulta el avance sin entrar al sistema', view: 'public' },
+    ],
   },
   logistics: {
-    label: 'Logística', context: 'Pedido INT-1048 · Andrea Pérez',
-    intro: 'Controla el pedido desde su registro hasta la entrega confirmada al cliente.',
+    name: 'Logística',
+    subject: 'Pedido INT-1048',
+    intro: 'Registrar el pedido, ejecutar controles y confirmar la entrega.',
     steps: [
-      ['Pedido recibido','Operaciones registra el pedido y activa automáticamente el recorrido logístico.',PackageCheck,'Registrado','10:08 a. m.'],
-      ['Picking completado','Los tres artículos son localizados y validados en almacén.',CheckCircle2,'Completado','10:22 a. m.'],
-      ['Diferencia detectada','El peso registrado no coincide y el despacho queda bloqueado.',CircleAlert,'Bloqueado','10:51 a. m.',true],
-      ['Pedido corregido','Se agrega el artículo faltante y se valida el peso final de 4.2 kg.',FileCheck2,'Validado','10:57 a. m.'],
-      ['Despacho en ruta','Carlos Ruiz recibe la asignación del vehículo F-204.',Truck,'En ruta','11:18 a. m.'],
-      ['Entrega confirmada','Andrea Pérez confirma la recepción mediante PIN y comprobante.',ShieldCheck,'Entregado','3:42 p. m.'],
-    ].map(([title,copy,icon,status,meta,warning])=>({title,copy,icon,status,meta,warning})),
+      { role: 'operador', title: 'Ingreso del pedido', subtitle: 'Registra los datos de la orden', view: 'order' },
+      { role: 'operador', title: 'Control de preparación', subtitle: 'Confirma picking y empaque', view: 'picking' },
+      { role: 'supervisor', title: 'Validación', subtitle: 'Revisa la diferencia detectada', view: 'validation' },
+      { role: 'operador', title: 'Despacho y entrega', subtitle: 'Registra salida y recepción', view: 'delivery' },
+      { role: 'public', title: 'Vista del cliente', subtitle: 'Sigue el pedido en tiempo real', view: 'public' },
+    ],
   },
 };
 
-function ProductPreview(){return <div className="product-visual">
-  <div className="laptop-frame"><div className="screen-top"><div className="mini-logo">IT</div><strong>INTAP Trace</strong><span>Resumen operativo</span></div><div className="dashboard-grid"><aside>{['Inicio','Operaciones','Tareas','Evidencias','Incidencias','Entregas'].map((x,i)=><div className={i===0?'active':''} key={x}>{x}</div>)}</aside><section><div className="metric-row"><Metric value="24" label="Operaciones activas"/><Metric value="18" label="En ejecución"/><Metric value="32" label="Incidencias" alert/></div><div className="activity-card"><div className="activity-head"><strong>Actividad reciente</strong><span>Hoy</span></div><Activity title="Inicio de obra · Apartamento 304" time="08:15"/><Activity title="Instalación eléctrica · Avance 60 %" time="10:42"/><Activity title="Incidencia reportada · Baño principal" time="11:05" alert/><Activity title="Verificación y corrección" time="12:30"/></div></section></div></div>
-  <div className="phone-frame"><div className="phone-status"><span>Entrega #ENT-9841</span><strong>Entregada</strong></div>{['Pedido confirmado','Picking completado','Empaque','Despacho en ruta','Entrega confirmada'].map((x,i)=><div className="phone-step" key={x}><span><Check size={12}/></span><div><strong>{x}</strong><small>{['09:12','10:03','10:47','11:22','13:18'][i]}</small></div></div>)}<div className="proof-card"><Camera size={16}/><div><strong>Evidencia registrada</strong><small>Firma y fotografía</small></div></div></div>
-</div>}
-function Metric({value,label,alert}){return <div className="metric"><span>{label}</span><strong className={alert?'alert':''}>{value}</strong></div>}
-function Activity({title,time,alert}){return <div className="activity"><span className={alert?'dot alert':'dot'}/><strong>{title}</strong><small>{time}</small></div>}
-function Value({icon:Icon,title,text}){return <div><Icon/><span><strong>{title}</strong><small>{text}</small></span></div>}
+function Brand() {
+  return <div className="brand"><span>IT</span><div><strong>INTAP Trace</strong><small>Trazabilidad operativa</small></div></div>;
+}
 
-function Home({onOpen}){return <main>
-  <header className="site-header container"><div className="brand"><div className="brandmark">IT</div><div><strong>INTAP Trace</strong><span>Trazabilidad operativa</span></div></div><nav><a href="#soluciones">Soluciones</a><a href="#beneficios">Beneficios</a><a href="#seguridad">Seguridad</a></nav><button className="header-cta" onClick={()=>onOpen('logistics')}>Ver plataforma</button></header>
-  <section className="hero container"><div className="hero-copy"><span className="eyebrow">CONTROL · EVIDENCIA · CONFIANZA</span><h1>Tu operación, demostrada paso a paso.</h1><p>INTAP Trace convierte cada actividad en un flujo trazable con responsables, evidencias, incidencias y seguimiento en tiempo real.</p><div className="hero-actions"><button className="primary" onClick={()=>onOpen('construction')}>Explorar plataforma <ArrowRight size={18}/></button><button className="secondary" onClick={()=>onOpen('logistics')}>Ver logística</button></div><div className="trust-metrics"><div><FileCheck2/><strong>2,458</strong><span>Etapas registradas</span></div><div><CircleAlert/><strong>32</strong><span>Incidencias activas</span></div><div><CheckCircle2/><strong>1,842</strong><span>Entregas verificadas</span></div><div><UsersRound/><strong>98 %</strong><span>Cumplimiento SLA</span></div></div></div><ProductPreview/></section>
-  <section className="solutions container" id="soluciones"><button className="solution-card" onClick={()=>onOpen('construction')}><div className="solution-icon"><Building2/></div><div><h2>Construcción</h2><p>Controla proyectos y apartamentos con visibilidad total del avance, evidencia, incidencias y supervisión.</p><div className="chips"><span>Avance por etapa</span><span>Evidencia fotográfica</span><span>Incidencias</span><span>Supervisión</span></div><strong>Explorar solución <ArrowRight size={17}/></strong></div></button><button className="solution-card" onClick={()=>onOpen('logistics')}><div className="solution-icon"><Truck/></div><div><h2>Logística</h2><p>Controla pedidos de extremo a extremo: picking, empaque, despacho y entrega confirmada.</p><div className="chips"><span>Trazabilidad de pedidos</span><span>Rutas y entregas</span><span>Evidencias</span><span>Notificaciones</span></div><strong>Explorar solución <ArrowRight size={17}/></strong></div></button></section>
-  <section className="value-strip container" id="beneficios"><Value icon={ShieldCheck} title="Seguridad empresarial" text="Auditoría completa y control de acceso"/><Value icon={Clock3} title="Trazabilidad integral" text="De la planificación a la entrega"/><Value icon={LockKeyhole} title="Integraciones abiertas" text="Conecta tus sistemas y procesos"/><Value icon={CheckCircle2} title="Cumplimiento verificable" text="Reglas, evidencia y responsables"/></section>
-</main>}
+function Home({ onOpen }) {
+  return (
+    <main className="page home">
+      <header className="site-header"><Brand /><nav><span>Soluciones</span><span>Beneficios</span><span>Seguridad</span><button>Solicitar información</button></nav></header>
+      <section className="hero-grid">
+        <div className="hero-copy">
+          <div className="eyebrow">CONTROL · EVIDENCIA · CONFIANZA</div>
+          <h1>Tu operación, demostrada paso a paso.</h1>
+          <p>INTAP Trace convierte cada actividad en un flujo trazable con responsables, evidencias, incidencias y seguimiento en tiempo real.</p>
+          <div className="hero-actions"><button className="primary">Solicitar información <ArrowRight size={18}/></button><button className="secondary" onClick={() => onOpen('construction')}>Ver plataforma</button></div>
+          <div className="metrics"><Metric value="2,458" label="Etapas registradas"/><Metric value="32" label="Incidencias activas"/><Metric value="1,842" label="Entregas verificadas"/><Metric value="98%" label="Cumplimiento SLA"/></div>
+        </div>
+        <ProductMockup />
+      </section>
+      <section className="solution-grid">
+        <Solution icon={Building2} title="Construcción" text="Gestiona proyectos y apartamentos con visibilidad total del avance, evidencia, incidencias y supervisión." onClick={() => onOpen('construction')} chips={['Avance por etapa','Evidencia','Incidencias','Supervisión']}/>
+        <Solution icon={Truck} title="Logística" text="Controla pedidos de extremo a extremo: picking, empaque, despacho y entrega confirmada." onClick={() => onOpen('logistics')} chips={['Pedidos','Picking','Despacho','Entrega']}/>
+      </section>
+    </main>
+  );
+}
 
-function Flow({type,onBack}){const[step,setStep]=useState(0);const flow=flows[type];const current=useMemo(()=>flow.steps[step],[flow,step]);const Icon=current.icon;const people=type==='construction'?['Operador','Luis Gómez','Luis Gómez','Terminaciones','María Santos','Sistema']:['Operaciones','Almacén','Empaque','Supervisor','Carlos Ruiz','Andrea Pérez'];return <main className="flow-page"><header className="flow-header container"><button onClick={onBack}><ArrowLeft size={18}/> Volver</button><div className="brand"><div className="brandmark">IT</div><div><strong>INTAP Trace</strong><span>{flow.label}</span></div></div><span>{flow.context}</span></header><section className="flow-layout container"><aside className="flow-nav"><span className="eyebrow">RECORRIDO OPERATIVO</span><h1>{flow.label}</h1><p>{flow.intro}</p>{flow.steps.map((item,index)=><button key={item.title} className={index===step?'active':index<step?'done':''} onClick={()=>setStep(index)}><span>{index<step?<Check size={14}/>:index+1}</span><div><strong>{item.title}</strong><small>{item.meta}</small></div></button>)}</aside><section className="flow-stage"><div className="stage-top"><span>Paso {step+1} de {flow.steps.length}</span><strong>{current.status}</strong></div><div className="stage-progress"><i style={{width:`${((step+1)/flow.steps.length)*100}%`}}/></div><div className={current.warning?'stage-icon warning':'stage-icon'}><Icon/></div><h2>{current.title}</h2><p>{current.copy}</p><div className="evidence-panel"><div><span>Responsable</span><strong>{people[step]}</strong></div><div><span>Registro</span><strong>{current.meta}</strong></div><div><span>Estado</span><strong>{current.status}</strong></div></div><div className="stage-actions"><button disabled={step===0} onClick={()=>setStep(step-1)}>Anterior</button><button className="primary" onClick={()=>setStep(step===flow.steps.length-1?0:step+1)}>{step===flow.steps.length-1?'Repetir recorrido':'Continuar'} <ArrowRight size={17}/></button></div></section></section></main>}
+function Metric({ value, label }) { return <div className="metric"><strong>{value}</strong><span>{label}</span></div>; }
+function Solution({ icon: Icon, title, text, onClick, chips }) { return <button className="solution-card" onClick={onClick}><div className="solution-icon"><Icon/></div><div><h2>{title}</h2><p>{text}</p><div className="chips">{chips.map(c=><span key={c}>{c}</span>)}</div><b>Explorar solución <ArrowRight size={16}/></b></div></button>; }
 
-export default function App(){const[view,setView]=useState('home');return view==='home'?<Home onOpen={setView}/>:<Flow type={view} onBack={()=>setView('home')}/>}
+function ProductMockup() {
+  return <div className="product-mockup"><div className="desktop"><div className="mock-top"><Brand/><span>Resumen operativo</span></div><div className="mock-body"><aside><span>Inicio</span><span>Operaciones</span><span>Tareas</span><span>Evidencias</span><span>Incidencias</span></aside><section><div className="mini-stats"><Metric value="24" label="Operaciones activas"/><Metric value="18" label="En ejecución"/><Metric value="32" label="Incidencias"/></div><h4>Actividad reciente</h4><TimelineRow label="Inicio de obra · Apartamento 304" time="08:15"/><TimelineRow label="Avance registrado · 65%" time="10:42"/><TimelineRow label="Incidencia reportada" time="11:05" alert/></section></div></div><div className="phone"><small>Entrega #ENT-9841</small><strong>En ruta</strong><TimelineRow label="Pedido confirmado" time="09:12"/><TimelineRow label="Picking completado" time="10:03"/><TimelineRow label="Despacho en ruta" time="11:22"/></div></div>;
+}
+function TimelineRow({ label, time, alert }) { return <div className={`timeline-row ${alert?'alert':''}`}><span><Check size={12}/></span><div><b>{label}</b><small>{time}</small></div></div>; }
+
+function Simulator({ type, onBack }) {
+  const data = scenarios[type];
+  const [step, setStep] = useState(0);
+  const current = data.steps[step];
+  const progress = ((step + 1) / data.steps.length) * 100;
+  const roleLabel = current.role === 'operador' ? 'Operador' : current.role === 'supervisor' ? 'Supervisor' : 'Cliente final';
+  return <main className="page simulator"><header className="sim-header"><button className="back" onClick={onBack}><ArrowLeft size={17}/> Volver</button><Brand/><div className="context"><span>{data.name}</span><strong>{data.subject}</strong></div></header><div className="sim-grid"><aside className="step-nav"><div className="scenario-title"><small>RECORRIDO OPERATIVO</small><h2>{data.name}</h2><p>{data.intro}</p></div>{data.steps.map((item,i)=><button key={item.title} className={i===step?'active':''} onClick={()=>setStep(i)}><span>{i<step?<Check size={14}/>:i+1}</span><div><strong>{item.title}</strong><small>{item.subtitle}</small></div></button>)}</aside><section className="workspace"><div className="workspace-top"><div><span className="role-badge">Vista: {roleLabel}</span><h1>{current.title}</h1><p>{current.subtitle}</p></div><div className="step-indicator">{step+1} / {data.steps.length}</div></div><div className="progress"><i style={{width:`${progress}%`}}/></div><div className="screen-frame"><Screen type={type} view={current.view}/></div><div className="sim-actions"><button disabled={step===0} onClick={()=>setStep(s=>s-1)}>Anterior</button><button className="primary" onClick={()=>setStep(s=>s===data.steps.length-1?0:s+1)}>{step===data.steps.length-1?'Reiniciar recorrido':'Continuar'} <ArrowRight size={17}/></button></div></section></div></main>;
+}
+
+function Screen({ type, view }) {
+  if (type === 'construction') {
+    if (view === 'scan') return <MobileShell title="Identificar ubicación"><div className="scan-box"><ScanLine size={46}/></div><h3>Apartamento 304</h3><p>Residencial Vista Real · Torre B</p><button className="full primary">Continuar</button></MobileShell>;
+    if (view === 'control') return <FormScreen title="Registrar control" subtitle="Primera pintura"><Field label="Responsable" value="Luis Gómez"/><Field label="Tipo de control" value="Avance de etapa"/><Field label="Ubicación" value="Apartamento 304 · Muro norte"/><Choice label="¿Se completó la primera mano?"/><Field label="Porcentaje de avance" value="65 %"/><textarea placeholder="Observaciones">Se detecta acabado irregular en esquina superior.</textarea><button className="primary">Guardar evento</button></FormScreen>;
+    if (view === 'evidence') return <FormScreen title="Adjuntar evidencia" subtitle="Primera pintura · Apartamento 304"><div className="photo-upload"><Camera size={30}/><span>Agregar fotografía</span></div><div className="photo-preview"><div>Foto 1</div><div>Foto 2</div></div><Field label="Descripción" value="Estado actual del muro norte"/><button className="primary">Vincular evidencia</button></FormScreen>;
+    if (view === 'review') return <ReviewScreen title="Revisión del supervisor" status="Requiere corrección" items={[['Responsable','Luis Gómez'],['Avance declarado','65 %'],['Evidencias','2 fotografías'],['Incidencia','Acabado irregular']]} />;
+    return <PublicConstruction/>;
+  }
+  if (view === 'order') return <FormScreen title="Registrar pedido" subtitle="Nueva ejecución logística"><Field label="Número de orden" value="INT-1048"/><Field label="Cliente" value="Andrea Pérez"/><Field label="Teléfono" value="809-555-0184"/><Field label="Dirección" value="Ensanche Naco, Santo Domingo"/><Field label="Entrega prometida" value="Hoy · 5:00 p. m."/><button className="primary">Crear recorrido logístico</button></FormScreen>;
+  if (view === 'picking') return <FormScreen title="Control de preparación" subtitle="Pedido INT-1048"><Checklist items={['Set de vasos térmicos','Termo personalizado','Caja de regalo']}/><Field label="Peso esperado" value="4.2 kg"/><Field label="Peso registrado" value="3.5 kg"/><button className="danger">Reportar diferencia</button></FormScreen>;
+  if (view === 'validation') return <ReviewScreen title="Validación de incidencia" status="Despacho bloqueado" items={[['Pedido','INT-1048'],['Diferencia','-0.7 kg'],['Causa','Caja de regalo faltante'],['Acción','Corregir antes de despacho']]} />;
+  if (view === 'delivery') return <FormScreen title="Confirmar entrega" subtitle="Pedido INT-1048"><Field label="Conductor" value="Carlos Ruiz"/><Field label="Vehículo" value="F-204"/><Field label="Receptor" value="Andrea Pérez"/><Field label="PIN de entrega" value="4721"/><div className="signature">Firma del receptor</div><button className="primary">Cerrar entrega</button></FormScreen>;
+  return <PublicLogistics/>;
+}
+
+function MobileShell({ title, children }) { return <div className="mobile-shell"><div className="mobile-top"><Brand/><small>{title}</small></div>{children}</div>; }
+function FormScreen({ title, subtitle, children }) { return <div className="form-screen"><div className="form-head"><div><small>{subtitle}</small><h3>{title}</h3></div><span className="secure"><ShieldCheck size={15}/> Registro seguro</span></div><div className="form-grid">{children}</div></div>; }
+function Field({ label, value }) { return <label className="field"><span>{label}</span><input value={value} readOnly/></label>; }
+function Choice({ label }) { return <div className="choice"><span>{label}</span><div><button className="selected">Sí</button><button>No</button></div></div>; }
+function Checklist({ items }) { return <div className="checklist">{items.map(item=><label key={item}><input type="checkbox" defaultChecked/><span>{item}</span></label>)}</div>; }
+function ReviewScreen({ title, status, items }) { return <div className="review-screen"><div className="review-head"><div><small>SUPERVISIÓN</small><h3>{title}</h3></div><span>{status}</span></div><div className="review-list">{items.map(([a,b])=><div key={a}><span>{a}</span><strong>{b}</strong></div>)}</div><div className="evidence-strip"><Camera size={20}/><span>2 evidencias adjuntas</span><button>Ver evidencia</button></div><textarea defaultValue="Corregir el acabado antes de continuar con la siguiente etapa."/><div className="review-actions"><button>Aprobar</button><button className="danger">Solicitar corrección</button></div></div>; }
+function PublicConstruction() { return <div className="public-screen"><div className="public-head"><Brand/><span>Actualizado hoy · 11:18 a. m.</span></div><div className="public-hero"><Building2/><div><small>RESIDENCIAL VISTA REAL</small><h3>Apartamento 304</h3><p>Seguimiento de avance autorizado por el proyecto.</p></div><strong>65%</strong></div><div className="public-progress"><i style={{width:'65%'}}/></div><div className="public-cards"><div><span>Etapa actual</span><strong>Primera pintura</strong></div><div><span>Última actualización</span><strong>Corrección solicitada</strong></div><div><span>Próxima revisión</span><strong>Mañana · 3:00 p. m.</strong></div></div><div className="public-timeline"><TimelineRow label="Inicio de primera pintura" time="8:15 a. m."/><TimelineRow label="Avance registrado · 65%" time="10:48 a. m."/><TimelineRow label="Supervisor solicita corrección" time="11:18 a. m." alert/></div></div>; }
+function PublicLogistics() { return <div className="public-screen"><div className="public-head"><Brand/><span>Seguimiento seguro</span></div><div className="public-hero"><Truck/><div><small>PEDIDO INT-1048</small><h3>Tu pedido está en ruta</h3><p>Entrega estimada hoy antes de las 5:00 p. m.</p></div><strong>75%</strong></div><div className="public-progress"><i style={{width:'75%'}}/></div><div className="public-timeline"><TimelineRow label="Pedido confirmado" time="9:12 a. m."/><TimelineRow label="Picking completado" time="10:03 a. m."/><TimelineRow label="Empaque validado" time="10:57 a. m."/><TimelineRow label="Despacho en ruta" time="11:22 a. m."/></div><div className="delivery-card"><MapPin/><div><span>Destino</span><strong>Ensanche Naco, Santo Domingo</strong></div><button>Contactar soporte</button></div></div>; }
+
+export default function App() {
+  const [scenario, setScenario] = useState(null);
+  return scenario ? <Simulator type={scenario} onBack={()=>setScenario(null)}/> : <Home onOpen={setScenario}/>;
+}
