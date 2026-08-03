@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, Building2, Camera, Check, ClipboardCheck,
-  Eye, Hotel, MapPin, ShieldCheck, Sparkles, Trash2, Truck,
+  Eye, HardHat, Hotel, ShieldCheck, Sparkles, Trash2, Truck,
   UserRoundCheck, Utensils
 } from 'lucide-react';
 
@@ -22,170 +22,76 @@ function Home({ open }) {
   useEffect(() => window.scrollTo(0, 0), []);
   return <main className="trace-home page">
     <header className="site-header"><Brand/><button className="primary" onClick={() => open('construction')}>Ver plataforma</button></header>
-
     <section className="trace-hero">
-      <div className="trace-hero-copy">
-        <small>CONTROL · EVIDENCIA · CONFIANZA</small>
-        <h1>Tu operación, demostrada paso a paso.</h1>
-        <p>Cada actividad queda vinculada a una persona, un lugar, una hora, una evidencia y un resultado verificable.</p>
-        <button className="primary" onClick={() => open('construction')}>Explorar construcción <ArrowRight size={18}/></button>
-      </div>
-      <div className="trace-dashboard desktop-summary">
-        <div className="dash-head"><Brand/><b>Resumen operativo</b></div>
-        <div className="dash-stats"><span><b>24</b> Operaciones activas</span><span><b>18</b> En ejecución</span><span><b>32</b> Incidencias</span></div>
-        <h3>Actividad reciente</h3>
-        <p>✓ Avance registrado · Apartamento 304</p>
-        <p>✓ Empaque validado · INT-1048</p>
-        <p className="alert-text">! Incidencia enviada a almacén</p>
-      </div>
+      <div className="trace-hero-copy"><small>CONTROL · EVIDENCIA · CONFIANZA</small><h1>Tu operación, demostrada paso a paso.</h1><p>Cada actividad queda vinculada a una persona, un lugar, una hora, una evidencia y un resultado verificable.</p><button className="primary" onClick={() => open('construction')}>Explorar construcción <ArrowRight size={18}/></button></div>
+      <div className="trace-dashboard desktop-summary"><div className="dash-head"><Brand/><b>Resumen operativo</b></div><div className="dash-stats"><span><b>24</b> Operaciones activas</span><span><b>18</b> En ejecución</span><span><b>32</b> Incidencias</span></div><h3>Actividad reciente</h3><p>✓ Avance registrado · Apartamento 304</p><p>✓ Empaque validado · INT-1048</p><p className="alert-text">! Incidencia enviada a almacén</p></div>
     </section>
-
-    <section className="mobile-value-strip">
-      <article><strong>Responsable</strong><span>Quién ejecutó la actividad</span></article>
-      <article><strong>Evidencia</strong><span>Fotos y datos con contexto</span></article>
-      <article><strong>Resultado</strong><span>Seguimiento claro y verificable</span></article>
-    </section>
-
-    <section className="sector-section">
-      <div className="sector-heading"><small>SECTORES</small><h2>Una misma lógica de control para distintas operaciones.</h2><p>La plataforma adapta responsables, controles, incidencias y reportes a cada tipo de servicio.</p></div>
-      <div className="sector-grid">{sectors.map(({title,icon:Icon,text,active}) => <button key={title} className={`sector-card ${active?'sector-active':''}`} onClick={() => active && open(active)}><Icon/><div><h3>{title}</h3><p>{text}</p>{active && <b>Explorar solución <ArrowRight size={15}/></b>}</div></button>)}</div>
-    </section>
-
-    <section className="mobile-process-section">
-      <small>CÓMO FUNCIONA</small>
-      <h2>Del trabajo en campo al reporte que recibe el cliente.</h2>
-      <div className="mobile-process-grid">
-        {['Registrar la actividad','Adjuntar evidencia','Reportar incidencias','Recibir y aprobar correcciones','Compartir la vista autorizada'].map((item,index)=><article key={item}><span>{index+1}</span><strong>{item}</strong></article>)}
-      </div>
-    </section>
-
-    <section className="privacy-section">
-      <ShieldCheck/>
-      <div><small>INFORMACIÓN POR ROL</small><h2>Cada persona ve únicamente lo que necesita.</h2><p>Los datos internos, responsables, departamentos e incidencias permanecen en la operación. El cliente recibe una vista clara con el estado, los avances y las evidencias autorizadas.</p></div>
-    </section>
+    <section className="mobile-value-strip"><article><strong>Responsable</strong><span>Quién ejecutó la actividad</span></article><article><strong>Evidencia</strong><span>Fotos y datos con contexto</span></article><article><strong>Resultado</strong><span>Seguimiento claro y verificable</span></article></section>
+    <section className="sector-section"><div className="sector-heading"><small>SECTORES</small><h2>Una misma lógica de control para distintas operaciones.</h2><p>La plataforma adapta responsables, controles, incidencias y reportes a cada tipo de servicio.</p></div><div className="sector-grid">{sectors.map(({title,icon:Icon,text,active}) => <button key={title} className={`sector-card ${active?'sector-active':''}`} onClick={() => active && open(active)}><Icon/><div><h3>{title}</h3><p>{text}</p>{active && <b>Explorar solución <ArrowRight size={15}/></b>}</div></button>)}</div></section>
+    <section className="mobile-process-section"><small>CÓMO FUNCIONA</small><h2>Del trabajo en campo al reporte que recibe el cliente.</h2><div className="mobile-process-grid">{['Registrar la actividad','Adjuntar evidencia','Reportar incidencias','Recibir y aprobar correcciones','Compartir la vista autorizada'].map((item,index)=><article key={item}><span>{index+1}</span><strong>{item}</strong></article>)}</div></section>
+    <section className="privacy-section"><ShieldCheck/><div><small>INFORMACIÓN POR ROL</small><h2>Cada persona ve únicamente lo que necesita.</h2><p>Los datos internos, responsables, departamentos e incidencias permanecen en la operación. El cliente recibe una vista clara con el estado, los avances y las evidencias autorizadas.</p></div></section>
   </main>;
 }
 
-const logisticsSteps = [
-  ['Ingreso del pedido','Registrar la orden'],
-  ['Preparación','Controlar picking y empaque'],
-  ['Reportar incidencia','Dirigir el caso al área responsable'],
-  ['Respuesta y corrección','Revisar la solución y aprobarla'],
-  ['Reporte interno','Consultar el historial completo'],
-];
-
-const constructionSteps = [
-  ['Identificación','Ubicar el punto de control'],
-  ['Registro','Completar el control'],
-  ['Evidencia','Adjuntar fotografías'],
-  ['Supervisión','Revisar y solicitar corrección'],
-  ['Reporte interno','Consultar el historial completo'],
-];
+const operatorSteps = {
+  construction: [['Identificación','Ubicar el punto de control'],['Control de etapa','Registrar el trabajo realizado'],['Evidencia','Adjuntar fotografías'],['Incidencia','Reportar el hallazgo'],['Cierre operativo','Consultar el estado del evento']],
+  logistics: [['Ingreso del pedido','Registrar la orden'],['Preparación','Controlar picking y empaque'],['Incidencia','Reportar diferencia'],['Confirmación','Revisar estado de corrección'],['Despacho','Continuar el flujo']],
+};
 
 function Simulator({ type, back }) {
-  const steps = type === 'logistics' ? logisticsSteps : constructionSteps;
+  const [role,setRole] = useState('operator');
   const [step,setStep] = useState(0);
-  const [publicView,setPublicView] = useState(false);
   const [files,setFiles] = useState([]);
-  const [incident,setIncident] = useState({ reported:false, department:'Almacén y empaque', priority:'Alta', detail:'El peso registrado es 0.7 kg menor al esperado.', approved:false });
+  const [construction,setConstruction] = useState({ responsible:'Luis Gómez', zone:'Muro norte', progress:45, firstCoat:false, observation:'Se observa acabado irregular en la esquina superior.', reported:false, department:'Terminaciones y pintura', priority:'Media', response:false, approved:false });
+  const [logistics,setLogistics] = useState({ reported:false, department:'Almacén y empaque', priority:'Alta', detail:'El peso registrado es 0.7 kg menor al esperado.', response:false, approved:false });
+  const steps = operatorSteps[type];
 
-  useEffect(() => window.scrollTo(0, 0), [step, publicView]);
-
-  const canContinue = type !== 'logistics' || step < 2 || (step === 2 && incident.reported) || (step === 3 && incident.approved) || step === 4;
-  const next = () => { if (step === steps.length - 1) setPublicView(true); else if (canContinue) setStep(value => value + 1); };
-  const role = publicView ? 'Cliente final' : step === 3 ? (type === 'logistics' ? 'Departamento responsable' : 'Supervisor') : step === 4 ? 'Administrador / Supervisor' : 'Operador';
-
-  if (publicView) return <PublicClientView type={type} files={files} onBack={() => setPublicView(false)} onExit={back}/>;
+  useEffect(() => window.scrollTo(0,0), [step,role]);
+  const next = () => setStep(value => Math.min(value + 1, steps.length - 1));
+  const previous = () => setStep(value => Math.max(value - 1, 0));
+  const departmentLabel = type === 'construction' ? 'Vista del supervisor' : 'Vista de almacén';
 
   return <main className="simulator page">
     <header className="sim-header"><button className="back" onClick={back}><ArrowLeft size={17}/> Volver</button><Brand/><strong>{type==='logistics'?'Pedido INT-1048':'Apartamento 304'}</strong></header>
-    <div className="sim-grid">
-      <aside className="step-nav"><small>RECORRIDO OPERATIVO</small><h2>{type==='logistics'?'Logística':'Construcción'}</h2>{steps.map((item,index)=><button className={step===index?'active':''} key={item[0]} onClick={()=>setStep(index)}><span>{index<step?<Check size={14}/>:index+1}</span><div><strong>{item[0]}</strong><small>{item[1]}</small></div></button>)}</aside>
-      <section className="workspace">
-        <div className="workspace-top"><div><span className="role-badge">Vista: {role}</span><h1>{steps[step][0]}</h1><p>{steps[step][1]}</p></div><b>{step+1} / {steps.length}</b></div>
-        <div className="progress"><i style={{width:`${((step+1)/steps.length)*100}%`}}/></div>
-        <div className="screen-frame">{type==='logistics'?<LogisticsScreen step={step} files={files} setFiles={setFiles} incident={incident} setIncident={setIncident}/>:<ConstructionScreen step={step} files={files} setFiles={setFiles}/>}</div>
-        <div className="sim-actions"><button disabled={step===0} onClick={()=>setStep(value=>value-1)}>Anterior</button><button className="primary" disabled={!canContinue} onClick={next}>{step===steps.length-1?'Ver como cliente':'Continuar'} {step===steps.length-1?<Eye size={17}/>:<ArrowRight size={17}/>}</button></div>
-      </section>
-    </div>
+    <div className="role-switcher"><button className={role==='operator'?'active':''} onClick={()=>setRole('operator')}><HardHat size={17}/> Vista del operador</button><button className={role==='department'?'active':''} onClick={()=>setRole('department')}><UserRoundCheck size={17}/> {departmentLabel}</button><button className={role==='public'?'active':''} onClick={()=>setRole('public')}><Eye size={17}/> Vista pública</button></div>
+    {role==='operator' ? <div className="sim-grid"><aside className="step-nav"><small>RECORRIDO DEL OPERADOR</small><h2>{type==='logistics'?'Logística':'Construcción'}</h2>{steps.map((item,index)=><button className={step===index?'active':''} key={item[0]} onClick={()=>setStep(index)}><span>{index<step?<Check size={14}/>:index+1}</span><div><strong>{item[0]}</strong><small>{item[1]}</small></div></button>)}</aside><section className="workspace"><div className="workspace-top"><div><span className="role-badge">Vista: Operador</span><h1>{steps[step][0]}</h1><p>{steps[step][1]}</p></div><b>{step+1} / {steps.length}</b></div><div className="progress"><i style={{width:`${((step+1)/steps.length)*100}%`}}/></div><div className="screen-frame">{type==='construction'?<ConstructionOperator step={step} data={construction} setData={setConstruction} files={files} setFiles={setFiles}/>:<LogisticsOperator step={step} data={logistics} setData={setLogistics} files={files} setFiles={setFiles}/>}</div><div className="sim-actions"><button disabled={step===0} onClick={previous}>Anterior</button><button className="primary" disabled={step===3 && !(type==='construction'?construction.reported:logistics.reported)} onClick={next}>{step===steps.length-1?'Evento registrado':'Continuar'} <ArrowRight size={17}/></button></div></section></div> : role==='department' ? <DepartmentView type={type} construction={construction} setConstruction={setConstruction} logistics={logistics} setLogistics={setLogistics} files={files}/> : <PublicClientView type={type} files={files}/>} 
   </main>;
 }
 
-function LogisticsScreen({ step, files, setFiles, incident, setIncident }) {
-  if (step===0) return <Card title="Registrar pedido" kicker="NUEVA EJECUCIÓN LOGÍSTICA"><Fields values={[['Número de orden','INT-1048'],['Cliente','Andrea Pérez'],['Dirección','Ensanche Naco, Santo Domingo'],['Entrega prometida','Hoy · 5:00 p. m.']]}/><button className="primary">Crear recorrido logístico</button></Card>;
-  if (step===1) return <Card title="Control de preparación" kicker="PEDIDO INT-1048"><Checklist/><Fields values={[['Peso esperado','4.2 kg'],['Peso registrado','3.5 kg']]}/><EvidenceUploader files={files} setFiles={setFiles} watermark="Pedido INT-1048 · Control de empaque"/></Card>;
-  if (step===2) return <IncidentForm incident={incident} setIncident={setIncident}/>;
-  if (step===3) return <CorrectionResponse incident={incident} setIncident={setIncident} files={files}/>;
-  return <InternalLogisticsReport files={files} incident={incident}/>;
+function ConstructionOperator({ step, data, setData, files, setFiles }) {
+  if(step===0) return <Card title="Punto identificado" kicker="RESIDENCIAL VISTA REAL"><div className="scan-box"><Building2 size={48}/></div><div className="identity-grid"><div><span>Proyecto</span><strong>Residencial Vista Real</strong></div><div><span>Unidad</span><strong>Apartamento 304 · Torre B</strong></div><div><span>Etapa asignada</span><strong>Primera pintura</strong></div><div><span>Turno</span><strong>Hoy · 8:00 a. m. a 12:00 p. m.</strong></div></div></Card>;
+  if(step===1) return <Card title="Control de primera pintura" kicker="APARTAMENTO 304"><div className="form-grid"><label className="field"><span>Responsable</span><select value={data.responsible} onChange={e=>setData({...data,responsible:e.target.value})}><option>Luis Gómez</option><option>Rafael Méndez</option><option>Equipo Pintura B</option></select></label><label className="field"><span>Zona trabajada</span><select value={data.zone} onChange={e=>setData({...data,zone:e.target.value})}><option>Muro norte</option><option>Muro sur</option><option>Habitación principal</option><option>Sala y comedor</option></select></label><label className="field full-span"><span>Avance registrado: {data.progress}%</span><input type="range" min="0" max="100" step="5" value={data.progress} onChange={e=>setData({...data,progress:Number(e.target.value)})}/></label><label className="toggle-row full-span"><input type="checkbox" checked={data.firstCoat} onChange={e=>setData({...data,firstCoat:e.target.checked})}/><span><strong>Primera mano completada</strong><small>Marca esta opción solo cuando toda la zona esté cubierta.</small></span></label><label className="field full-span"><span>Observación del operador</span><textarea value={data.observation} onChange={e=>setData({...data,observation:e.target.value})}/></label></div></Card>;
+  if(step===2) return <Card title="Evidencia del trabajo" kicker={`${data.zone.toUpperCase()} · ${data.progress}%`}><EvidenceUploader files={files} setFiles={setFiles} watermark="Residencial Vista Real · Apartamento 304"/></Card>;
+  if(step===3) return <Card title="Reportar incidencia" kicker="CONTROL DE CALIDAD"><div className="incident-banner"><ShieldCheck/><div><b>Hallazgo durante la ejecución</b><span>La incidencia queda vinculada al apartamento, etapa, responsable y evidencia.</span></div></div><div className="form-grid"><label className="field"><span>Área responsable</span><select value={data.department} onChange={e=>setData({...data,department:e.target.value,reported:false,approved:false})}><option>Terminaciones y pintura</option><option>Control de calidad</option><option>Mantenimiento de obra</option><option>Compras y materiales</option></select></label><label className="field"><span>Prioridad</span><select value={data.priority} onChange={e=>setData({...data,priority:e.target.value,reported:false,approved:false})}><option>Alta</option><option>Media</option><option>Baja</option></select></label><label className="field full-span"><span>Descripción</span><textarea value={data.observation} onChange={e=>setData({...data,observation:e.target.value,reported:false,approved:false})}/></label></div><button className="danger" onClick={()=>setData({...data,reported:true,response:true})}>{data.reported?<><Check size={17}/> Incidencia enviada</>:<>Reportar incidencia <ArrowRight size={17}/></>}</button>{data.reported&&<div className="success-note"><Check/><div><b>INC-OBRA-031 enviada a {data.department}</b><span>La etapa permanece en revisión hasta que el supervisor valide la corrección.</span></div></div>}</Card>;
+  return <Card title="Evento registrado" kicker="OPERADOR"><div className="report-hero"><Building2/><div><h3>Primera pintura · {data.progress}%</h3><p>{data.reported?'Incidencia enviada y en revisión.':'Actividad registrada sin incidencias.'}</p></div><strong>{data.progress}%</strong></div><div className="review-list"><div><span>Responsable</span><strong>{data.responsible}</strong></div><div><span>Zona</span><strong>{data.zone}</strong></div><div><span>Evidencias</span><strong>{files.length} fotografía{files.length===1?'':'s'}</strong></div><div><span>Estado</span><strong>{data.approved?'Corrección aprobada':data.reported?'Esperando supervisión':'Registrado'}</strong></div></div><div className="operator-hint"><Eye/><span>Usa los botones superiores para enseñar cómo ve este mismo proceso el supervisor y el cliente.</span></div></Card>;
 }
 
-function IncidentForm({ incident, setIncident }) {
-  return <Card title="Reportar incidencia" kicker="CONTROL DE PREPARACIÓN">
-    <div className="incident-banner"><ShieldCheck/><div><b>Diferencia detectada</b><span>El flujo se detendrá hasta recibir una respuesta.</span></div></div>
-    <div className="form-grid">
-      <label className="field"><span>Departamento responsable</span><select value={incident.department} onChange={event=>setIncident({...incident,department:event.target.value,reported:false,approved:false})}><option>Almacén y empaque</option><option>Compras</option><option>Control de calidad</option><option>Transporte y despacho</option><option>Servicio al cliente</option></select></label>
-      <label className="field"><span>Prioridad</span><select value={incident.priority} onChange={event=>setIncident({...incident,priority:event.target.value,reported:false,approved:false})}><option>Alta</option><option>Media</option><option>Baja</option></select></label>
-      <label className="field full-span"><span>Descripción</span><textarea value={incident.detail} onChange={event=>setIncident({...incident,detail:event.target.value,reported:false,approved:false})}/></label>
-    </div>
-    <button className="danger" onClick={()=>setIncident({...incident,reported:true})}>{incident.reported?<><Check size={17}/> Incidencia enviada</>:<>Reportar incidencia <ArrowRight size={17}/></>}</button>
-    {incident.reported&&<div className="success-note"><Check/><div><b>INC-2048 enviada a {incident.department}</b><span>El área recibió la notificación y el despacho permanece bloqueado.</span></div></div>}
-  </Card>;
+function LogisticsOperator({ step, data, setData, files, setFiles }) {
+  if(step===0) return <Card title="Registrar pedido" kicker="NUEVA EJECUCIÓN LOGÍSTICA"><Fields values={[['Número de orden','INT-1048'],['Cliente','Andrea Pérez'],['Dirección','Ensanche Naco, Santo Domingo'],['Entrega prometida','Hoy · 5:00 p. m.']]}/></Card>;
+  if(step===1) return <Card title="Control de preparación" kicker="PEDIDO INT-1048"><Checklist/><Fields values={[['Peso esperado','4.2 kg'],['Peso registrado','3.5 kg']]}/><EvidenceUploader files={files} setFiles={setFiles} watermark="Pedido INT-1048 · Control de empaque"/></Card>;
+  if(step===2) return <Card title="Reportar incidencia" kicker="CONTROL DE PREPARACIÓN"><div className="incident-banner"><ShieldCheck/><div><b>Diferencia detectada</b><span>El despacho se mantendrá bloqueado hasta recibir respuesta.</span></div></div><div className="form-grid"><label className="field"><span>Departamento responsable</span><select value={data.department} onChange={e=>setData({...data,department:e.target.value,reported:false,approved:false})}><option>Almacén y empaque</option><option>Compras</option><option>Control de calidad</option><option>Transporte y despacho</option></select></label><label className="field"><span>Prioridad</span><select value={data.priority} onChange={e=>setData({...data,priority:e.target.value,reported:false,approved:false})}><option>Alta</option><option>Media</option><option>Baja</option></select></label><label className="field full-span"><span>Descripción</span><textarea value={data.detail} onChange={e=>setData({...data,detail:e.target.value,reported:false,approved:false})}/></label></div><button className="danger" onClick={()=>setData({...data,reported:true,response:true})}>{data.reported?<><Check/> Incidencia enviada</>:<>Reportar incidencia <ArrowRight size={17}/></>}</button>{data.reported&&<div className="success-note"><Check/><div><b>INC-2048 enviada a {data.department}</b><span>El área recibió la notificación.</span></div></div>}</Card>;
+  if(step===3) return <Card title="Estado de la incidencia" kicker="PEDIDO INT-1048"><div className="report-hero"><ClipboardCheck/><div><h3>{data.approved?'Corrección aprobada':'Respuesta pendiente de validación'}</h3><p>Consulta la vista de almacén para revisar y aprobar la respuesta.</p></div><strong>{data.approved?'OK':'...'}</strong></div><div className="operator-hint"><UserRoundCheck/><span>Abre “Vista de almacén” arriba para mostrar quién recibió la incidencia y cómo se resolvió.</span></div></Card>;
+  return <Card title="Estado operativo" kicker="OPERADOR"><div className="report-hero"><Truck/><div><h3>{data.approved?'Pedido liberado para despacho':'Despacho bloqueado'}</h3><p>{data.approved?'La corrección fue aprobada por el área responsable.':'La incidencia todavía requiere aprobación.'}</p></div><strong>{data.approved?'100%':'60%'}</strong></div></Card>;
 }
 
-function CorrectionResponse({ incident, setIncident, files }) {
-  return <Card title="Respuesta del departamento" kicker={incident.department.toUpperCase()}>
-    <div className="response-head"><UserRoundCheck/><div><small>RESPUESTA RECIBIDA · 10:57 A. M.</small><h3>Corrección aplicada</h3><p>Se verificó el contenido. La caja faltante fue agregada y el paquete volvió a pesarse.</p></div></div>
-    <div className="review-list"><div><span>Incidencia</span><strong>INC-2048</strong></div><div><span>Departamento</span><strong>{incident.department}</strong></div><div><span>Peso anterior</span><strong>3.5 kg</strong></div><div><span>Peso corregido</span><strong>4.2 kg</strong></div><div><span>Acción ejecutada</span><strong>Caja agregada y empaque sellado</strong></div><div><span>Evidencias</span><strong>{files.length} fotografía{files.length===1?'':'s'}</strong></div></div>
-    <div className="approval-box"><ClipboardCheck/><div><b>Validación requerida</b><span>Aprueba la corrección para liberar el despacho.</span></div><button className="primary" disabled={incident.approved} onClick={()=>setIncident({...incident,approved:true})}>{incident.approved?<><Check/> Corrección aprobada</>:<>Aprobar corrección</>}</button></div>
-    {incident.approved&&<div className="success-note"><Check/><div><b>Despacho liberado</b><span>La aprobación quedó registrada con responsable, fecha y hora.</span></div></div>}
-  </Card>;
+function DepartmentView({ type, construction, setConstruction, logistics, setLogistics, files }) {
+  const isConstruction = type==='construction';
+  const data = isConstruction?construction:logistics;
+  const setData = isConstruction?setConstruction:setLogistics;
+  const title = isConstruction?'Bandeja del supervisor':'Bandeja de almacén';
+  if(!data.reported) return <section className="role-panel"><span className="role-badge">{isConstruction?'Vista: Supervisor':'Vista: Almacén'}</span><Card title={title} kicker="SIN SOLICITUDES PENDIENTES"><div className="empty-role"><UserRoundCheck/><h3>No hay incidencias recibidas</h3><p>Regresa a la vista del operador y reporta una incidencia para verla aquí.</p></div></Card></section>;
+  return <section className="role-panel"><span className="role-badge">{isConstruction?'Vista: Supervisor':'Vista: Almacén y empaque'}</span><Card title={title} kicker={isConstruction?'INC-OBRA-031':'INC-2048'}><div className="response-head"><UserRoundCheck/><div><small>ASIGNADA A {data.department.toUpperCase()}</small><h3>{isConstruction?'Corrección de acabado requerida':'Diferencia de peso en preparación'}</h3><p>{isConstruction?data.observation:data.detail}</p></div></div><div className="review-list"><div><span>Prioridad</span><strong>{data.priority}</strong></div><div><span>Evidencias recibidas</span><strong>{files.length} fotografía{files.length===1?'':'s'}</strong></div><div><span>Estado</span><strong>{data.approved?'Aprobada':'Pendiente de validación'}</strong></div><div><span>Respuesta del área</span><strong>{isConstruction?'Esquina corregida y superficie nivelada':'Caja agregada y peso corregido a 4.2 kg'}</strong></div></div><div className="approval-box"><ClipboardCheck/><div><b>Corrección documentada</b><span>{isConstruction?'La cuadrilla informa que rehizo el acabado y solicita aprobación.':'Almacén confirma que agregó el artículo faltante y volvió a pesar el paquete.'}</span></div><button className="primary" disabled={data.approved} onClick={()=>setData({...data,approved:true})}>{data.approved?<><Check/> Corrección aprobada</>:<>Aprobar corrección</>}</button></div>{data.approved&&<div className="success-note"><Check/><div><b>{isConstruction?'Etapa liberada para continuar':'Despacho liberado'}</b><span>La aprobación quedó registrada con responsable, fecha y hora.</span></div></div>}<EvidenceGallery files={files} watermark={isConstruction?'Residencial Vista Real · Apartamento 304':'Pedido INT-1048 · Evidencia logística'}/></Card></section>;
 }
 
-function InternalLogisticsReport({ files, incident }) {
-  return <Card title="Reporte interno del pedido" kicker="PEDIDO INT-1048">
-    <div className="internal-warning"><ShieldCheck/><div><b>Información de uso interno</b><span>Incluye incidencia, departamento responsable, tiempos y aprobación.</span></div></div>
-    <div className="report-hero"><Truck/><div><h3>Pedido liberado para despacho</h3><p>La incidencia fue corregida y aprobada.</p></div><strong>100%</strong></div>
-    <div className="review-list"><div><span>Incidencia</span><strong>INC-2048</strong></div><div><span>Departamento asignado</span><strong>{incident.department}</strong></div><div><span>Prioridad</span><strong>{incident.priority}</strong></div><div><span>Resultado interno</span><strong>Corrección aprobada</strong></div></div>
-    <div className="report-timeline"><p>✓ Pedido registrado · 9:12 a. m.</p><p>✓ Picking completado · 10:03 a. m.</p><p className="alert-text">! INC-2048 reportada a {incident.department} · 10:47 a. m.</p><p>✓ Corrección recibida · 10:57 a. m.</p><p>✓ Corrección aprobada y despacho liberado · 11:02 a. m.</p></div>
-    <EvidenceGallery files={files} watermark="Pedido INT-1048 · Evidencia logística"/>
-  </Card>;
-}
-
-function ConstructionScreen({ step, files, setFiles }) {
-  if (step===0) return <Card title="Apartamento 304" kicker="RESIDENCIAL VISTA REAL"><div className="scan-box"><Building2 size={48}/></div><p className="centered">Torre B · Primera pintura</p></Card>;
-  if (step===1) return <Card title="Registrar control" kicker="PRIMERA PINTURA"><Fields values={[['Responsable','Luis Gómez'],['Ubicación','Muro norte'],['Avance','65 %'],['Observación','Acabado irregular en esquina superior']]}/></Card>;
-  if (step===2) return <Card title="Adjuntar evidencia" kicker="APARTAMENTO 304"><EvidenceUploader files={files} setFiles={setFiles} watermark="Residencial Vista Real · Apartamento 304"/></Card>;
-  if (step===3) return <Card title="Revisión del supervisor" kicker="CORRECCIÓN SOLICITADA"><div className="review-list"><div><span>Incidencia interna</span><strong>Acabado irregular</strong></div><div><span>Responsable</span><strong>Luis Gómez</strong></div><div><span>Acción</span><strong>Rehacer esquina antes de segunda mano</strong></div><div><span>Evidencias</span><strong>{files.length} fotografías</strong></div></div></Card>;
-  return <Card title="Reporte interno de avance" kicker="APARTAMENTO 304"><div className="internal-warning"><ShieldCheck/><div><b>Información de uso interno</b><span>Incluye responsables, observaciones e instrucciones de corrección.</span></div></div><div className="report-hero"><Building2/><div><h3>Primera pintura · 65%</h3><p>Corrección en seguimiento.</p></div><strong>65%</strong></div><div className="review-list"><div><span>Responsable</span><strong>Luis Gómez</strong></div><div><span>Hallazgo</span><strong>Acabado irregular</strong></div><div><span>Instrucción interna</span><strong>Rehacer esquina superior</strong></div></div><EvidenceGallery files={files} watermark="Residencial Vista Real · Apartamento 304"/></Card>;
-}
-
-function PublicClientView({ type, files, onBack, onExit }) {
-  const logistics = type === 'logistics';
-  return <main className="public-client-page">
-    <header className="public-client-header"><Brand/><button onClick={onExit}>Cerrar vista</button></header>
-    <section className="public-client-shell">
-      <button className="public-back" onClick={onBack}><ArrowLeft size={16}/> Volver al reporte interno</button>
-      <span className="public-label">VISTA AUTORIZADA PARA EL CLIENTE</span>
-      <div className="public-client-hero">{logistics?<Truck/>:<Building2/>}<div><small>{logistics?'PEDIDO INT-1048':'RESIDENCIAL VISTA REAL'}</small><h1>{logistics?'Tu pedido está listo para despacho':'Apartamento 304'}</h1><p>{logistics?'La preparación fue validada y el pedido continúa hacia su destino.':'Primera pintura en proceso. Próxima actualización programada.'}</p></div><strong>{logistics?'75%':'65%'}</strong></div>
-      <div className="public-progress"><i style={{width:logistics?'75%':'65%'}}/></div>
-      <div className="public-info-grid">{(logistics?[["Estado actual","Preparación completada"],["Entrega estimada","Hoy antes de las 5:00 p. m."],["Destino","Ensanche Naco, Santo Domingo"]]:[["Etapa actual","Primera pintura"],["Avance informado","65 %"],["Próxima actualización","Mañana · 3:00 p. m."]]).map(([label,value])=><article key={label}><span>{label}</span><strong>{value}</strong></article>)}</div>
-      <section className="public-history"><h2>Actualizaciones</h2>{logistics?<><p>✓ Pedido confirmado · 9:12 a. m.</p><p>✓ Preparación validada · 11:02 a. m.</p><p>○ Próximo paso: despacho</p></>:<><p>✓ Etapa iniciada · 8:15 a. m.</p><p>✓ Avance actualizado · 10:48 a. m.</p><p>○ Próxima revisión programada</p></>}</section>
-      <section className="public-evidence"><div><Camera/><div><span>Evidencias autorizadas</span><strong>{files.length} fotografía{files.length===1?'':'s'}</strong></div></div><EvidenceGallery files={files} watermark={logistics?'Pedido INT-1048 · Evidencia autorizada':'Residencial Vista Real · Apartamento 304'}/></section>
-      <div className="privacy-note"><ShieldCheck/><p>Esta vista no muestra responsables internos, departamentos, incidencias, instrucciones de corrección ni notas de supervisión.</p></div>
-    </section>
-  </main>;
+function PublicClientView({ type, files }) {
+  const logistics = type==='logistics';
+  return <section className="role-panel public-role"><span className="role-badge">Vista: Cliente final</span><div className="public-client-shell"><span className="public-label">INFORMACIÓN AUTORIZADA</span><div className="public-client-hero">{logistics?<Truck/>:<Building2/>}<div><small>{logistics?'PEDIDO INT-1048':'RESIDENCIAL VISTA REAL'}</small><h1>{logistics?'Tu pedido continúa hacia el despacho':'Apartamento 304'}</h1><p>{logistics?'La preparación fue validada. La próxima actualización será el despacho.':'La etapa de primera pintura se encuentra en proceso.'}</p></div><strong>{logistics?'75%':'65%'}</strong></div><div className="public-progress"><i style={{width:logistics?'75%':'65%'}}/></div><div className="public-info-grid">{(logistics?[["Estado actual","Preparación validada"],["Entrega estimada","Hoy antes de las 5:00 p. m."],["Próximo paso","Despacho"]]:[["Etapa actual","Primera pintura"],["Avance informado","65 %"],["Próxima actualización","Mañana · 3:00 p. m."]]).map(([label,value])=><article key={label}><span>{label}</span><strong>{value}</strong></article>)}</div><section className="public-history"><h2>Actualizaciones</h2>{logistics?<><p>✓ Pedido confirmado · 9:12 a. m.</p><p>✓ Preparación validada · 11:02 a. m.</p><p>○ Próximo paso: despacho</p></>:<><p>✓ Etapa iniciada · 8:15 a. m.</p><p>✓ Avance actualizado · 10:48 a. m.</p><p>○ Próxima revisión programada</p></>}</section><section className="public-evidence"><div><Camera/><div><span>Evidencias autorizadas</span><strong>{files.length} fotografía{files.length===1?'':'s'}</strong></div></div><EvidenceGallery files={files} watermark={logistics?'Pedido INT-1048 · Evidencia autorizada':'Residencial Vista Real · Apartamento 304'}/></section><div className="privacy-note"><ShieldCheck/><p>Esta vista no muestra responsables internos, departamentos, incidencias, prioridades, instrucciones de corrección ni notas de supervisión.</p></div></div></section>;
 }
 
 function Card({title,kicker,children}) { return <div className="form-screen enhanced-card"><div className="form-head"><div><small>{kicker}</small><h3>{title}</h3></div><span className="secure"><ShieldCheck size={15}/> Registro seguro</span></div>{children}</div>; }
-function Fields({values}) { return <div className="form-grid">{values.map(([label,value])=><label className={`field ${label==='Observación'?'full-span':''}`} key={label}><span>{label}</span><input defaultValue={value}/></label>)}</div>; }
+function Fields({values}) { return <div className="form-grid">{values.map(([label,value])=><label className="field" key={label}><span>{label}</span><input defaultValue={value}/></label>)}</div>; }
 function Checklist(){ return <div className="checklist">{['Set de vasos térmicos','Termo personalizado','Caja de regalo'].map((item,index)=><label key={item}><input type="checkbox" defaultChecked={index<2}/><span>{item}</span></label>)}</div>; }
-
-function EvidenceUploader({ files, setFiles, watermark }) {
-  const ref=useRef(null);
-  useEffect(()=>()=>files.forEach(file=>URL.revokeObjectURL(file.url)),[]);
-  const add=event=>{const incoming=Array.from(event.target.files||[]).filter(file=>file.type.startsWith('image/')).slice(0,6-files.length).map(file=>({id:`${file.name}-${file.lastModified}-${Math.random()}`,name:file.name,url:URL.createObjectURL(file)}));setFiles([...files,...incoming]);event.target.value='';};
-  return <div className="evidence-uploader"><input ref={ref} hidden type="file" accept="image/*" multiple onChange={add}/><button className="photo-upload interactive" onClick={()=>ref.current?.click()}><Camera/><b>{files.length?'Agregar más fotografías':'Agregar fotografía'}</b><small>Máximo 6 imágenes</small></button>{files.length?<div className="uploaded-grid">{files.map((file,index)=><article className="uploaded-card" key={file.id}><div className="watermarked-thumb"><img src={file.url} alt={`Evidencia ${index+1}`}/><span>{watermark}</span></div><b>Foto {index+1}</b><small>{file.name}</small><button onClick={()=>{URL.revokeObjectURL(file.url);setFiles(files.filter(item=>item.id!==file.id));}}><Trash2 size={16}/></button></article>)}</div>:<p className="empty-evidence">No hay fotografías adjuntas.</p>}</div>;
-}
+function EvidenceUploader({ files, setFiles, watermark }) { const ref=useRef(null); const add=e=>{const incoming=Array.from(e.target.files||[]).filter(file=>file.type.startsWith('image/')).slice(0,6-files.length).map(file=>({id:`${file.name}-${file.lastModified}-${Math.random()}`,name:file.name,url:URL.createObjectURL(file)}));setFiles([...files,...incoming]);e.target.value='';}; return <div className="evidence-uploader"><input ref={ref} hidden type="file" accept="image/*" multiple onChange={add}/><button className="photo-upload interactive" onClick={()=>ref.current?.click()}><Camera/><b>{files.length?'Agregar más fotografías':'Agregar fotografía'}</b><small>Máximo 6 imágenes</small></button>{files.length?<div className="uploaded-grid">{files.map((file,index)=><article className="uploaded-card" key={file.id}><div className="watermarked-thumb"><img src={file.url} alt={`Evidencia ${index+1}`}/><span>{watermark}</span></div><b>Foto {index+1}</b><small>{file.name}</small><button onClick={()=>{URL.revokeObjectURL(file.url);setFiles(files.filter(item=>item.id!==file.id));}}><Trash2 size={16}/></button></article>)}</div>:<p className="empty-evidence">No hay fotografías adjuntas.</p>}</div>; }
 function EvidenceGallery({ files, watermark }) { return files.length?<div className="evidence-gallery">{files.map((file,index)=><figure key={file.id}><img src={file.url} alt={`Evidencia ${index+1}`}/><figcaption>{watermark}<br/>Evidencia {index+1} · INTAP Trace</figcaption></figure>)}</div>:<div className="empty-evidence"><Camera/><span>Sin evidencias adjuntas</span></div>; }
 
 export default function AppEnhanced(){const [scenario,setScenario]=useState(null);return scenario?<Simulator type={scenario} back={()=>setScenario(null)}/>:<Home open={setScenario}/>;}
