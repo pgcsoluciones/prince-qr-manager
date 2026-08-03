@@ -1,19 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
   Building2,
   Camera,
   Check,
-  ClipboardCheck,
-  Clock3,
-  FileCheck2,
   MapPin,
-  PackageCheck,
   ScanLine,
   ShieldCheck,
+  Trash2,
   Truck,
-  UserRound,
+  Upload,
 } from 'lucide-react';
 
 const scenarios = {
@@ -71,43 +68,72 @@ function Home({ onOpen }) {
 
 function Metric({ value, label }) { return <div className="metric"><strong>{value}</strong><span>{label}</span></div>; }
 function Solution({ icon: Icon, title, text, onClick, chips }) { return <button className="solution-card" onClick={onClick}><div className="solution-icon"><Icon/></div><div><h2>{title}</h2><p>{text}</p><div className="chips">{chips.map(c=><span key={c}>{c}</span>)}</div><b>Explorar solución <ArrowRight size={16}/></b></div></button>; }
+function TimelineRow({ label, time, alert }) { return <div className={`timeline-row ${alert?'alert':''}`}><span><Check size={12}/></span><div><b>{label}</b><small>{time}</small></div></div>; }
 
 function ProductMockup() {
   return <div className="product-mockup"><div className="desktop"><div className="mock-top"><Brand/><span>Resumen operativo</span></div><div className="mock-body"><aside><span>Inicio</span><span>Operaciones</span><span>Tareas</span><span>Evidencias</span><span>Incidencias</span></aside><section><div className="mini-stats"><Metric value="24" label="Operaciones activas"/><Metric value="18" label="En ejecución"/><Metric value="32" label="Incidencias"/></div><h4>Actividad reciente</h4><TimelineRow label="Inicio de obra · Apartamento 304" time="08:15"/><TimelineRow label="Avance registrado · 65%" time="10:42"/><TimelineRow label="Incidencia reportada" time="11:05" alert/></section></div></div><div className="phone"><small>Entrega #ENT-9841</small><strong>En ruta</strong><TimelineRow label="Pedido confirmado" time="09:12"/><TimelineRow label="Picking completado" time="10:03"/><TimelineRow label="Despacho en ruta" time="11:22"/></div></div>;
 }
-function TimelineRow({ label, time, alert }) { return <div className={`timeline-row ${alert?'alert':''}`}><span><Check size={12}/></span><div><b>{label}</b><small>{time}</small></div></div>; }
 
 function Simulator({ type, onBack }) {
   const data = scenarios[type];
   const [step, setStep] = useState(0);
+  const [evidence, setEvidence] = useState([]);
+  const [evidenceLinked, setEvidenceLinked] = useState(false);
   const current = data.steps[step];
   const progress = ((step + 1) / data.steps.length) * 100;
   const roleLabel = current.role === 'operador' ? 'Operador' : current.role === 'supervisor' ? 'Supervisor' : 'Cliente final';
-  return <main className="page simulator"><header className="sim-header"><button className="back" onClick={onBack}><ArrowLeft size={17}/> Volver</button><Brand/><div className="context"><span>{data.name}</span><strong>{data.subject}</strong></div></header><div className="sim-grid"><aside className="step-nav"><div className="scenario-title"><small>RECORRIDO OPERATIVO</small><h2>{data.name}</h2><p>{data.intro}</p></div>{data.steps.map((item,i)=><button key={item.title} className={i===step?'active':''} onClick={()=>setStep(i)}><span>{i<step?<Check size={14}/>:i+1}</span><div><strong>{item.title}</strong><small>{item.subtitle}</small></div></button>)}</aside><section className="workspace"><div className="workspace-top"><div><span className="role-badge">Vista: {roleLabel}</span><h1>{current.title}</h1><p>{current.subtitle}</p></div><div className="step-indicator">{step+1} / {data.steps.length}</div></div><div className="progress"><i style={{width:`${progress}%`}}/></div><div className="screen-frame"><Screen type={type} view={current.view}/></div><div className="sim-actions"><button disabled={step===0} onClick={()=>setStep(s=>s-1)}>Anterior</button><button className="primary" onClick={()=>setStep(s=>s===data.steps.length-1?0:s+1)}>{step===data.steps.length-1?'Reiniciar recorrido':'Continuar'} <ArrowRight size={17}/></button></div></section></div></main>;
+
+  return <main className="page simulator"><header className="sim-header"><button className="back" onClick={onBack}><ArrowLeft size={17}/> Volver</button><Brand/><div className="context"><span>{data.name}</span><strong>{data.subject}</strong></div></header><div className="sim-grid"><aside className="step-nav"><div className="scenario-title"><small>RECORRIDO OPERATIVO</small><h2>{data.name}</h2><p>{data.intro}</p></div>{data.steps.map((item,i)=><button key={item.title} className={i===step?'active':''} onClick={()=>setStep(i)}><span>{i<step?<Check size={14}/>:i+1}</span><div><strong>{item.title}</strong><small>{item.subtitle}</small></div></button>)}</aside><section className="workspace"><div className="workspace-top"><div><span className="role-badge">Vista: {roleLabel}</span><h1>{current.title}</h1><p>{current.subtitle}</p></div><div className="step-indicator">{step+1} / {data.steps.length}</div></div><div className="progress"><i style={{width:`${progress}%`}}/></div><div className="screen-frame"><Screen type={type} view={current.view} evidence={evidence} setEvidence={setEvidence} evidenceLinked={evidenceLinked} setEvidenceLinked={setEvidenceLinked}/></div><div className="sim-actions"><button disabled={step===0} onClick={()=>setStep(s=>s-1)}>Anterior</button><button className="primary" onClick={()=>setStep(s=>s===data.steps.length-1?0:s+1)}>{step===data.steps.length-1?'Reiniciar recorrido':'Continuar'} <ArrowRight size={17}/></button></div></section></div></main>;
 }
 
-function Screen({ type, view }) {
+function EvidenceUploader({ files, onChange, linked, onLinked, title, description }) {
+  const inputRef = useRef(null);
+
+  useEffect(() => () => files.forEach(file => URL.revokeObjectURL(file.url)), []);
+
+  const addFiles = event => {
+    const selected = Array.from(event.target.files || []).filter(file => file.type.startsWith('image/'));
+    if (!selected.length) return;
+    const next = selected.slice(0, Math.max(0, 6 - files.length)).map(file => ({ id: `${file.name}-${file.lastModified}-${crypto.randomUUID()}`, file, url: URL.createObjectURL(file) }));
+    onChange([...files, ...next]);
+    onLinked(false);
+    event.target.value = '';
+  };
+
+  const remove = id => {
+    const target = files.find(file => file.id === id);
+    if (target) URL.revokeObjectURL(target.url);
+    onChange(files.filter(file => file.id !== id));
+    onLinked(false);
+  };
+
+  const size = bytes => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+
+  return <div className="form-screen evidence-form"><div className="form-head"><div><small>{title}</small><h3>Adjuntar evidencia</h3></div><span className="secure"><ShieldCheck size={15}/> Registro seguro</span></div><input ref={inputRef} className="visually-hidden" type="file" accept="image/*" multiple onChange={addFiles}/><button type="button" className="photo-upload interactive" onClick={()=>inputRef.current?.click()}><Camera size={30}/><strong>{files.length ? 'Agregar más fotografías' : 'Agregar fotografía'}</strong><small>JPG, PNG o WebP · máximo 6 imágenes</small></button>{files.length > 0 ? <div className="uploaded-grid">{files.map((item,index)=><article className="uploaded-card" key={item.id}><img src={item.url} alt={`Evidencia ${index+1}`}/><div><strong>Foto {index+1}</strong><span>{item.file.name}</span><small>{size(item.file.size)}</small></div><button type="button" aria-label={`Eliminar ${item.file.name}`} onClick={()=>remove(item.id)}><Trash2 size={16}/></button></article>)}</div> : <div className="photo-preview"><div>Foto 1</div><div>Foto 2</div></div>}<label className="field"><span>Descripción</span><input defaultValue={description}/></label><button type="button" className="primary" disabled={!files.length || linked} onClick={()=>onLinked(true)}>{linked ? <><Check size={17}/> Evidencia vinculada</> : <><Upload size={17}/> Vincular evidencia</>}</button>{linked && <div className="linked-message"><Check size={16}/><span>{files.length} {files.length===1?'imagen quedó vinculada':'imágenes quedaron vinculadas'} al evento, responsable, fecha y ubicación.</span></div>}</div>;
+}
+
+function Screen({ type, view, evidence, setEvidence, evidenceLinked, setEvidenceLinked }) {
   if (type === 'construction') {
     if (view === 'scan') return <MobileShell title="Identificar ubicación"><div className="scan-box"><ScanLine size={46}/></div><h3>Apartamento 304</h3><p>Residencial Vista Real · Torre B</p><button className="full primary">Continuar</button></MobileShell>;
-    if (view === 'control') return <FormScreen title="Registrar control" subtitle="Primera pintura"><Field label="Responsable" value="Luis Gómez"/><Field label="Tipo de control" value="Avance de etapa"/><Field label="Ubicación" value="Apartamento 304 · Muro norte"/><Choice label="¿Se completó la primera mano?"/><Field label="Porcentaje de avance" value="65 %"/><textarea placeholder="Observaciones">Se detecta acabado irregular en esquina superior.</textarea><button className="primary">Guardar evento</button></FormScreen>;
-    if (view === 'evidence') return <FormScreen title="Adjuntar evidencia" subtitle="Primera pintura · Apartamento 304"><div className="photo-upload"><Camera size={30}/><span>Agregar fotografía</span></div><div className="photo-preview"><div>Foto 1</div><div>Foto 2</div></div><Field label="Descripción" value="Estado actual del muro norte"/><button className="primary">Vincular evidencia</button></FormScreen>;
-    if (view === 'review') return <ReviewScreen title="Revisión del supervisor" status="Requiere corrección" items={[['Responsable','Luis Gómez'],['Avance declarado','65 %'],['Evidencias','2 fotografías'],['Incidencia','Acabado irregular']]} />;
-    return <PublicConstruction/>;
+    if (view === 'control') return <FormScreen title="Registrar control" subtitle="Primera pintura"><Field label="Responsable" value="Luis Gómez"/><Field label="Tipo de control" value="Avance de etapa"/><Field label="Ubicación" value="Apartamento 304 · Muro norte"/><Choice label="¿Se completó la primera mano?"/><Field label="Porcentaje de avance" value="65 %"/><textarea defaultValue="Se detecta acabado irregular en esquina superior."/><button className="primary">Guardar evento</button></FormScreen>;
+    if (view === 'evidence') return <EvidenceUploader files={evidence} onChange={setEvidence} linked={evidenceLinked} onLinked={setEvidenceLinked} title="Primera pintura · Apartamento 304" description="Estado actual del muro norte"/>;
+    if (view === 'review') return <ReviewScreen title="Revisión del supervisor" status={evidence.length ? 'Evidencia recibida' : 'Requiere evidencia'} evidenceCount={evidence.length} items={[['Responsable','Luis Gómez'],['Avance declarado','65 %'],['Evidencias',`${evidence.length} fotografía${evidence.length===1?'':'s'}`],['Incidencia','Acabado irregular']]} />;
+    return <PublicConstruction evidenceCount={evidence.length}/>;
   }
   if (view === 'order') return <FormScreen title="Registrar pedido" subtitle="Nueva ejecución logística"><Field label="Número de orden" value="INT-1048"/><Field label="Cliente" value="Andrea Pérez"/><Field label="Teléfono" value="809-555-0184"/><Field label="Dirección" value="Ensanche Naco, Santo Domingo"/><Field label="Entrega prometida" value="Hoy · 5:00 p. m."/><button className="primary">Crear recorrido logístico</button></FormScreen>;
   if (view === 'picking') return <FormScreen title="Control de preparación" subtitle="Pedido INT-1048"><Checklist items={['Set de vasos térmicos','Termo personalizado','Caja de regalo']}/><Field label="Peso esperado" value="4.2 kg"/><Field label="Peso registrado" value="3.5 kg"/><button className="danger">Reportar diferencia</button></FormScreen>;
-  if (view === 'validation') return <ReviewScreen title="Validación de incidencia" status="Despacho bloqueado" items={[['Pedido','INT-1048'],['Diferencia','-0.7 kg'],['Causa','Caja de regalo faltante'],['Acción','Corregir antes de despacho']]} />;
+  if (view === 'validation') return <ReviewScreen title="Validación de incidencia" status="Despacho bloqueado" evidenceCount={0} items={[['Pedido','INT-1048'],['Diferencia','-0.7 kg'],['Causa','Caja de regalo faltante'],['Acción','Corregir antes de despacho']]} />;
   if (view === 'delivery') return <FormScreen title="Confirmar entrega" subtitle="Pedido INT-1048"><Field label="Conductor" value="Carlos Ruiz"/><Field label="Vehículo" value="F-204"/><Field label="Receptor" value="Andrea Pérez"/><Field label="PIN de entrega" value="4721"/><div className="signature">Firma del receptor</div><button className="primary">Cerrar entrega</button></FormScreen>;
   return <PublicLogistics/>;
 }
 
 function MobileShell({ title, children }) { return <div className="mobile-shell"><div className="mobile-top"><Brand/><small>{title}</small></div>{children}</div>; }
 function FormScreen({ title, subtitle, children }) { return <div className="form-screen"><div className="form-head"><div><small>{subtitle}</small><h3>{title}</h3></div><span className="secure"><ShieldCheck size={15}/> Registro seguro</span></div><div className="form-grid">{children}</div></div>; }
-function Field({ label, value }) { return <label className="field"><span>{label}</span><input value={value} readOnly/></label>; }
+function Field({ label, value }) { return <label className="field"><span>{label}</span><input defaultValue={value}/></label>; }
 function Choice({ label }) { return <div className="choice"><span>{label}</span><div><button className="selected">Sí</button><button>No</button></div></div>; }
 function Checklist({ items }) { return <div className="checklist">{items.map(item=><label key={item}><input type="checkbox" defaultChecked/><span>{item}</span></label>)}</div>; }
-function ReviewScreen({ title, status, items }) { return <div className="review-screen"><div className="review-head"><div><small>SUPERVISIÓN</small><h3>{title}</h3></div><span>{status}</span></div><div className="review-list">{items.map(([a,b])=><div key={a}><span>{a}</span><strong>{b}</strong></div>)}</div><div className="evidence-strip"><Camera size={20}/><span>2 evidencias adjuntas</span><button>Ver evidencia</button></div><textarea defaultValue="Corregir el acabado antes de continuar con la siguiente etapa."/><div className="review-actions"><button>Aprobar</button><button className="danger">Solicitar corrección</button></div></div>; }
-function PublicConstruction() { return <div className="public-screen"><div className="public-head"><Brand/><span>Actualizado hoy · 11:18 a. m.</span></div><div className="public-hero"><Building2/><div><small>RESIDENCIAL VISTA REAL</small><h3>Apartamento 304</h3><p>Seguimiento de avance autorizado por el proyecto.</p></div><strong>65%</strong></div><div className="public-progress"><i style={{width:'65%'}}/></div><div className="public-cards"><div><span>Etapa actual</span><strong>Primera pintura</strong></div><div><span>Última actualización</span><strong>Corrección solicitada</strong></div><div><span>Próxima revisión</span><strong>Mañana · 3:00 p. m.</strong></div></div><div className="public-timeline"><TimelineRow label="Inicio de primera pintura" time="8:15 a. m."/><TimelineRow label="Avance registrado · 65%" time="10:48 a. m."/><TimelineRow label="Supervisor solicita corrección" time="11:18 a. m." alert/></div></div>; }
+function ReviewScreen({ title, status, items, evidenceCount }) { return <div className="review-screen"><div className="review-head"><div><small>SUPERVISIÓN</small><h3>{title}</h3></div><span>{status}</span></div><div className="review-list">{items.map(([a,b])=><div key={a}><span>{a}</span><strong>{b}</strong></div>)}</div><div className="evidence-strip"><Camera size={20}/><span>{evidenceCount ? `${evidenceCount} evidencia${evidenceCount===1?'':'s'} adjunta${evidenceCount===1?'':'s'}` : 'Sin evidencias adjuntas'}</span><button disabled={!evidenceCount}>Ver evidencia</button></div><textarea defaultValue="Corregir el acabado antes de continuar con la siguiente etapa."/><div className="review-actions"><button>Aprobar</button><button className="danger">Solicitar corrección</button></div></div>; }
+function PublicConstruction({ evidenceCount }) { return <div className="public-screen"><div className="public-head"><Brand/><span>Actualizado hoy · 11:18 a. m.</span></div><div className="public-hero"><Building2/><div><small>RESIDENCIAL VISTA REAL</small><h3>Apartamento 304</h3><p>Seguimiento de avance autorizado por el proyecto.</p></div><strong>65%</strong></div><div className="public-progress"><i style={{width:'65%'}}/></div><div className="public-cards"><div><span>Etapa actual</span><strong>Primera pintura</strong></div><div><span>Evidencias registradas</span><strong>{evidenceCount}</strong></div><div><span>Próxima revisión</span><strong>Mañana · 3:00 p. m.</strong></div></div><div className="public-timeline"><TimelineRow label="Inicio de primera pintura" time="8:15 a. m."/><TimelineRow label="Avance registrado · 65%" time="10:48 a. m."/><TimelineRow label="Supervisor solicita corrección" time="11:18 a. m." alert/></div></div>; }
 function PublicLogistics() { return <div className="public-screen"><div className="public-head"><Brand/><span>Seguimiento seguro</span></div><div className="public-hero"><Truck/><div><small>PEDIDO INT-1048</small><h3>Tu pedido está en ruta</h3><p>Entrega estimada hoy antes de las 5:00 p. m.</p></div><strong>75%</strong></div><div className="public-progress"><i style={{width:'75%'}}/></div><div className="public-timeline"><TimelineRow label="Pedido confirmado" time="9:12 a. m."/><TimelineRow label="Picking completado" time="10:03 a. m."/><TimelineRow label="Empaque validado" time="10:57 a. m."/><TimelineRow label="Despacho en ruta" time="11:22 a. m."/></div><div className="delivery-card"><MapPin/><div><span>Destino</span><strong>Ensanche Naco, Santo Domingo</strong></div><button>Contactar soporte</button></div></div>; }
 
 export default function App() {
