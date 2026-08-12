@@ -16,6 +16,20 @@ function normalizeRows(sheet){
 }
 function firstSheet(workbook){const name=workbook.SheetNames?.[0];return name?workbook.Sheets[name]:null}
 function forwardedHeaders(request){const h=new Headers();const auth=request.headers.get("Authorization");if(auth)h.set("Authorization",auth);h.set("Content-Type","application/json");return h}
+function templateRows(type){
+  if(type==="assets") return [{externalKey:"ACT-001",assetCode:"ACT-001",name:"Recurso de ejemplo",description:"",assetType:"item",location:"",metadata:""}];
+  if(type==="processes") return [{externalKey:"PROC-001",name:"Proceso de ejemplo",description:"",category:"general",color:"#2563eb"}];
+  if(type==="users") return [{email:"usuario@empresa.com",temporaryPassword:"",industry:"general"}];
+  if(type==="participants") return [{executionCode:"TRACE-001",email:"usuario@empresa.com",participationRole:"executor"}];
+  return null;
+}
+
+async function importTemplate(request,type){
+  const rows=templateRows(type); if(!rows)return json({ok:false,error:"invalid_import_type"},422);
+  const wb=XLSX.utils.book_new(); const ws=XLSX.utils.json_to_sheet(rows); XLSX.utils.book_append_sheet(wb,ws,"Importar");
+  const bytes=XLSX.write(wb,{bookType:"xlsx",type:"array",compression:true});
+  return new Response(bytes,{headers:{...CORS,"Content-Type":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","Content-Disposition":`attachment; filename=trace-import-${type}.xlsx`,"Cache-Control":"no-store"}});
+}
 
 async function importExcel(request,env){
   let form;
@@ -69,6 +83,7 @@ async function exportXlsx(request,env){
 export async function handleTraceV1AdminExcelApi(request,env){
   const url=new URL(request.url);if(!url.pathname.startsWith(BASE))return null;
   if(request.method==="OPTIONS")return new Response(null,{status:204,headers:CORS});
+  const tpl=url.pathname.match(/^\/api\/trace\/v1\/admin\/imports\/template\/(assets|processes|users|participants)$/); if(tpl&&request.method==="GET")return importTemplate(request,tpl[1]);
   if(url.pathname===`${BASE}/imports/file`&&request.method==="POST")return importExcel(request,env);
   if(url.pathname===`${BASE}/reports/executions`&&request.method==="GET"&&String(url.searchParams.get("format")||"").toLowerCase()==="xlsx")return exportXlsx(request,env);
   return null;
