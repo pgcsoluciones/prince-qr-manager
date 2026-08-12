@@ -1,4 +1,6 @@
 import app from "./index.js";
+import { handleTraceV1AdminExcelApi } from "./trace-v1-admin-excel-api.js";
+import { handleTraceV1AdminToolsApi } from "./trace-v1-admin-tools-api.js";
 import { handleTraceV1OperationalInboxApi } from "./trace-v1-operational-inbox-api.js";
 import { handleTraceV1VerticalsApi } from "./trace-v1-verticals-api.js";
 import { handleTraceV1CollaborationApi } from "./trace-v1-collaboration-api.js";
@@ -7,6 +9,20 @@ import { handleTraceV1OperationalApi } from "./trace-v1-operational-api.js";
 
 export default {
   async fetch(request, env, ctx) {
+    const adminExcelResponse =
+      await handleTraceV1AdminExcelApi(request, env);
+
+    if (adminExcelResponse) {
+      return adminExcelResponse;
+    }
+
+    const adminToolsResponse =
+      await handleTraceV1AdminToolsApi(request, env);
+
+    if (adminToolsResponse) {
+      return adminToolsResponse;
+    }
+
     const inboxResponse =
       await handleTraceV1OperationalInboxApi(request, env);
 
