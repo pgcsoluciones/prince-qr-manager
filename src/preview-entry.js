@@ -1,10 +1,18 @@
 import app from "./index.js";
+import { handleTraceV1VerticalsApi } from "./trace-v1-verticals-api.js";
 import { handleTraceV1CollaborationApi } from "./trace-v1-collaboration-api.js";
 import { handleTraceV1OperationalQualityApi } from "./trace-v1-operational-quality-api.js";
 import { handleTraceV1OperationalApi } from "./trace-v1-operational-api.js";
 
 export default {
   async fetch(request, env, ctx) {
+    const verticalsResponse =
+      await handleTraceV1VerticalsApi(request, env);
+
+    if (verticalsResponse) {
+      return verticalsResponse;
+    }
+
     const collaborationResponse =
       await handleTraceV1CollaborationApi(request, env);
 
