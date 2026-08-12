@@ -16,6 +16,7 @@ import AdminStatsPage from "./pages/AdminStatsPage.jsx";
 import OnboardingPage from "./pages/OnboardingPage.jsx";
 import TracePage from "./pages/TracePage.jsx";
 import TraceOperationalPage from "./pages/TraceOperationalPage.jsx";
+import TraceAdminPage from "./pages/TraceAdminPage.jsx";
 import CollaboratorsPage from "./pages/CollaboratorsPage.jsx";
 import TraceResponsesPage from "./pages/TraceResponsesPage.jsx";
 import TeamPage from "./pages/TeamPage.jsx";
@@ -87,6 +88,7 @@ export default function App() {
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="projects" element={<ProjectsPage />} />
             <Route path="trace" element={<TracePage />} />
+            <Route path="trace-management" element={<ProtectedRoute><TraceAdminPage /></ProtectedRoute>} />
             <Route path="trace/:pointId/responses" element={<TraceResponsesPage />} />
             <Route path="collaborators" element={<CollaboratorsPage />} />
             <Route path="profile" element={<ProfilePage />} />
