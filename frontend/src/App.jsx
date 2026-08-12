@@ -74,6 +74,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/trace-operational" element={<TraceOperationalPage />} />
+          <Route path="/trace-management" element={<ProtectedRoute><div className="min-h-screen bg-slate-50 p-4 sm:p-8"><TraceAdminPage /></div></ProtectedRoute>} />
           <Route
             path="/dashboard"
             element={
