@@ -26,10 +26,30 @@ export async function guardTraceV1AdminApi(request, env) {
   }
 
   const token = authorization.slice(7).trim();
-  const valid = await jwt.verify(token, env.JWT_SECRET || "changeme-set-in-cloudflare-dashboard");
+
+  // Operational TRACE sessions are opaque trace_op_* tokens, not JWTs.
+  // Reject them explicitly before invoking the JWT parser so malformed/non-JWT
+  // credentials never surface as an unhandled Worker exception.
+  if (!token || token.startsWith("trace_op_") || token.split(".").length !== 3) {
+    return json({
+      ok: false,
+      error: "restricted_session_scope",
+      message: "Las sesiones operacionales no tienen acceso a funciones administrativas TRACE.",
+    }, 403);
+  }
+
+  let valid = false;
+  let payload = {};
+
+  try {
+    valid = await jwt.verify(token, env.JWT_SECRET || "changeme-set-in-cloudflare-dashboard");
+    if (valid) payload = jwt.decode(token)?.payload || {};
+  } catch {
+    return json({ ok: false, error: "invalid_token" }, 401);
+  }
+
   if (!valid) return json({ ok: false, error: "invalid_token" }, 401);
 
-  const payload = jwt.decode(token)?.payload || {};
   if ((payload.session_type || "standard") !== "standard") {
     return json({ ok: false, error: "restricted_session_scope" }, 403);
   }
