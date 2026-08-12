@@ -15,6 +15,7 @@ import AdminPlansPage from "./pages/AdminPlansPage.jsx";
 import AdminStatsPage from "./pages/AdminStatsPage.jsx";
 import OnboardingPage from "./pages/OnboardingPage.jsx";
 import TracePage from "./pages/TracePage.jsx";
+import TraceOperationalPage from "./pages/TraceOperationalPage.jsx";
 import CollaboratorsPage from "./pages/CollaboratorsPage.jsx";
 import TraceResponsesPage from "./pages/TraceResponsesPage.jsx";
 import TeamPage from "./pages/TeamPage.jsx";
@@ -52,12 +53,10 @@ function ProtectedRoute({ children, roles }) {
   return children;
 }
 
-/* Redirect to onboarding if the user hasn't completed it yet */
 function OnboardingGate({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
   if (!user) return <Navigate to="/login" replace />;
-  // Accept any of: old global key, new per-user key, or API settings flag
   const done =
     localStorage.getItem("onboarding_done") ||
     localStorage.getItem("onboarding_done_" + user.id) ||
@@ -73,6 +72,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/trace-operational" element={<TraceOperationalPage />} />
           <Route
             path="/dashboard"
             element={
@@ -118,7 +118,6 @@ export default function App() {
             } />
           </Route>
 
-          {/* Super Admin SPA */}
           <Route path="/admin" element={
             <ProtectedRoute roles={["superadmin"]}>
               <AdminLayout />
