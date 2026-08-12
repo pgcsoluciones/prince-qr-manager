@@ -20,6 +20,7 @@
   "homepage": "https://github.com/pgcsoluciones/prince-qr-manager#readme",
   "dependencies": {
     "@tsndr/cloudflare-worker-jwt": "^3.2.1",
-    "bcryptjs": "^3.0.3"
+    "bcryptjs": "^3.0.3",
+    "xlsx": "^0.18.5"
   }
 }
