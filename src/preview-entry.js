@@ -1,5 +1,6 @@
 import app from "./index.js";
 import { guardTraceV1AdminApi } from "./trace-v1-admin-gate.js";
+import { handleTraceV1AdminOverviewApi } from "./trace-v1-admin-overview-api.js";
 import { handleTraceV1AdminExcelApi } from "./trace-v1-admin-excel-api.js";
 import { handleTraceV1AdminToolsApi } from "./trace-v1-admin-tools-api.js";
 import { handleTraceV1OperationalInboxApi } from "./trace-v1-operational-inbox-api.js";
@@ -15,6 +16,13 @@ export default {
 
     if (adminGuardResponse) {
       return adminGuardResponse;
+    }
+
+    const adminOverviewResponse =
+      await handleTraceV1AdminOverviewApi(request, env);
+
+    if (adminOverviewResponse) {
+      return adminOverviewResponse;
     }
 
     const adminExcelResponse =
