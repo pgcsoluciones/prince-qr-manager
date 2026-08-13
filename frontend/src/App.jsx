@@ -17,7 +17,7 @@ import OnboardingPage from "./pages/OnboardingPage.jsx";
 import TracePage from "./pages/TracePage.jsx";
 import TraceOperationalPage from "./pages/TraceOperationalPage.jsx";
 import TraceAdminPage from "./pages/TraceAdminPage.jsx";
-import TraceWorkspaceV2Page from "./pages/TraceWorkspaceV2Page.jsx";
+import TraceCommandCenterPage from "./pages/TraceCommandCenterPage.jsx";
 import TracePublicPage from "./pages/TracePublicPage.jsx";
 import CollaboratorsPage from "./pages/CollaboratorsPage.jsx";
 import TraceResponsesPage from "./pages/TraceResponsesPage.jsx";
@@ -70,7 +70,7 @@ export default function App() {
       <Route path="shortener" element={<ShortenerPage />} />
       <Route path="analytics" element={<AnalyticsPage />} />
       <Route path="projects" element={<ProjectsPage />} />
-      <Route path="trace" element={IS_PREVIEW ? <ProtectedRoute><TraceWorkspaceV2Page /></ProtectedRoute> : <TracePage />} />
+      <Route path="trace" element={IS_PREVIEW ? <ProtectedRoute><TraceCommandCenterPage /></ProtectedRoute> : <TracePage />} />
       {IS_PREVIEW && <Route path="trace-legacy" element={<TracePage />} />}
       <Route path="trace-management" element={<ProtectedRoute><TraceAdminPage /></ProtectedRoute>} />
       <Route path="trace/:pointId/responses" element={<TraceResponsesPage />} />
