@@ -91,6 +91,7 @@ export default function App() {
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="projects" element={<ProjectsPage />} />
             <Route path="trace" element={IS_PREVIEW ? <ProtectedRoute><TraceAdminPage /></ProtectedRoute> : <TracePage />} />
+            {IS_PREVIEW && <Route path="trace-legacy" element={<TracePage />} />}
             <Route path="trace-management" element={<ProtectedRoute><TraceAdminPage /></ProtectedRoute>} />
             <Route path="trace/:pointId/responses" element={<TraceResponsesPage />} />
             <Route path="collaborators" element={<CollaboratorsPage />} />
