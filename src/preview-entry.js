@@ -1,5 +1,6 @@
 import app from "./index.js";
 import { guardTraceV1AdminApi } from "./trace-v1-admin-gate.js";
+import { handleTraceV1ControlSetupApi } from "./trace-v1-control-setup-api.js";
 import { handleTraceV1AdminOverviewApi } from "./trace-v1-admin-overview-api.js";
 import { handleTraceV1AdminExcelApi } from "./trace-v1-admin-excel-api.js";
 import { handleTraceV1AdminToolsApi } from "./trace-v1-admin-tools-api.js";
@@ -11,75 +12,40 @@ import { handleTraceV1OperationalApi } from "./trace-v1-operational-api.js";
 
 export default {
   async fetch(request, env, ctx) {
-    const adminGuardResponse =
-      await guardTraceV1AdminApi(request, env);
+    const adminGuardResponse = await guardTraceV1AdminApi(request, env);
+    if (adminGuardResponse) return adminGuardResponse;
 
-    if (adminGuardResponse) {
-      return adminGuardResponse;
-    }
+    const controlSetupResponse = await handleTraceV1ControlSetupApi(request, env);
+    if (controlSetupResponse) return controlSetupResponse;
 
-    const adminOverviewResponse =
-      await handleTraceV1AdminOverviewApi(request, env);
+    const adminOverviewResponse = await handleTraceV1AdminOverviewApi(request, env);
+    if (adminOverviewResponse) return adminOverviewResponse;
 
-    if (adminOverviewResponse) {
-      return adminOverviewResponse;
-    }
+    const adminExcelResponse = await handleTraceV1AdminExcelApi(request, env);
+    if (adminExcelResponse) return adminExcelResponse;
 
-    const adminExcelResponse =
-      await handleTraceV1AdminExcelApi(request, env);
+    const adminToolsResponse = await handleTraceV1AdminToolsApi(request, env);
+    if (adminToolsResponse) return adminToolsResponse;
 
-    if (adminExcelResponse) {
-      return adminExcelResponse;
-    }
+    const inboxResponse = await handleTraceV1OperationalInboxApi(request, env);
+    if (inboxResponse) return inboxResponse;
 
-    const adminToolsResponse =
-      await handleTraceV1AdminToolsApi(request, env);
+    const verticalsResponse = await handleTraceV1VerticalsApi(request, env);
+    if (verticalsResponse) return verticalsResponse;
 
-    if (adminToolsResponse) {
-      return adminToolsResponse;
-    }
+    const collaborationResponse = await handleTraceV1CollaborationApi(request, env);
+    if (collaborationResponse) return collaborationResponse;
 
-    const inboxResponse =
-      await handleTraceV1OperationalInboxApi(request, env);
+    const qualityResponse = await handleTraceV1OperationalQualityApi(request, env);
+    if (qualityResponse) return qualityResponse;
 
-    if (inboxResponse) {
-      return inboxResponse;
-    }
-
-    const verticalsResponse =
-      await handleTraceV1VerticalsApi(request, env);
-
-    if (verticalsResponse) {
-      return verticalsResponse;
-    }
-
-    const collaborationResponse =
-      await handleTraceV1CollaborationApi(request, env);
-
-    if (collaborationResponse) {
-      return collaborationResponse;
-    }
-
-    const qualityResponse =
-      await handleTraceV1OperationalQualityApi(request, env);
-
-    if (qualityResponse) {
-      return qualityResponse;
-    }
-
-    const operationalResponse =
-      await handleTraceV1OperationalApi(request, env);
-
-    if (operationalResponse) {
-      return operationalResponse;
-    }
+    const operationalResponse = await handleTraceV1OperationalApi(request, env);
+    if (operationalResponse) return operationalResponse;
 
     return app.fetch(request, env, ctx);
   },
 
   async scheduled(event, env, ctx) {
-    if (typeof app.scheduled === "function") {
-      return app.scheduled(event, env, ctx);
-    }
+    if (typeof app.scheduled === "function") return app.scheduled(event, env, ctx);
   },
 };
