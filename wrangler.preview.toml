@@ -1,5 +1,5 @@
 name = "prince-qr-manager-preview"
-main = "src/preview-entry.js"
+main = "src/preview-command-entry.js"
 compatibility_date = "2024-05-01"
 compatibility_flags = ["nodejs_compat"]
 
