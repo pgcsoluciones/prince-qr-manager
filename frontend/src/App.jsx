@@ -32,6 +32,8 @@ import AdminCodiConfigPage from "./pages/admin/AdminCodiConfigPage.jsx";
 import AdminBillingPage from "./pages/admin/AdminBillingPage.jsx";
 import AdminSupportPage from "./pages/admin/AdminSupportPage.jsx";
 
+const IS_PREVIEW = import.meta.env.MODE === "preview";
+
 function Spinner() {
   return (
     <div className="min-h-screen grid place-items-center bg-slate-100">
@@ -88,7 +90,7 @@ export default function App() {
             <Route path="shortener" element={<ShortenerPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="projects" element={<ProjectsPage />} />
-            <Route path="trace" element={<TracePage />} />
+            <Route path="trace" element={IS_PREVIEW ? <ProtectedRoute><TraceAdminPage /></ProtectedRoute> : <TracePage />} />
             <Route path="trace-management" element={<ProtectedRoute><TraceAdminPage /></ProtectedRoute>} />
             <Route path="trace/:pointId/responses" element={<TraceResponsesPage />} />
             <Route path="collaborators" element={<CollaboratorsPage />} />
