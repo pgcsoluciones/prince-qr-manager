@@ -2,9 +2,12 @@ import previewApp from "./preview-entry.js";
 import { handleTraceV1CommandCenterApi } from "./trace-v1-command-center-api.js";
 import { handleTraceV1WorkspaceApi } from "./trace-v1-workspace-api.js";
 import { handleTraceV1ProjectTeamApi } from "./trace-v1-project-team-api.js";
+import { handleTraceV1TeamOverviewApi } from "./trace-v1-team-overview-api.js";
 
 export default {
   async fetch(request, env, ctx) {
+    const teamOverviewResponse = await handleTraceV1TeamOverviewApi(request, env);
+    if (teamOverviewResponse) return teamOverviewResponse;
     const projectTeamResponse = await handleTraceV1ProjectTeamApi(request, env);
     if (projectTeamResponse) return projectTeamResponse;
     const workspaceResponse = await handleTraceV1WorkspaceApi(request, env);
