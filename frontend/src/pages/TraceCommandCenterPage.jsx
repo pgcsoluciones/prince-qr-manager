@@ -9,6 +9,8 @@ import TraceActivityModal from "../components/trace/TraceActivityModal.jsx";
 import TraceTeamDirectory from "../components/trace/TraceTeamDirectory.jsx";
 import TraceIncidentDrawer from "../components/trace/TraceIncidentDrawer.jsx";
 import TraceSupervisionBoard from "../components/trace/TraceSupervisionBoard.jsx";
+import TraceReportsCanvas from "../components/trace/TraceReportsCanvas.jsx";
+import TraceEvaluationsCanvas from "../components/trace/TraceEvaluationsCanvas.jsx";
 
 const BASE=import.meta.env.VITE_API_URL||"https://api.code.intaprd.com";
 const API="/api/trace/v1/admin";
@@ -48,9 +50,9 @@ export default function TraceCommandCenterPage(){
   {view==="operations"&&(workspace?<div className="mx-auto max-w-[1500px] space-y-3"><button onClick={()=>setWorkspace(null)} className="text-xs font-black text-slate-500">← Operaciones</button><TraceOperationBoard workspace={workspace} onAssign={assign} onOpenIncident={setSelectedIncident} onRegister={()=>setActivityOpen(true)}/></div>:<TraceOperationsCanvas operations={work} onOpen={openExecution} onNewControl={()=>startSolution()}/>)}
   {view==="supervision"&&<SimplePage title="Supervisión y decisiones" subtitle="Incidencias, correcciones y confirmaciones que requieren atención."><TraceSupervisionBoard incidents={incidents} approvals={approvals} onOpenIncident={setSelectedIncident}/></SimplePage>}
 
-  {view==="evaluations"&&<SimplePage title="Evaluaciones y formularios" subtitle="Listas de verificación, calificaciones y encuestas conectadas a la operación."><div className="grid gap-4 md:grid-cols-3">{[['✓','Listas de verificación','Controla puntos y convierte hallazgos en acciones.'],['★','Calificaciones','Mide calidad de trabajos, entregas y servicios.'],['◌','Encuestas','Recoge satisfacción y nivel de recomendación.']].map(x=><button key={x[1]} onClick={()=>setView('solutions')} className="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-1 hover:border-blue-300 hover:shadow-md"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-50 text-xl font-black text-blue-600">{x[0]}</span><h3 className="mt-4 text-lg font-black">{x[1]}</h3><p className="mt-2 text-xs leading-5 text-slate-500">{x[2]}</p><div className="mt-5 text-[10px] font-bold text-blue-600">{evaluationTemplates.length?`${evaluationTemplates.length} soluciones disponibles`:'Crear desde una solución'} →</div></button>)}</div></SimplePage>}
+  {view==="evaluations"&&<TraceEvaluationsCanvas operations={work}/>}
 
-  {view==="reports"&&<SimplePage title="Reportes y resultados" subtitle="Lectura visual de avance, incidencias, cumplimiento y calidad."><TraceDashboardHome metrics={metrics} work={work} incidents={incidents} onOpenOperation={openExecution} onSupervision={()=>setView('supervision')} onSolutions={()=>setView('solutions')}/></SimplePage>}
+  {view==="reports"&&<TraceReportsCanvas operations={work}/>}
   {view==="team"&&<TraceTeamDirectory users={options.users||[]} departments={options.departments||[]}/>} 
   {view==="settings"&&<SimplePage title="Configuración" subtitle="Ajustes del espacio TRACE, permisos, reglas y vistas compartidas."><div className="grid gap-4 md:grid-cols-3">{['Roles y permisos','Reglas y notificaciones','Vista pública'].map(x=><div key={x} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="text-sm font-black">{x}</div><p className="mt-2 text-xs text-slate-500">Configura esta parte sin modificar la estructura base de tus controles.</p></div>)}</div></SimplePage>}
 
