@@ -1,4 +1,12 @@
-export default function TraceControlWizard({ solution, name, setName, users, selectedUsers, toggleUser, departments, selectedDepartments, toggleDepartment, publicView, setPublicView, busy, onClose, onCreate }) {
+export default function TraceControlWizard(props) {
+  const {
+    solution, name, setName, selectedUsers=[], selectedDepartments=[], publicView, setPublicView,
+    busy, onClose, onCreate,
+  } = props;
+  const users = props.users || props.options?.users || [];
+  const departments = props.departments || props.options?.departments || [];
+  const toggleUser = props.toggleUser || props.onToggleUser || (()=>{});
+  const toggleDepartment = props.toggleDepartment || props.onToggleDepartment || (()=>{});
   if (!solution) return null;
   return <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/40 sm:items-center sm:p-6" onMouseDown={onClose}>
     <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl" onMouseDown={e=>e.stopPropagation()}>
@@ -19,7 +27,7 @@ export default function TraceControlWizard({ solution, name, setName, users, sel
         </div>
         <div>
           <div className="text-sm font-bold text-slate-900">Responsables</div>
-          <p className="mt-1 text-xs text-slate-500">Puedes asignarlos ahora o hacerlo después.</p>
+          <p className="mt-1 text-xs text-slate-500">Puedes asignarlos ahora o hacerlo visualmente después.</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">{users.map(u=><label key={u.id} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 ${selectedUsers.includes(u.id)?"border-blue-400 bg-blue-50":"border-slate-200"}`}><input type="checkbox" checked={selectedUsers.includes(u.id)} onChange={()=>toggleUser(u.id)}/><span className="min-w-0 truncate text-sm font-semibold text-slate-800">{u.email}</span></label>)}</div>
         </div>
         {departments.length>0&&<div><div className="text-sm font-bold text-slate-900">Equipos o departamentos</div><div className="mt-3 grid gap-2 sm:grid-cols-2">{departments.map(d=><label key={d.id} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 ${selectedDepartments.includes(d.id)?"border-blue-400 bg-blue-50":"border-slate-200"}`}><input type="checkbox" checked={selectedDepartments.includes(d.id)} onChange={()=>toggleDepartment(d.id)}/><span className="text-sm font-semibold text-slate-800">{d.name}</span></label>)}</div></div>}
