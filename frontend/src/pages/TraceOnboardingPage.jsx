@@ -5,46 +5,82 @@ const RUBROS = [
   {
     id: "hospitality",
     label: "Hostelería",
-    icon: "▥",
+    icon: "hotel",
     options: ["Limpieza de habitaciones", "Mantenimiento", "Áreas comunes", "Experiencia del huésped"],
   },
   {
     id: "restaurant",
     label: "Restaurante",
-    icon: "⋔",
+    icon: "restaurant",
     options: ["Control de temperatura", "Limpieza", "Recepción de alimentos", "Apertura y cierre"],
   },
   {
     id: "construction",
     label: "Construcción",
-    icon: "⌂",
+    icon: "construction",
     options: ["Avance de obra", "Inspecciones", "Materiales", "Seguridad laboral"],
   },
   {
     id: "property",
     label: "Propiedades",
-    icon: "▦",
+    icon: "property",
     options: ["Entrega de propiedades", "Inspecciones", "Mantenimiento", "Garantías y postventa"],
   },
   {
     id: "rental",
     label: "Alquileres",
-    icon: "⌕",
+    icon: "rental",
     options: ["Entrada y salida", "Inventario", "Inspección periódica", "Mantenimiento"],
   },
   {
     id: "other",
     label: "Otros rubros",
-    icon: "▦",
+    icon: "other",
     options: ["Logística", "Almacén", "Servicios", "Configurar otro tipo de operación"],
   },
 ];
 
+function RubroIcon({ type }) {
+  const common = {
+    width: 34,
+    height: 34,
+    viewBox: "0 0 32 32",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": true,
+  };
+
+  if (type === "hotel") {
+    return <svg {...common}><path d="M7 27V7h13v20M20 13h5v14M4 27h24M11 11h2M16 11h2M11 15h2M16 15h2M11 19h2M16 19h2M12 27v-4h4v4"/></svg>;
+  }
+
+  if (type === "restaurant") {
+    return <svg {...common}><path d="M8 5v8M5 5v5a3 3 0 0 0 6 0V5M8 13v14M20 5c-3 3-3 9 0 12v10M24 5v22"/></svg>;
+  }
+
+  if (type === "construction") {
+    return <svg {...common}><path d="M6 27V9M6 9h18M10 9l8-4 6 4M17 9v18M17 13h9M25 13v8M22 21h6M11 14h6M7 18h10"/></svg>;
+  }
+
+  if (type === "property") {
+    return <svg {...common}><path d="M5 27h22M7 27V11h10v16M17 27V6h8v21M10 15h2M10 19h2M20 10h2M20 14h2M20 18h2"/></svg>;
+  }
+
+  if (type === "rental") {
+    return <svg {...common}><circle cx="12" cy="11" r="6"/><path d="M16 15l11 11M21 20l-3 3M24 23l-3 3"/></svg>;
+  }
+
+  return <svg {...common}><rect x="5" y="5" width="8" height="8" rx="1"/><rect x="19" y="5" width="8" height="8" rx="1"/><rect x="5" y="19" width="8" height="8" rx="1"/><rect x="19" y="19" width="8" height="8" rx="1"/></svg>;
+}
+
 function Progress({ step }) {
   return (
-    <div className="flex items-center gap-5 text-sm text-slate-700">
+    <div className="flex items-center gap-6 text-sm text-slate-700">
       <span className="whitespace-nowrap font-medium">Paso {step} de 4</span>
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-7" aria-label={`Paso ${step} de 4`}>
         {[1, 2, 3, 4].map((n) => (
           <span
             key={n}
@@ -67,21 +103,22 @@ function Brand() {
 
 function RubroRow({ item, active, selectedOption, onOpen, onOption }) {
   return (
-    <div className={`overflow-hidden border-b border-slate-200 last:border-b-0 ${active ? "bg-white" : "bg-white"}`}>
+    <div className={`relative bg-white transition ${active ? "z-10 ring-2 ring-inset ring-blue-600" : "border-b border-slate-200 last:border-b-0"}`}>
       <button
         type="button"
         onClick={onOpen}
+        aria-expanded={active}
         className={`flex w-full items-center gap-5 px-7 py-5 text-left transition ${active ? "text-blue-600" : "text-slate-950 hover:bg-slate-50"}`}
       >
-        <span className={`grid h-9 w-9 place-items-center text-2xl font-black ${active ? "text-blue-600" : "text-slate-900"}`}>
-          {item.icon}
+        <span className={`grid h-10 w-10 place-items-center ${active ? "text-blue-600" : "text-slate-900"}`}>
+          <RubroIcon type={item.icon} />
         </span>
         <span className="flex-1 text-lg font-black">{item.label}</span>
         <span className={`text-3xl font-light leading-none transition-transform ${active ? "rotate-90 text-blue-600" : "text-slate-950"}`}>›</span>
       </button>
 
       {active && (
-        <div className="border-t border-slate-100 px-7 pb-4 pt-2 sm:pl-[84px]">
+        <div className="border-t border-blue-100 px-7 pb-4 pt-2 sm:pl-[84px]">
           <div className="grid gap-1">
             {item.options.map((option) => {
               const chosen = selectedOption === option;
@@ -113,7 +150,7 @@ export default function TraceOnboardingPage() {
   const [customOperation, setCustomOperation] = useState("");
 
   const selected = useMemo(() => RUBROS.find((r) => r.id === selectedRubro), [selectedRubro]);
-  const customReady = customOpen && customRubro.trim() && customOperation.trim();
+  const customReady = Boolean(customOpen && customRubro.trim() && customOperation.trim());
   const ready = Boolean((selectedRubro && selectedOption) || customReady);
 
   function chooseRubro(id) {
@@ -132,6 +169,7 @@ export default function TraceOnboardingPage() {
 
   function continueSetup() {
     if (!ready) return;
+
     const draft = customReady
       ? { rubro: "custom", rubroLabel: customRubro.trim(), operation: customOperation.trim(), customized: true }
       : { rubro: selectedRubro, rubroLabel: selected?.label || selectedRubro, operation: selectedOption, customized: false };
