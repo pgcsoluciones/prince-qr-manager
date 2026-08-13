@@ -63,6 +63,7 @@ export default function App() {
     <Route path="/register" element={<RegisterPage />} />
     <Route path="/trace-operational" element={<TraceOperationalPage />} />
     <Route path="/trace-public/:slug" element={<TracePublicPage />} />
+    {IS_PREVIEW && <Route path="/trace" element={<ProtectedRoute><TraceCommandCenterPage /></ProtectedRoute>} />}
     <Route path="/trace-management" element={<ProtectedRoute><div className="min-h-screen bg-slate-50 p-4 sm:p-8"><TraceAdminPage /></div></ProtectedRoute>} />
     <Route path="/dashboard" element={<OnboardingGate><DashboardLayout /></OnboardingGate>}>
       <Route index element={<Navigate to="links" replace />} />
@@ -70,7 +71,7 @@ export default function App() {
       <Route path="shortener" element={<ShortenerPage />} />
       <Route path="analytics" element={<AnalyticsPage />} />
       <Route path="projects" element={<ProjectsPage />} />
-      <Route path="trace" element={IS_PREVIEW ? <ProtectedRoute><TraceCommandCenterPage /></ProtectedRoute> : <TracePage />} />
+      <Route path="trace" element={IS_PREVIEW ? <Navigate to="/trace" replace /> : <TracePage />} />
       {IS_PREVIEW && <Route path="trace-legacy" element={<TracePage />} />}
       <Route path="trace-management" element={<ProtectedRoute><TraceAdminPage /></ProtectedRoute>} />
       <Route path="trace/:pointId/responses" element={<TraceResponsesPage />} />
