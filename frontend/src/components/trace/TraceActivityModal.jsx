@@ -1,4 +1,13 @@
-export default function TraceActivityModal({ open, work, executionId, setExecutionId, type, setType, description, setDescription, busy, onClose, onSave }) {
+export default function TraceActivityModal(props) {
+  const open = props.open ?? true;
+  const work = props.work || [];
+  const executionId = props.executionId || "";
+  const setExecutionId = props.setExecutionId || (()=>{});
+  const type = props.type ?? props.activityType ?? "progress.updated";
+  const setType = props.setType || props.setActivityType || (()=>{});
+  const description = props.description ?? props.text ?? "";
+  const setDescription = props.setDescription || props.setText || (()=>{});
+  const { busy, onClose, onSave } = props;
   if (!open) return null;
   return <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/40 sm:items-center sm:p-6" onMouseDown={onClose}>
     <div className="w-full max-w-xl rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl" onMouseDown={e=>e.stopPropagation()}>
