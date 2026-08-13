@@ -1,3 +1,151 @@
-import{useEffect,useState}from'react';
-const BASE=import.meta.env.VITE_API_URL||"https://api.code.intaprd.com";function H(){const t=localStorage.getItem('qr_token')||'';return t?{Authorization:`Bearer ${t}`}:{} }
-export default function TraceDashboardHome({onOpenOperation}){const[projects,setProjects]=useState([]),[filter,setFilter]=useState('active'),[form,setForm]=useState(false),[name,setName]=useState(''),[location,setLocation]=useState(''),[error,setError]=useState('');async function load(){try{const r=await fetch(`${BASE}/api/trace/v1/admin/workspace`,{headers:H()});const d=await r.json();if(!r.ok)throw new Error(d.message||d.error);setProjects(d.data?.projects||[])}catch(e){setError(e.message)}}useEffect(()=>{load()},[]);async function create(e){e.preventDefault();if(!name.trim())return;try{const r=await fetch(`${BASE}/api/trace/v1/admin/workspace/projects`,{method:'POST',headers:{...H(),'Content-Type':'application/json'},body:JSON.stringify({name,location})});const d=await r.json();if(!r.ok)throw new Error(d.message||d.error);setName('');setLocation('');setForm(false);await load()}catch(e){setError(e.message)}}const active=projects.filter(p=>!['completed','inactive'].includes(p.status)),done=projects.filter(p=>p.status==='completed'),list=filter==='all'?projects:filter==='completed'?done:active;if(!projects.length&&!form)return <div className="grid min-h-[70vh] place-items-center"><div className="max-w-md text-center"><div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-blue-50 text-3xl text-blue-600">▦</div><h1 className="mt-5 text-3xl font-black">Tu espacio está listo</h1><p className="mt-2 text-sm leading-6 text-slate-500">Agrega el proyecto, propiedad o lugar que quieres controlar. TRACE te ayudará con lo demás.</p><button onClick={()=>setForm(true)} className="mt-6 rounded-xl bg-blue-600 px-6 py-3 text-sm font-black text-white">+ Agrega tu proyecto</button></div></div>;return <div className="mx-auto max-w-[1450px] space-y-5">{error&&<div className="rounded-xl bg-red-50 px-4 py-3 text-xs text-red-700">{error}</div>}<div className="flex items-end justify-between gap-4"><div><h1 className="text-3xl font-black">Proyectos</h1><p className="mt-1 text-sm text-slate-500">Entra directo a lo que está activo.</p></div><button onClick={()=>setForm(true)} className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-black text-white">+ Agregar proyecto</button></div><div className="flex gap-2">{[['active','Activos',active.length],['completed','Completados',done.length],['all','Todos',projects.length]].map(([k,l,n])=><button key={k} onClick={()=>setFilter(k)} className={`rounded-xl border px-4 py-3 ${filter===k?'border-blue-400 bg-blue-50':'border-slate-200 bg-white'}`}><span className="text-xs font-bold">{l}</span><b className="ml-3 text-lg">{n}</b></button>)}</div><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{list.map(p=><button key={p.id} className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md"><div className="flex justify-between gap-3"><div><h2 className="font-black text-slate-900">{p.name}</h2><p className="mt-1 text-xs text-slate-500">{p.location||'Sin ubicación'}</p></div><span className="h-fit rounded-full bg-blue-50 px-2 py-1 text-[9px] font-black text-blue-700">{p.status==='completed'?'Completado':'Activo'}</span></div><div className="mt-5 flex justify-between text-[10px]"><span>Avance</span><b>{Number(p.progress||0)}%</b></div><div className="mt-2 h-2 rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{width:`${Number(p.progress||0)}%`}}/></div><div className="mt-4 text-[10px] text-slate-500">{Number(p.active_operations||0)} controles activos</div></button>)}</div>{form&&<div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/40 p-4"><form onSubmit={create} className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"><h2 className="text-xl font-black">Nuevo proyecto</h2><p className="mt-1 text-xs text-slate-500">Solo lo necesario para empezar.</p><input autoFocus value={name} onChange={e=>setName(e.target.value)} className="mt-5 w-full rounded-xl border px-4 py-3 text-sm" placeholder="Nombre del proyecto"/><input value={location} onChange={e=>setLocation(e.target.value)} className="mt-3 w-full rounded-xl border px-4 py-3 text-sm" placeholder="Ubicación (opcional)"/><div className="mt-5 flex justify-end gap-2"><button type="button" onClick={()=>setForm(false)} className="rounded-xl border px-4 py-2 text-xs">Cancelar</button><button className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white">Agregar</button></div></form></div>}</div>}
+import { useEffect, useState } from "react";
+import TraceProjectsCanvas from "./TraceProjectsCanvas.jsx";
+import TraceProjectDetail from "./TraceProjectDetail.jsx";
+
+const BASE =
+  import.meta.env.VITE_API_URL ||
+  "https://api.code.intaprd.com";
+
+function headers(extra = {}) {
+  const token = localStorage.getItem("qr_token") || "";
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra,
+  };
+}
+
+export default function TraceDashboardHome({ onOpenOperation }) {
+  const [data, setData] = useState({
+    projects: [],
+    people: [],
+    departments: [],
+  });
+
+  const [detail, setDetail] = useState(null);
+  const [error, setError] = useState("");
+
+  async function load() {
+    try {
+      const response = await fetch(
+        `${BASE}/api/trace/v1/admin/workspace`,
+        { headers: headers() }
+      );
+
+      const json = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json.message || json.error);
+      }
+
+      setData(
+        json.data || {
+          projects: [],
+          people: [],
+          departments: [],
+        }
+      );
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function openProject(id) {
+    try {
+      setError("");
+
+      const response = await fetch(
+        `${BASE}/api/trace/v1/admin/workspace/projects/${encodeURIComponent(id)}`,
+        { headers: headers() }
+      );
+
+      const json = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json.message || json.error);
+      }
+
+      setDetail(json.data);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function post(path, body) {
+    const response = await fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify(body),
+    });
+
+    const json = await response.json();
+
+    if (!response.ok) {
+      throw new Error(json.message || json.error);
+    }
+
+    await load();
+    return json;
+  }
+
+  async function createProject(body) {
+    try {
+      setError("");
+
+      const result = await post(
+        "/api/trace/v1/admin/workspace/projects",
+        body
+      );
+
+      await openProject(result.data.id);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function assignProject(projectId, body) {
+    try {
+      setError("");
+
+      await post(
+        `/api/trace/v1/admin/workspace/projects/${encodeURIComponent(projectId)}/participants`,
+        body
+      );
+
+      await openProject(projectId);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  return (
+    <div>
+      {error && (
+        <div className="mx-auto mb-4 max-w-[1480px] rounded-xl bg-red-50 px-4 py-3 text-xs font-semibold text-red-700">
+          {error}
+        </div>
+      )}
+
+      {detail ? (
+        <TraceProjectDetail
+          data={detail}
+          people={data.people || []}
+          departments={data.departments || []}
+          onBack={() => setDetail(null)}
+          onOpenOperation={onOpenOperation}
+          onAssign={assignProject}
+        />
+      ) : (
+        <TraceProjectsCanvas
+          projects={data.projects || []}
+          onCreate={createProject}
+          onOpen={openProject}
+        />
+      )}
+    </div>
+  );
+}

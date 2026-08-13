@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 const NAV = [
-  ["home", "⌂", "Centro de mando"],
+  ["home", "⌂", "Inicio"],
   ["operations", "▦", "Operaciones"],
   ["supervision", "△", "Supervisión"],
   ["evaluations", "✓", "Evaluaciones"],
