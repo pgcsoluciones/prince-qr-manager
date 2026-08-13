@@ -1,29 +1,297 @@
 import { useMemo, useState } from "react";
 
-function tone(severity){
-  const v=String(severity||"").toLowerCase();
-  if(["critical","critica","crítica","high","alta"].includes(v))return"bg-red-50 text-red-700 border-red-200";
-  if(["medium","media"].includes(v))return"bg-amber-50 text-amber-700 border-amber-200";
-  return"bg-slate-50 text-slate-600 border-slate-200";
+const urgent = (v) =>
+  ["critical","critica","crítica","high","alta"].includes(
+    String(v || "").toLowerCase()
+  );
+
+const closed = (v) =>
+  ["resolved","closed","resuelta","cerrada"].includes(
+    String(v || "").toLowerCase()
+  );
+
+function label(v) {
+  const key = String(v || "").toLowerCase();
+
+  return ({
+    critical: "Crítica",
+    high: "Alta",
+    alta: "Alta",
+    medium: "Media",
+    media: "Media",
+    low: "Baja",
+    open: "Abierta",
+    in_progress: "En curso",
+    resolved: "Resuelta",
+    closed: "Cerrada",
+  })[key] || String(v || "Pendiente").replaceAll("_", " ");
 }
 
-export default function TraceSupervisionBoard({incidents=[],approvals=[],onOpenIncident}){
-  const [severity,setSeverity]=useState("all");
-  const [status,setStatus]=useState("all");
-  const filtered=useMemo(()=>incidents.filter(i=>(severity==="all"||String(i.severity||"").toLowerCase()===severity)&&(status==="all"||String(i.status||"").toLowerCase()===status)),[incidents,severity,status]);
-  const critical=incidents.filter(i=>["critical","critica","crítica","high","alta"].includes(String(i.severity||"").toLowerCase())).length;
-  const open=incidents.filter(i=>!["resolved","closed","resuelta","cerrada"].includes(String(i.status||"").toLowerCase())).length;
-  return <div className="space-y-5">
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {[["Incidencias abiertas",open,"△"],["Alta prioridad",critical,"!"],["Por confirmar",approvals.length,"✓"],["En seguimiento",Math.max(0,open-critical),"↻"]].map(([l,v,ic],idx)=><div key={l} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><span className="text-xs font-semibold text-slate-500">{l}</span><span className={`grid h-8 w-8 place-items-center rounded-xl ${idx===1&&v>0?'bg-red-50 text-red-600':'bg-blue-50 text-blue-600'}`}>{ic}</span></div><div className="mt-3 text-3xl font-black">{v}</div></div>)}
-    </section>
+export default function TraceSupervisionBoard({
+  incidents = [],
+  approvals = [],
+  onOpenIncident,
+}) {
+  const [tab, setTab] = useState("attention");
+  const [priority, setPriority] = useState("all");
 
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between"><div><h2 className="font-black">Incidencias y correcciones</h2><p className="text-[11px] text-slate-500">Revisa prioridad, estado, responsable y próxima acción.</p></div><div className="flex gap-2"><select value={severity} onChange={e=>setSeverity(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold"><option value="all">Todas las prioridades</option><option value="alta">Alta</option><option value="high">High</option><option value="media">Media</option><option value="medium">Medium</option></select><select value={status} onChange={e=>setStatus(e.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold"><option value="all">Todos los estados</option><option value="open">Abierta</option><option value="in_progress">En curso</option><option value="resolved">Resuelta</option></select></div></div>
-        <div className="divide-y divide-slate-100">{filtered.map((i,idx)=><button key={i.id} onClick={()=>onOpenIncident(i)} className="grid w-full gap-3 p-4 text-left transition hover:bg-blue-50/30 md:grid-cols-[1fr_.38fr_.38fr_.46fr_auto] md:items-center"><div><div className="text-xs font-black text-slate-800">{i.title}</div><div className="mt-1 text-[10px] text-slate-400">{i.execution_title||i.execution_code||'Operación TRACE'}</div></div><span className={`w-fit rounded-full border px-2 py-1 text-[9px] font-bold ${tone(i.severity)}`}>{i.severity||'Media'}</span><span className="text-[10px] font-bold text-blue-600">{String(i.status||'abierta').replaceAll('_',' ')}</span><div className="text-[10px] text-slate-500">{idx===0?'Revisar hoy':'Dar seguimiento'}</div><span className="text-lg text-slate-300">›</span></button>)}{!filtered.length&&<div className="p-10 text-center text-xs text-slate-400">No hay incidencias con esos filtros.</div>}</div>
+  const activeIncidents = useMemo(
+    () => incidents.filter((i) => !closed(i.status)),
+    [incidents]
+  );
+
+  const ordered = useMemo(
+    () =>
+      [...activeIncidents].sort(
+        (a, b) =>
+          Number(urgent(b.severity)) -
+          Number(urgent(a.severity))
+      ),
+    [activeIncidents]
+  );
+
+  const filtered =
+    priority === "urgent"
+      ? ordered.filter((i) => urgent(i.severity))
+      : ordered;
+
+  const urgentItems = ordered.filter((i) => urgent(i.severity));
+
+  if (!activeIncidents.length && !approvals.length) {
+    return (
+      <div className="grid min-h-[58vh] place-items-center">
+        <div className="max-w-md text-center">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-50 text-2xl font-black text-emerald-600">
+            ✓
+          </div>
+
+          <h2 className="mt-5 text-3xl font-black">
+            Todo al día
+          </h2>
+
+          <p className="mt-2 text-sm text-slate-500">
+            No hay incidencias abiertas ni revisiones pendientes.
+          </p>
+        </div>
       </div>
-      <aside className="space-y-4"><div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><h2 className="font-black">Pendientes de confirmar</h2><span className="rounded-full bg-blue-50 px-2 py-1 text-[9px] font-black text-blue-700">{approvals.length}</span></div><div className="mt-4 space-y-2">{approvals.map(a=><div key={a.id} className="rounded-xl border border-slate-200 p-3"><div className="text-[11px] font-black">{a.execution_title||a.execution_code}</div><div className="mt-1 text-[10px] text-slate-400">{a.stage_name||'Revisión pendiente'}</div><div className="mt-3 h-1.5 rounded-full bg-slate-100"><div className="h-full w-2/3 rounded-full bg-blue-600"/></div><button className="mt-3 w-full rounded-lg bg-blue-600 px-3 py-2 text-[10px] font-black text-white">Abrir revisión</button></div>)}{!approvals.length&&<div className="rounded-xl bg-emerald-50 p-4 text-xs font-semibold text-emerald-700">No hay aprobaciones pendientes.</div>}</div></div><div className="rounded-2xl bg-slate-950 p-5 text-white shadow-sm"><div className="text-[10px] font-black uppercase tracking-[.16em] text-blue-300">Resumen visual</div><div className="mt-4 flex items-center gap-4"><div className="grid h-24 w-24 place-items-center rounded-full" style={{background:`conic-gradient(#ef4444 0 ${Math.min(100,critical*25)}%,#f59e0b 0 ${Math.min(100,open*20+20)}%,#1e293b 0)`}}><div className="grid h-16 w-16 place-items-center rounded-full bg-slate-950 text-center"><div><div className="text-xl font-black">{open}</div><div className="text-[8px] text-slate-400">abiertas</div></div></div></div><div className="text-[11px] leading-5 text-slate-300">Prioriza lo urgente, valida correcciones y evita que una etapa quede retenida sin seguimiento.</div></div></div></aside>
-    </section>
-  </div>;
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
+        <Tab
+          active={tab === "attention"}
+          onClick={() => setTab("attention")}
+        >
+          Atención · {urgentItems.length + approvals.length}
+        </Tab>
+
+        <Tab
+          active={tab === "incidents"}
+          onClick={() => setTab("incidents")}
+        >
+          Incidencias · {activeIncidents.length}
+        </Tab>
+
+        <Tab
+          active={tab === "reviews"}
+          onClick={() => setTab("reviews")}
+        >
+          Revisiones · {approvals.length}
+        </Tab>
+      </div>
+
+      {tab === "attention" && (
+        <div className="space-y-3">
+          {urgentItems.map((item) => (
+            <Incident
+              key={item.id}
+              item={item}
+              onOpen={onOpenIncident}
+              highlighted
+            />
+          ))}
+
+          {approvals.map((item) => (
+            <Review key={item.id} item={item} />
+          ))}
+
+          {!urgentItems.length && !approvals.length && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+              No hay asuntos urgentes.
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "incidents" && (
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+            <div>
+              <h2 className="font-black">
+                Incidencias abiertas
+              </h2>
+
+              <p className="text-xs text-slate-500">
+                Lo prioritario aparece primero.
+              </p>
+            </div>
+
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-bold"
+            >
+              <option value="all">
+                Todas
+              </option>
+              <option value="urgent">
+                Alta prioridad
+              </option>
+            </select>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {filtered.map((item) => (
+              <Incident
+                key={item.id}
+                item={item}
+                onOpen={onOpenIncident}
+              />
+            ))}
+
+            {!filtered.length && (
+              <div className="p-10 text-center text-xs text-slate-400">
+                No hay incidencias en este filtro.
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {tab === "reviews" && (
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="border-b border-slate-100 px-5 py-4">
+            <h2 className="font-black">
+              Revisiones pendientes
+            </h2>
+
+            <p className="text-xs text-slate-500">
+              Confirmaciones que esperan una decisión.
+            </p>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {approvals.map((item) => (
+              <Review key={item.id} item={item} />
+            ))}
+
+            {!approvals.length && (
+              <div className="p-10 text-center text-xs text-slate-400">
+                No hay revisiones pendientes.
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function Tab({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-lg px-4 py-2 text-xs font-black ${
+        active
+          ? "bg-slate-950 text-white"
+          : "text-slate-500"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Incident({
+  item,
+  onOpen,
+  highlighted = false,
+}) {
+  return (
+    <button
+      onClick={() => onOpen?.(item)}
+      className={`flex w-full items-center gap-4 p-4 text-left transition hover:bg-slate-50 ${
+        highlighted
+          ? "rounded-2xl border border-red-100 bg-red-50/50"
+          : ""
+      }`}
+    >
+      <span
+        className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+          urgent(item.severity)
+            ? "bg-red-500"
+            : "bg-amber-400"
+        }`}
+      />
+
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-black">
+          {item.title || "Incidencia"}
+        </div>
+
+        <div className="mt-1 text-[10px] text-slate-400">
+          {item.execution_title ||
+            item.execution_code ||
+            "Control TRACE"}
+        </div>
+      </div>
+
+      <span
+        className={`rounded-full px-2.5 py-1 text-[9px] font-black ${
+          urgent(item.severity)
+            ? "bg-red-100 text-red-700"
+            : "bg-amber-100 text-amber-700"
+        }`}
+      >
+        {label(item.severity)}
+      </span>
+
+      <span className="hidden text-[10px] font-bold text-slate-500 sm:block">
+        {label(item.status)}
+      </span>
+
+      <span className="text-slate-300">
+        ›
+      </span>
+    </button>
+  );
+}
+
+function Review({ item }) {
+  return (
+    <div className="flex items-center gap-4 p-4">
+      <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-xs font-black text-blue-600">
+        ✓
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-black">
+          {item.execution_title ||
+            item.execution_code ||
+            "Revisión pendiente"}
+        </div>
+
+        <div className="mt-1 text-[10px] text-slate-400">
+          {item.stage_name ||
+            "Confirmación pendiente"}
+        </div>
+      </div>
+
+      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[9px] font-black text-blue-700">
+        Por revisar
+      </span>
+    </div>
+  );
 }
