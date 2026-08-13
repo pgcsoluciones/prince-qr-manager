@@ -18,6 +18,8 @@ import TracePage from "./pages/TracePage.jsx";
 import TraceOperationalPage from "./pages/TraceOperationalPage.jsx";
 import TraceAdminPage from "./pages/TraceAdminPage.jsx";
 import TraceCommandCenterPage from "./pages/TraceCommandCenterPage.jsx";
+import TraceOnboardingPage from "./pages/TraceOnboardingPage.jsx";
+import TraceCompanySetupPage from "./pages/TraceCompanySetupPage.jsx";
 import TracePublicPage from "./pages/TracePublicPage.jsx";
 import CollaboratorsPage from "./pages/CollaboratorsPage.jsx";
 import TraceResponsesPage from "./pages/TraceResponsesPage.jsx";
@@ -48,6 +50,23 @@ function ProtectedRoute({ children, roles }) {
   return children;
 }
 
+function TracePreviewEntry() {
+  const { user, loading } = useAuth();
+
+  if (loading) return <Spinner />;
+  if (!user) return <Navigate to="/login" replace />;
+
+  const done =
+    localStorage.getItem("trace_onboarding_done_" + user.id) ||
+    localStorage.getItem("trace_onboarding_done");
+
+  if (!done) {
+    return <Navigate to="/trace/setup" replace />;
+  }
+
+  return <TraceCommandCenterPage />;
+}
+
 function OnboardingGate({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
@@ -63,7 +82,9 @@ export default function App() {
     <Route path="/register" element={<RegisterPage />} />
     <Route path="/trace-operational" element={<TraceOperationalPage />} />
     <Route path="/trace-public/:slug" element={<TracePublicPage />} />
-    {IS_PREVIEW && <Route path="/trace" element={<ProtectedRoute><TraceCommandCenterPage /></ProtectedRoute>} />}
+    {IS_PREVIEW && <Route path="/trace" element={<TracePreviewEntry />} />}
+    {IS_PREVIEW && <Route path="/trace/setup" element={<ProtectedRoute><TraceOnboardingPage /></ProtectedRoute>} />}
+    {IS_PREVIEW && <Route path="/trace/setup/company" element={<ProtectedRoute><TraceCompanySetupPage /></ProtectedRoute>} />}
     <Route path="/trace-management" element={<ProtectedRoute><div className="min-h-screen bg-slate-50 p-4 sm:p-8"><TraceAdminPage /></div></ProtectedRoute>} />
     <Route path="/dashboard" element={<OnboardingGate><DashboardLayout /></OnboardingGate>}>
       <Route index element={<Navigate to="links" replace />} />
