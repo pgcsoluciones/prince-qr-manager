@@ -13,11 +13,14 @@ import { handleTraceV1ProjectIncidentsApi } from "./trace-v1-project-incidents-a
 import { handleTraceV1ProjectIncidentsActionsApi } from "./trace-v1-project-incidents-actions-api.js";
 import { handleTraceV1IncidentCorrectionDecisionApi } from "./trace-v1-incident-correction-decision-api.js";
 import { handleTraceV1ProjectEvidenceApi } from "./trace-v1-project-evidence-api.js";
+import { handleTraceV1OperationalEvidenceRequirementApi } from "./trace-v1-operational-evidence-requirement-api.js";
 import { handleTraceV1OnboardingExecutionApi } from "./trace-v1-onboarding-execution-api.js";
 import { handleTraceV1StagesOverviewApi } from "./trace-v1-stages-overview-api.js";
 
 export default {
   async fetch(request, env, ctx) {
+    const operationalEvidenceResponse = await handleTraceV1OperationalEvidenceRequirementApi(request, env);
+    if (operationalEvidenceResponse) return operationalEvidenceResponse;
     const projectEvidenceResponse = await handleTraceV1ProjectEvidenceApi(request, env);
     if (projectEvidenceResponse) return projectEvidenceResponse;
     const incidentCorrectionDecisionResponse = await handleTraceV1IncidentCorrectionDecisionApi(request, env);
