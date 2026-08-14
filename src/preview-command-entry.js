@@ -8,6 +8,7 @@ import { handleTraceV1OnboardingApi } from "./trace-v1-onboarding-api.js";
 import { handleTraceV1ProjectDashboardApi } from "./trace-v1-project-dashboard-api.js";
 import { handleTraceV1ProjectSummaryApi } from "./trace-v1-project-summary-api.js";
 import { handleTraceV1ProjectTimelineApi } from "./trace-v1-project-timeline-api.js";
+import { handleTraceV1ProjectTimelineActionsApi } from "./trace-v1-project-timeline-actions-api.js";
 import { handleTraceV1OnboardingExecutionApi } from "./trace-v1-onboarding-execution-api.js";
 import { handleTraceV1StagesOverviewApi } from "./trace-v1-stages-overview-api.js";
 
@@ -17,6 +18,8 @@ export default {
     if (stagesOverviewResponse) return stagesOverviewResponse;
     const operationalizeResponse = await handleTraceV1OnboardingExecutionApi(request, env);
     if (operationalizeResponse) return operationalizeResponse;
+    const projectTimelineActionsResponse = await handleTraceV1ProjectTimelineActionsApi(request, env);
+    if (projectTimelineActionsResponse) return projectTimelineActionsResponse;
     const projectTimelineResponse = await handleTraceV1ProjectTimelineApi(request, env);
     if (projectTimelineResponse) return projectTimelineResponse;
     const projectSummaryResponse = await handleTraceV1ProjectSummaryApi(request, env);
