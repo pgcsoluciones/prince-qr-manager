@@ -7,12 +7,15 @@ import { handleTraceV1EvaluationsApi } from "./trace-v1-evaluations-api.js";
 import { handleTraceV1OnboardingApi } from "./trace-v1-onboarding-api.js";
 import { handleTraceV1ProjectDashboardApi } from "./trace-v1-project-dashboard-api.js";
 import { handleTraceV1ProjectSummaryApi } from "./trace-v1-project-summary-api.js";
+import { handleTraceV1ProjectTimelineApi } from "./trace-v1-project-timeline-api.js";
 import { handleTraceV1OnboardingExecutionApi } from "./trace-v1-onboarding-execution-api.js";
 
 export default {
   async fetch(request, env, ctx) {
     const operationalizeResponse = await handleTraceV1OnboardingExecutionApi(request, env);
     if (operationalizeResponse) return operationalizeResponse;
+    const projectTimelineResponse = await handleTraceV1ProjectTimelineApi(request, env);
+    if (projectTimelineResponse) return projectTimelineResponse;
     const projectSummaryResponse = await handleTraceV1ProjectSummaryApi(request, env);
     if (projectSummaryResponse) return projectSummaryResponse;
     const projectDashboardResponse = await handleTraceV1ProjectDashboardApi(request, env);
