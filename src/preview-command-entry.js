@@ -6,12 +6,15 @@ import { handleTraceV1TeamOverviewApi } from "./trace-v1-team-overview-api.js";
 import { handleTraceV1EvaluationsApi } from "./trace-v1-evaluations-api.js";
 import { handleTraceV1OnboardingApi } from "./trace-v1-onboarding-api.js";
 import { handleTraceV1ProjectDashboardApi } from "./trace-v1-project-dashboard-api.js";
+import { handleTraceV1ProjectSummaryApi } from "./trace-v1-project-summary-api.js";
 import { handleTraceV1OnboardingExecutionApi } from "./trace-v1-onboarding-execution-api.js";
 
 export default {
   async fetch(request, env, ctx) {
     const operationalizeResponse = await handleTraceV1OnboardingExecutionApi(request, env);
     if (operationalizeResponse) return operationalizeResponse;
+    const projectSummaryResponse = await handleTraceV1ProjectSummaryApi(request, env);
+    if (projectSummaryResponse) return projectSummaryResponse;
     const projectDashboardResponse = await handleTraceV1ProjectDashboardApi(request, env);
     if (projectDashboardResponse) return projectDashboardResponse;
     const onboardingResponse = await handleTraceV1OnboardingApi(request, env);
