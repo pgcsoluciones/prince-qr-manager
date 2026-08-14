@@ -6,6 +6,7 @@ import TraceProjectTimeline from "../components/trace/TraceProjectTimeline.jsx";
 import TraceTimelineEventDrawer from "../components/trace/TraceTimelineEventDrawer.jsx";
 import TraceStagesPage from "../components/trace/TraceStagesPage.jsx";
 import TraceIncidentsPage from "../components/trace/TraceIncidentsPage.jsx";
+import TraceEvidencePage from "../components/trace/TraceEvidencePage.jsx";
 import TraceTeamDirectory from "../components/trace/TraceTeamDirectory.jsx";
 import TraceReportsCanvas from "../components/trace/TraceReportsCanvas.jsx";
 import TraceActivityModal from "../components/trace/TraceActivityModal.jsx";
@@ -36,7 +37,7 @@ export default function TraceProjectCommandCenterPage(){
   if(view==="activities")return <TraceProjectTimeline key={`${projectId}:${timelineRefresh}`} projectId={projectId} onRegister={()=>openRegister()} onOpenEvent={setSelectedTimelineEvent} onReviewApproval={reviewApproval}/>;
   if(view==="stages")return <TraceStagesPage executionId={selectedExecution} onRegister={openStageRegister} onOpenIncident={setSelectedIncident} onNavigate={(target)=>setView(target)}/>;
   if(view==="incidents")return <TraceIncidentsPage projectId={projectId} executions={work}/>;
-  if(view==="evidence")return <div className="rounded-2xl border border-slate-200 bg-white p-6"><h1 className="text-3xl font-black">Evidencias</h1><p className="mt-2 text-sm text-slate-500">Las evidencias aparecerán aquí conforme se registren actividades con fotografías o documentos.</p></div>;
+  if(view==="evidence")return <TraceEvidencePage projectId={projectId} executions={work} onNavigate={setView}/>;
   if(view==="team")return <TraceTeamDirectory/>;
   if(view==="reports")return <TraceReportsCanvas operations={work}/>;
   if(view==="settings")return <div className="rounded-2xl border border-slate-200 bg-white p-6"><h1 className="text-3xl font-black">Configuración del proyecto</h1><p className="mt-2 text-sm text-slate-500">Etapas, responsabilidades, permisos y vista compartida.</p></div>;
