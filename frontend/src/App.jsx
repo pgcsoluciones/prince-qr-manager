@@ -21,7 +21,9 @@ import TraceCommandCenterPage from "./pages/TraceCommandCenterPage.jsx";
 import TraceOnboardingPage from "./pages/TraceOnboardingPage.jsx";
 import TraceCompanySetupPage from "./pages/TraceCompanySetupPage.jsx";
 import TraceTeamSetupPage from "./pages/TraceTeamSetupPage.jsx";
-import TraceFinalSetupPage from "./pages/TraceFinalSetupPage.jsx";
+import TraceTrackingSetupPage from "./pages/TraceTrackingSetupPage.jsx";
+import TraceActivationConfirmPage from "./pages/TraceActivationConfirmPage.jsx";
+import TraceProjectPublicPage from "./pages/TraceProjectPublicPage.jsx";
 import TracePublicPage from "./pages/TracePublicPage.jsx";
 import CollaboratorsPage from "./pages/CollaboratorsPage.jsx";
 import TraceResponsesPage from "./pages/TraceResponsesPage.jsx";
@@ -54,18 +56,10 @@ function ProtectedRoute({ children, roles }) {
 
 function TracePreviewEntry() {
   const { user, loading } = useAuth();
-
   if (loading) return <Spinner />;
   if (!user) return <Navigate to="/login" replace />;
-
-  const done =
-    localStorage.getItem("trace_onboarding_done_" + user.id) ||
-    localStorage.getItem("trace_onboarding_done");
-
-  if (!done) {
-    return <Navigate to="/trace/setup" replace />;
-  }
-
+  const done = localStorage.getItem("trace_onboarding_done_" + user.id) || localStorage.getItem("trace_onboarding_done");
+  if (!done) return <Navigate to="/trace/setup" replace />;
   return <TraceCommandCenterPage />;
 }
 
@@ -84,11 +78,13 @@ export default function App() {
     <Route path="/register" element={<RegisterPage />} />
     <Route path="/trace-operational" element={<TraceOperationalPage />} />
     <Route path="/trace-public/:slug" element={<TracePublicPage />} />
+    {IS_PREVIEW && <Route path="/trace-project/:slug" element={<TraceProjectPublicPage />} />}
     {IS_PREVIEW && <Route path="/trace" element={<TracePreviewEntry />} />}
     {IS_PREVIEW && <Route path="/trace/setup" element={<ProtectedRoute><TraceOnboardingPage /></ProtectedRoute>} />}
     {IS_PREVIEW && <Route path="/trace/setup/company" element={<ProtectedRoute><TraceCompanySetupPage /></ProtectedRoute>} />}
     {IS_PREVIEW && <Route path="/trace/setup/team" element={<ProtectedRoute><TraceTeamSetupPage /></ProtectedRoute>} />}
-    {IS_PREVIEW && <Route path="/trace/setup/review" element={<ProtectedRoute><TraceFinalSetupPage /></ProtectedRoute>} />}
+    {IS_PREVIEW && <Route path="/trace/setup/review" element={<ProtectedRoute><TraceTrackingSetupPage /></ProtectedRoute>} />}
+    {IS_PREVIEW && <Route path="/trace/setup/activated" element={<ProtectedRoute><TraceActivationConfirmPage /></ProtectedRoute>} />}
     <Route path="/trace-management" element={<ProtectedRoute><div className="min-h-screen bg-slate-50 p-4 sm:p-8"><TraceAdminPage /></div></ProtectedRoute>} />
     <Route path="/dashboard" element={<OnboardingGate><DashboardLayout /></OnboardingGate>}>
       <Route index element={<Navigate to="links" replace />} />
