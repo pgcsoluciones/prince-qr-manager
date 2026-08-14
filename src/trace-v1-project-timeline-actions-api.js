@@ -21,8 +21,10 @@ async function event(db,c,a,type,description,payload={}){
 async function register(request,env){
  const c=await context(request,env);if(!c)return json({ok:false,error:"unauthorized"},401);
  let body={};try{body=await request.json()}catch{return json({ok:false,error:"invalid_json"},400)}
- const executionId=text(body.executionId,100),executionStageId=text(body.executionStageId,100),executionActivityId=text(body.executionActivityId,100),type=text(body.type,80)||"activity.recorded",description=text(body.description,2000);
- if(!executionId||!description)return json({ok:false,error:"missing_fields",message:"Selecciona el trabajo y describe lo ocurrido."},422);
+ const executionId=text(body.executionId,100),executionStageId=text(body.executionStageId,100),executionActivityId=text(body.executionActivityId,100),requestedType=text(body.type,80)||"comment.added",description=text(body.description,2000);
+ if(requestedType!=="comment.added")return json({ok:false,error:"unsupported_generic_event",message:"Esta ruta solo admite notas informativas. Usa Incidencias, Evidencias, Aprobaciones o la acción estructurada de la actividad para registrar eventos vinculantes."},422);
+ const type="comment.added";
+ if(!executionId||!description)return json({ok:false,error:"missing_fields",message:"Selecciona el trabajo y escribe la nota que deseas conservar en la bitácora."},422);
  const execution=await c.db.prepare(`SELECT id,asset_id FROM trace_executions WHERE id=? AND tenant_id=? LIMIT 1`).bind(executionId,c.tenantId).first();if(!execution)return json({ok:false,error:"execution_not_found"},404);
  if(executionStageId){const stage=await c.db.prepare(`SELECT id FROM trace_execution_stages WHERE id=? AND execution_id=? LIMIT 1`).bind(executionStageId,executionId).first();if(!stage)return json({ok:false,error:"invalid_stage"},422)}
  if(executionActivityId){const activity=await c.db.prepare(`SELECT id,execution_stage_id FROM trace_execution_activities WHERE id=? AND tenant_id=? AND execution_id=? LIMIT 1`).bind(executionActivityId,c.tenantId,executionId).first();if(!activity||executionStageId&&activity.execution_stage_id!==executionStageId)return json({ok:false,error:"invalid_execution_activity"},422)}
