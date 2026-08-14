@@ -1,8 +1,12 @@
 import jwt from "@tsndr/cloudflare-worker-jwt";
 import { getTraceDatabase } from "./trace/shared/database.js";
+import {
+  evidenceExtension,
+  sanitizeEvidenceMetadata,
+  validateEvidenceUpload,
+} from "./trace/shared/evidence-media.js";
 
 const CORS={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"GET,POST,OPTIONS","Access-Control-Allow-Headers":"Content-Type, Authorization"};
-const MAX_BYTES=20*1024*1024;
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{...CORS,"Content-Type":"application/json","Cache-Control":"no-store"}});
 const uuid=()=>crypto.randomUUID();
 const text=(v,n=4000)=>{const s=String(v??"").trim();return s?s.slice(0,n):null};
@@ -24,7 +28,6 @@ async function projectContext(c,projectId){
  const projectRole=part?.project_role||null;return{project,projectRole,ownOnly:projectRole==='member'};
 }
 const canValidate=(c,pc)=>['superadmin','enterprise','admin','manager','supervisor'].includes(c.user.role)||['owner','manager','supervisor'].includes(pc.projectRole||'');
-function inferType(mime){if(mime.startsWith('image/'))return'photo';if(mime.startsWith('video/'))return'video';if(mime.startsWith('audio/'))return'audio';return'file'}
 async function sha256Hex(buffer){const digest=await crypto.subtle.digest('SHA-256',buffer);return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('')}
 function rowSelect(){return `
  SELECT ev.id,ev.execution_id,ev.execution_stage_id,ev.execution_activity_id,ev.requirement_id,
@@ -77,15 +80,19 @@ async function serveObject(c,env,projectId,pc,evidenceId,thumbnail=false){
 }
 async function uploadEvidence(request,c,env,projectId,pc){
  if(!env.ASSETS)return json({ok:false,error:'evidence_storage_unavailable'},503);let f;try{f=await request.formData()}catch{return json({ok:false,error:'invalid_multipart'},400)}
- const activityId=text(f.get('executionActivityId'),100),requirementId=text(f.get('requirementId'),100),file=f.get('file'),thumb=f.get('thumbnail');if(!activityId||!file||typeof file==='string')return json({ok:false,error:'activity_and_file_required'},422);if(file.size<1||file.size>MAX_BYTES)return json({ok:false,error:'invalid_file_size'},422);
+ const activityId=text(f.get('executionActivityId'),100),requirementId=text(f.get('requirementId'),100),file=f.get('file'),thumb=f.get('thumbnail');
+ if(!activityId)return json({ok:false,error:'activity_and_file_required'},422);
+ const check=validateEvidenceUpload(file);
+ if(!check.ok)return json({ok:false,error:check.error,mime:check.mime||null,maxBytes:check.maxBytes||null},422);
  const a=await c.db.prepare(`SELECT ea.*,e.asset_id FROM trace_execution_activities ea JOIN trace_executions e ON e.id=ea.execution_id AND e.tenant_id=ea.tenant_id WHERE ea.id=? AND ea.tenant_id=? AND e.asset_id=? LIMIT 1`).bind(activityId,c.tenantId,projectId).first();if(!a)return json({ok:false,error:'invalid_execution_activity'},422);
  let req=null;if(requirementId){req=await c.db.prepare(`SELECT * FROM trace_execution_evidence_requirements WHERE id=? AND tenant_id=? AND execution_activity_id=? LIMIT 1`).bind(requirementId,c.tenantId,activityId).first();if(!req)return json({ok:false,error:'invalid_evidence_requirement'},422)}
- const mime=file.type||'application/octet-stream',evidenceType=inferType(mime);if(req&&req.evidence_type!==evidenceType&&!(req.evidence_type==='file'))return json({ok:false,error:'evidence_type_mismatch'},422);
- const id=uuid(),ext=(String(file.name||'evidence').split('.').pop()||'bin').replace(/[^A-Za-z0-9]/g,'').slice(0,10)||'bin',key=`trace/${c.tenantId}/${a.execution_id}/${a.execution_stage_id}/${id}.${ext}`,buffer=await file.arrayBuffer(),checksum=await sha256Hex(buffer);await env.ASSETS.put(key,buffer,{httpMetadata:{contentType:mime},customMetadata:{tenantId:c.tenantId,executionId:a.execution_id,executionStageId:a.execution_stage_id,executionActivityId:activityId,uploadedBy:c.user.id}});
- let thumbKey=null;if(thumb&&typeof thumb!=='string'&&thumb.size>0){thumbKey=`trace/${c.tenantId}/${a.execution_id}/${a.execution_stage_id}/${id}.thumb.jpg`;await env.ASSETS.put(thumbKey,await thumb.arrayBuffer(),{httpMetadata:{contentType:thumb.type||'image/jpeg'}})}
+ const mime=check.mime,evidenceType=check.evidenceType;if(req&&req.evidence_type!==evidenceType&&!(req.evidence_type==='file'))return json({ok:false,error:'evidence_type_mismatch'},422);
+ const metadata=sanitizeEvidenceMetadata(parse(text(f.get('metadata'),8000),{}));
+ const id=uuid(),ext=evidenceExtension(file.name,mime),key=`trace/${c.tenantId}/${a.execution_id}/${a.execution_stage_id}/${id}.${ext}`,buffer=await file.arrayBuffer(),checksum=await sha256Hex(buffer);await env.ASSETS.put(key,buffer,{httpMetadata:{contentType:mime},customMetadata:{tenantId:c.tenantId,executionId:a.execution_id,executionStageId:a.execution_stage_id,executionActivityId:activityId,uploadedBy:c.user.id}});
+ let thumbKey=null;if(thumb&&typeof thumb!=='string'&&thumb.size>0&&thumb.size<=2*1024*1024&&String(thumb.type||'').startsWith('image/')){thumbKey=`trace/${c.tenantId}/${a.execution_id}/${a.execution_stage_id}/${id}.thumb.jpg`;await env.ASSETS.put(thumbKey,await thumb.arrayBuffer(),{httpMetadata:{contentType:thumb.type||'image/jpeg'}})}
  const status=req&&Number(req.requires_validation)===0?'approved':'pending',eventId=uuid();try{await c.db.batch([
   c.db.prepare(`INSERT INTO trace_events(id,tenant_id,execution_id,execution_stage_id,execution_activity_id,asset_id,event_type,event_source,actor_user_id,actor_role,description,payload_json,occurred_at,received_at) VALUES(?,?,?,?,?,?,'evidence.added','admin',?,?,?, ?,datetime('now'),datetime('now'))`).bind(eventId,c.tenantId,a.execution_id,a.execution_stage_id,activityId,projectId,c.user.id,c.user.role,'Evidencia registrada.',JSON.stringify({evidenceId:id,requirementId:requirementId||null,evidenceType})),
-  c.db.prepare(`INSERT INTO trace_evidences(id,tenant_id,execution_id,execution_stage_id,execution_activity_id,requirement_id,event_id,evidence_type,r2_key,thumbnail_r2_key,original_filename,mime_type,file_size,checksum,metadata_json,uploaded_by,captured_at,validation_status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`).bind(id,c.tenantId,a.execution_id,a.execution_stage_id,activityId,requirementId||null,eventId,evidenceType,key,thumbKey,text(file.name,255)||'evidence',mime,file.size,checksum,JSON.stringify(parse(text(f.get('metadata'),8000),{})),c.user.id,text(f.get('capturedAt'),80),status)
+  c.db.prepare(`INSERT INTO trace_evidences(id,tenant_id,execution_id,execution_stage_id,execution_activity_id,requirement_id,event_id,evidence_type,r2_key,thumbnail_r2_key,original_filename,mime_type,file_size,checksum,metadata_json,uploaded_by,captured_at,validation_status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`).bind(id,c.tenantId,a.execution_id,a.execution_stage_id,activityId,requirementId||null,eventId,evidenceType,key,thumbKey,text(file.name,255)||'evidence',mime,file.size,checksum,JSON.stringify(metadata),c.user.id,text(f.get('capturedAt'),80),status)
  ])}catch(error){await env.ASSETS.delete(key).catch(()=>{});if(thumbKey)await env.ASSETS.delete(thumbKey).catch(()=>{});throw error}
  return json({ok:true,data:{id,status}},201)
 }
