@@ -24,10 +24,36 @@ jobs:
         run: |
           cp src/trace-v1-project-approvals-api.js /tmp/trace-v1-project-approvals-api.mjs
           cp src/trace-v1-evidence-library-api.js /tmp/trace-v1-evidence-library-api.mjs
+          cp src/trace-v1-project-reports-api.js /tmp/trace-v1-project-reports-api.mjs
+          cp src/trace-v1-project-report-files-api.js /tmp/trace-v1-project-report-files-api.mjs
+          cp src/trace/report-renderers.js /tmp/trace-report-renderers.mjs
           cp src/preview-command-entry.js /tmp/preview-command-entry.mjs
           node --check /tmp/trace-v1-project-approvals-api.mjs
           node --check /tmp/trace-v1-evidence-library-api.mjs
+          node --check /tmp/trace-v1-project-reports-api.mjs
+          node --check /tmp/trace-v1-project-report-files-api.mjs
+          node --check /tmp/trace-report-renderers.mjs
           node --check /tmp/preview-command-entry.mjs
+      - name: Smoke report document renderers
+        run: |
+          cp src/trace/report-renderers.js .trace-report-renderers-qa.mjs
+          node --input-type=module <<'NODE'
+          import { renderReportFile } from './.trace-report-renderers-qa.mjs';
+          const report={
+            id:'qa-report',code:'RPT-QA',report_type:'executive',type:'executive',title:'QA Reporte',generated_at:new Date().toISOString(),
+            definition:{sections:['summary','stages','activities','incidents','approvals','evidence','timeline']},
+            snapshot:{snapshotAt:new Date().toISOString(),project:{name:'Proyecto QA'},summary:{progress:75,totalExecutions:2,completedExecutions:1,activeExecutions:1,openIncidents:1,pendingApprovals:1,evidenceCount:1,eventCount:1},executions:[{execution_code:'QA-1',title:'Trabajo QA',status:'in_progress',completion_percentage:75}],stages:[{name:'Etapa QA',status:'in_progress'}],incidents:[{incident_code:'INC-QA',title:'Incidencia QA',severity:'high',status:'open'}],approvals:[{stage_name:'Etapa QA',status:'pending',requested_at:new Date().toISOString()}],evidence:[{original_filename:'evidencia.jpg',stage_name:'Etapa QA',status:'approved'}],events:[{event_type:'qa.event',description:'Evento QA',occurred_at:new Date().toISOString()}]}
+          };
+          for(const format of ['pdf','docx','xlsx']){
+            const {bytes}=renderReportFile(report,format);
+            if(!bytes||bytes.byteLength<100)throw new Error(`${format} vacío`);
+            const head=Buffer.from(bytes).subarray(0,4).toString('binary');
+            if(format==='pdf'&&!head.startsWith('%PDF'))throw new Error('PDF inválido');
+            if(format!=='pdf'&&!head.startsWith('PK'))throw new Error(`${format} no es ZIP OOXML`);
+            console.log(format,bytes.byteLength,'OK');
+          }
+          NODE
+          rm .trace-report-renderers-qa.mjs
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
