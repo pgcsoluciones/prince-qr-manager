@@ -569,6 +569,20 @@ async function createDraftVersion(
     .bind(process.current_version_id)
     .all();
 
+  const sourceActivities =
+    await getTraceDatabase(env).prepare(
+      `SELECT a.*
+       FROM trace_stage_activities a
+       JOIN trace_stages s
+         ON s.id = a.stage_id
+       WHERE s.process_version_id = ?
+       ORDER BY
+         s.stage_order ASC,
+         a.activity_order ASC`
+    )
+      .bind(process.current_version_id)
+      .all();
+
   const maxVersion = await getTraceDatabase(env).prepare(
     `SELECT
        COALESCE(MAX(version_number), 0)
@@ -743,6 +757,72 @@ async function createDraftVersion(
     );
   }
 
+  for (
+    const activity
+    of sourceActivities.results
+  ) {
+    const newStageId =
+      stageIdMap.get(
+        activity.stage_id
+      );
+
+    if (!newStageId) {
+      return json(
+        {
+          ok: false,
+          error:
+            "clone_activity_integrity_error",
+          message:
+            "No fue posible relacionar una actividad con su nueva etapa.",
+        },
+        500
+      );
+    }
+
+    statements.push(
+      getTraceDatabase(env).prepare(
+        `INSERT INTO trace_stage_activities (
+           id,
+           tenant_id,
+           stage_id,
+           title,
+           description,
+           activity_order,
+           is_required,
+           priority,
+           responsible_role,
+           planned_start_offset_minutes,
+           due_offset_minutes,
+           estimated_duration_minutes,
+           requires_evidence,
+           requires_approval,
+           settings_json,
+           created_at,
+           updated_at
+         )
+         VALUES (
+           ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now')
+         )`
+      ).bind(
+        uuid(),
+        auth.tenantId,
+        newStageId,
+        activity.title,
+        activity.description,
+        activity.activity_order,
+        activity.is_required,
+        activity.priority,
+        activity.responsible_role,
+        activity.planned_start_offset_minutes,
+        activity.due_offset_minutes,
+        activity.estimated_duration_minutes,
+        activity.requires_evidence,
+        activity.requires_approval,
+        activity.settings_json || "{}"
+      )
+    );
+  }
+
   statements.push(
     getTraceDatabase(env).prepare(
       `UPDATE trace_processes
@@ -778,6 +858,8 @@ async function createDraftVersion(
             sourceStages.results.length,
           fieldsCount:
             sourceFields.results.length,
+          activitiesCount:
+            sourceActivities.results.length,
         },
       },
     },

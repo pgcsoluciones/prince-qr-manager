@@ -1,5 +1,6 @@
 import jwt from "@tsndr/cloudflare-worker-jwt";
 import { getTraceDatabase } from "./trace/shared/database.js";
+import { loadDefinedActivities, buildExecutionActivityStatements } from "./trace/shared/execution-activities.js";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -1095,15 +1096,32 @@ async function createExecution(
     }
   }
 
+  const activityDefinitions =
+    await loadDefinedActivities(
+      getTraceDatabase(env),
+      auth.tenantId,
+      publishedVersion.id
+    );
+
+  const activityRoleAssignees =
+    activityDefinitions
+      .map(
+        (activity) =>
+          activity.responsible_role
+            ? roleAssignments[
+                activity.responsible_role
+              ]
+            : null
+      )
+      .filter(Boolean);
+
   const uniqueAssignees =
-    [...new Set(
-      stageAssignments
-        .map(
-          (item) =>
-            item.assignedTo
-        )
-        .filter(Boolean)
-    )];
+    [...new Set([
+      ...stageAssignments
+        .map((item) => item.assignedTo)
+        .filter(Boolean),
+      ...activityRoleAssignees,
+    ])];
 
   for (
     const userId
@@ -1252,6 +1270,7 @@ async function createExecution(
     executionStageIds.push({
       id: executionStageId,
       stage,
+      assignedTo: stageAssignedTo,
     });
 
     statements.push(
@@ -1292,6 +1311,34 @@ async function createExecution(
       )
     );
   }
+
+  const activityMaterialization =
+    buildExecutionActivityStatements(
+      getTraceDatabase(env),
+      {
+        tenantId: auth.tenantId,
+        executionId,
+        definitions: activityDefinitions,
+        executionStages:
+          executionStageIds.map(
+            (item) => ({
+              stageId: item.stage.id,
+              stageOrder:
+                Number(
+                  item.stage.stage_order
+                ),
+              executionStageId: item.id,
+              assignedTo:
+                item.assignedTo,
+            })
+          ),
+        roleAssignments,
+      }
+    );
+
+  statements.push(
+    ...activityMaterialization.statements
+  );
 
   for (
     const userId
@@ -1406,6 +1453,9 @@ async function createExecution(
           Object.fromEntries(
             participantIds
           ),
+        activitiesMaterialized:
+          activityMaterialization
+            .activityRows.length,
       })
     )
   );
