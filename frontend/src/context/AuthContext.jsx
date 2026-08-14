@@ -9,12 +9,15 @@ export function AuthProvider({ children }) {
 
   const loadUser = useCallback(async () => {
     const token = localStorage.getItem("qr_token");
-    if (!token) { setLoading(false); return; }
+    if (!token) { setUser(null); setLoading(false); return null; }
     try {
       const data = await api.get("/api/auth/me");
       setUser(data.user);
+      return data.user;
     } catch {
       localStorage.removeItem("qr_token");
+      setUser(null);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -25,15 +28,17 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const data = await api.post("/api/auth/login", { email, password });
     localStorage.setItem("qr_token", data.token);
-    setUser(data.user);
-    return data.user;
+    // El login devuelve un usuario reducido. La fuente persistente de settings,
+    // empresa/rubro y demás estado de onboarding es /api/auth/me.
+    const hydrated = await loadUser();
+    return hydrated || data.user;
   };
 
   const register = async (email, password) => {
     const data = await api.post("/api/auth/register", { email, password, role: "tenant" });
     localStorage.setItem("qr_token", data.token);
-    setUser(data.user);
-    return data.user;
+    const hydrated = await loadUser();
+    return hydrated || data.user;
   };
 
   const logout = () => {
@@ -42,7 +47,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser: loadUser }}>
       {children}
     </AuthContext.Provider>
   );
