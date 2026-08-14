@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
 import { ToastProvider } from "./components/Toast.jsx";
+import { api } from "./utils/api.js";
 import LoginPage from "./pages/LoginPage.jsx";
 import RegisterPage from "./pages/RegisterPage.jsx";
 import DashboardLayout from "./pages/DashboardLayout.jsx";
@@ -54,12 +56,52 @@ function ProtectedRoute({ children, roles }) {
   return children;
 }
 
+function isCodeOnboardingComplete(user) {
+  if (!user) return false;
+  const settings = user.settings || {};
+  if (settings.onboarding_done === true || settings.onboarding_done === 1 || settings.onboarding_done === "1") return true;
+  if (settings.company || settings.industry) return true;
+  if (user.rubro && user.rubro !== "general") return true;
+  return Boolean(localStorage.getItem("onboarding_done_" + user.id) || localStorage.getItem("onboarding_done"));
+}
+
 function TracePreviewEntry() {
   const { user, loading } = useAuth();
-  if (loading) return <Spinner />;
+  const [checking, setChecking] = useState(true);
+  const [hasWorkspace, setHasWorkspace] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      if (!user) { setChecking(false); return; }
+      setChecking(true);
+      try {
+        const data = await api.get("/api/trace/v1/admin/workspace");
+        const projects = data?.data?.projects || [];
+        if (!cancelled) {
+          const ready = projects.length > 0;
+          setHasWorkspace(ready);
+          if (ready) {
+            localStorage.setItem("trace_onboarding_done_" + user.id, "1");
+            localStorage.setItem("trace_onboarding_done", "1");
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          const cached = localStorage.getItem("trace_onboarding_done_" + user.id) || localStorage.getItem("trace_onboarding_done");
+          setHasWorkspace(Boolean(cached));
+        }
+      } finally {
+        if (!cancelled) setChecking(false);
+      }
+    }
+    check();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  if (loading || checking) return <Spinner />;
   if (!user) return <Navigate to="/login" replace />;
-  const done = localStorage.getItem("trace_onboarding_done_" + user.id) || localStorage.getItem("trace_onboarding_done");
-  if (!done) return <Navigate to="/trace/setup" replace />;
+  if (!hasWorkspace) return <Navigate to="/trace/setup" replace />;
   return <TraceProjectCommandCenterPage />;
 }
 
@@ -67,8 +109,15 @@ function OnboardingGate({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
   if (!user) return <Navigate to="/login" replace />;
-  const done = localStorage.getItem("onboarding_done") || localStorage.getItem("onboarding_done_" + user.id) || user?.settings?.onboarding_done;
-  if (!done) return <Navigate to="/onboarding" replace />;
+  if (!isCodeOnboardingComplete(user)) return <Navigate to="/onboarding" replace />;
+  return children;
+}
+
+function OnboardingOnlyRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <Spinner />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (isCodeOnboardingComplete(user)) return <Navigate to="/dashboard/links" replace />;
   return children;
 }
 
@@ -117,7 +166,7 @@ export default function App() {
       <Route path="billing" element={<AdminBillingPage />} />
       <Route path="support" element={<AdminSupportPage />} />
     </Route>
-    <Route path="/onboarding" element={<ProtectedRoute><OnboardingPage /></ProtectedRoute>} />
+    <Route path="/onboarding" element={<OnboardingOnlyRoute><OnboardingPage /></OnboardingOnlyRoute>} />
     <Route path="*" element={<Navigate to="/dashboard" replace />} />
   </Routes></ToastProvider></AuthProvider>;
 }
