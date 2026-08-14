@@ -1,4 +1,9 @@
 import { requireOperationalSession } from "./trace/shared/operational-auth.js";
+import {
+  resolveExecutionActivity,
+  stageActivityAggregate,
+} from "./trace/shared/activity-context.js";
+import { decideActivityApproval } from "./trace/shared/activity-quality.js";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -68,6 +73,7 @@ async function audit(db, session, eventType, executionId, details = {}) {
 async function insertEvent(db, session, {
   executionId,
   executionStageId = null,
+  executionActivityId = null,
   assetId = null,
   eventType,
   description,
@@ -76,12 +82,14 @@ async function insertEvent(db, session, {
   const id = uuid();
   await db.prepare(
     `INSERT INTO trace_events (
-       id, tenant_id, execution_id, execution_stage_id, asset_id,
+       id, tenant_id, execution_id, execution_stage_id,
+       execution_activity_id, asset_id,
        event_type, event_source, actor_user_id, actor_role,
        description, payload_json, occurred_at, received_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
   ).bind(
-    id, session.tenant_id, executionId, executionStageId, assetId,
+    id, session.tenant_id, executionId, executionStageId,
+    executionActivityId, assetId,
     eventType, source(session), session.user_id, session.role,
     description, JSON.stringify(payload)
   ).run();
@@ -188,6 +196,46 @@ async function createIncident(request, env, executionStageId) {
     return json({ ok: false, error: "invalid_severity", message: "La severidad indicada no es válida." }, 422);
   }
 
+  const executionActivityId =
+    text(
+      parsed.body.executionActivityId,
+      100
+    );
+
+  const executionActivity =
+    executionActivityId
+      ? await resolveExecutionActivity(
+          db,
+          {
+            tenantId: session.tenant_id,
+            executionId:
+              task.execution_id,
+            executionStageId,
+            activityId:
+              executionActivityId,
+          }
+        )
+      : null;
+
+  if (
+    executionActivityId &&
+    !executionActivity
+  ) {
+    return json(
+      {
+        ok: false,
+        error:
+          "invalid_execution_activity",
+        message:
+          "La actividad no pertenece a esta etapa.",
+      },
+      422
+    );
+  }
+
+  const blocking =
+    parsed.body.blocking === true;
+
   const assignedTo = text(parsed.body.assignedTo, 100);
   if (assignedTo) {
     const participant = await executionParticipant(db, session.tenant_id, task.execution_id, assignedTo);
@@ -203,19 +251,38 @@ async function createIncident(request, env, executionStageId) {
 
   await db.prepare(
     `INSERT INTO trace_incidents (
-       id, tenant_id, execution_id, execution_stage_id, asset_id,
+       id, tenant_id, execution_id, execution_stage_id,
+       execution_activity_id, asset_id,
        incident_code, title, description, category, severity, status,
        reported_by, assigned_to, reported_at, metadata_json
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), '{}')`
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)`
   ).bind(
-    incidentId, session.tenant_id, task.execution_id, executionStageId,
-    task.asset_id || null, incidentCode, title, description, category,
-    severity, status, session.user_id, assignedTo || null
+    incidentId,
+    session.tenant_id,
+    task.execution_id,
+    executionStageId,
+    executionActivityId || null,
+    task.asset_id || null,
+    incidentCode,
+    title,
+    description,
+    category,
+    severity,
+    status,
+    session.user_id,
+    assignedTo || null,
+    JSON.stringify({
+      blocking,
+      executionActivityId:
+        executionActivityId || null,
+    })
   ).run();
 
   await insertEvent(db, session, {
     executionId: task.execution_id,
     executionStageId,
+    executionActivityId:
+      executionActivityId || null,
     assetId: task.asset_id,
     eventType: "incident.reported",
     description: `Incidencia reportada: ${title}`,
@@ -468,36 +535,374 @@ async function interceptApprovalSubmission(request, env, executionStageId) {
   const a = await auth(request, env);
   if (!a.ok) return a.response;
   const { session, db } = a;
-  const task = await assignedTask(db, session, executionStageId);
-  if (!task || Number(task.requires_approval) !== 1) return null;
-  if (task.stage_status !== "in_progress") return json({ ok: false, error: "invalid_stage_state", message: "La etapa debe estar en progreso para enviarse a aprobación." }, 409);
-  if (Number(task.requires_evidence) === 1 && Number(task.evidence_count || 0) < 1) {
-    return json({ ok: false, error: "evidence_required", message: "Esta etapa requiere evidencia antes de enviarse a aprobación." }, 422);
+  const task =
+    await assignedTask(
+      db,
+      session,
+      executionStageId
+    );
+
+  if (!task) return null;
+
+  let requestBody = {};
+  try {
+    if (
+      (
+        request.headers.get(
+          "content-type"
+        ) || ""
+      ).includes(
+        "application/json"
+      )
+    ) {
+      requestBody =
+        await request
+          .clone()
+          .json();
+    }
+  } catch {}
+
+  const executionActivityId =
+    text(
+      requestBody
+        .executionActivityId,
+      100
+    );
+
+  const executionActivity =
+    executionActivityId
+      ? await resolveExecutionActivity(
+          db,
+          {
+            tenantId:
+              session.tenant_id,
+            executionId:
+              task.execution_id,
+            executionStageId,
+            activityId:
+              executionActivityId,
+          }
+        )
+      : null;
+
+  if (
+    executionActivityId &&
+    !executionActivity
+  ) {
+    return json(
+      {
+        ok: false,
+        error:
+          "invalid_execution_activity",
+        message:
+          "La actividad no pertenece a esta etapa.",
+      },
+      422
+    );
+  }
+
+  if (executionActivity) {
+    if (
+      executionActivity.status !==
+        "in_progress" &&
+      executionActivity.status !==
+        "available"
+    ) {
+      return json(
+        {
+          ok: false,
+          error:
+            "invalid_activity_state",
+          message:
+            "La actividad no está disponible para completarse.",
+        },
+        409
+      );
+    }
+
+    if (
+      Number(
+        executionActivity
+          .requires_evidence
+      ) === 1
+    ) {
+      const evidence = await db
+        .prepare(
+          `SELECT COUNT(*) AS n
+           FROM trace_evidences
+           WHERE tenant_id=?
+             AND execution_id=?
+             AND execution_stage_id=?
+             AND execution_activity_id=?`
+        )
+        .bind(
+          session.tenant_id,
+          task.execution_id,
+          executionStageId,
+          executionActivity.id
+        )
+        .first();
+
+      if (
+        Number(
+          evidence?.n || 0
+        ) < 1
+      ) {
+        return json(
+          {
+            ok: false,
+            error:
+              "evidence_required",
+            message:
+              "Esta actividad requiere evidencia antes de completarse.",
+          },
+          422
+        );
+      }
+    }
+
+    if (
+      Number(
+        executionActivity
+          .requires_approval
+      ) !== 1
+    ) {
+      await db
+        .prepare(
+          `UPDATE trace_execution_activities
+           SET
+             status='completed',
+             completed_at=datetime('now'),
+             updated_at=datetime('now')
+           WHERE id=?`
+        )
+        .bind(
+          executionActivity.id
+        )
+        .run();
+
+      const aggregate =
+        await stageActivityAggregate(
+          db,
+          {
+            tenantId:
+              session.tenant_id,
+            executionId:
+              task.execution_id,
+            executionStageId,
+          }
+        );
+
+      await db
+        .prepare(
+          `UPDATE trace_execution_stages
+           SET
+             status=?,
+             completed_at=
+               CASE
+                 WHEN ?='completed'
+                 THEN COALESCE(
+                   completed_at,
+                   datetime('now')
+                 )
+                 ELSE completed_at
+               END,
+             updated_at=datetime('now')
+           WHERE id=?`
+        )
+        .bind(
+          aggregate.derivedStatus,
+          aggregate.derivedStatus,
+          executionStageId
+        )
+        .run();
+
+      await insertEvent(
+        db,
+        session,
+        {
+          executionId:
+            task.execution_id,
+          executionStageId,
+          executionActivityId:
+            executionActivity.id,
+          assetId:
+            task.asset_id,
+          eventType:
+            "activity.completed",
+          description:
+            `Actividad completada: ${executionActivity.title}`,
+          payload: {
+            activityId:
+              executionActivity.id,
+            stageProgress:
+              aggregate.progress,
+          },
+        }
+      );
+
+      return json({
+        ok: true,
+        data: {
+          executionActivityId:
+            executionActivity.id,
+          status: "completed",
+          stageStatus:
+            aggregate
+              .derivedStatus,
+          stageProgress:
+            aggregate.progress,
+        },
+      });
+    }
+  } else {
+    if (
+      Number(
+        task.requires_approval
+      ) !== 1
+    ) {
+      return null;
+    }
+
+    if (
+      task.stage_status !==
+      "in_progress"
+    ) {
+      return json(
+        {
+          ok: false,
+          error:
+            "invalid_stage_state",
+          message:
+            "La etapa debe estar en progreso para enviarse a aprobación.",
+        },
+        409
+      );
+    }
+
+    if (
+      Number(
+        task.requires_evidence
+      ) === 1 &&
+      Number(
+        task.evidence_count || 0
+      ) < 1
+    ) {
+      return json(
+        {
+          ok: false,
+          error:
+            "evidence_required",
+          message:
+            "Esta etapa requiere evidencia antes de enviarse a aprobación.",
+        },
+        422
+      );
+    }
   }
   const existing = await db.prepare(
-    `SELECT id FROM trace_approvals WHERE execution_stage_id=? AND status='pending' LIMIT 1`
-  ).bind(executionStageId).first();
+    executionActivity
+      ? `SELECT id
+         FROM trace_approvals
+         WHERE execution_stage_id=?
+           AND execution_activity_id=?
+           AND status='pending'
+         LIMIT 1`
+      : `SELECT id
+         FROM trace_approvals
+         WHERE execution_stage_id=?
+           AND execution_activity_id IS NULL
+           AND status='pending'
+         LIMIT 1`
+  ).bind(
+    ...(executionActivity
+      ? [
+          executionStageId,
+          executionActivity.id
+        ]
+      : [executionStageId])
+  ).first();
   if (existing) return json({ ok: false, error: "approval_already_pending", message: "La etapa ya tiene una aprobación pendiente." }, 409);
   const approverId = await chooseApprover(db, session, task.execution_id, session.user_id);
   if (!approverId) return json({ ok: false, error: "approval_responsible_missing", message: "La ejecución no tiene un aprobador o revisor activo." }, 409);
   const approvalId = uuid();
 
   await db.batch([
+    executionActivity
+      ? db.prepare(
+          `UPDATE trace_execution_activities
+           SET
+             status='pending_approval',
+             submitted_at=datetime('now'),
+             updated_at=datetime('now')
+           WHERE id=?`
+        ).bind(
+          executionActivity.id
+        )
+      : db.prepare(
+          `UPDATE trace_execution_stages
+           SET
+             status='pending_approval',
+             submitted_at=datetime('now'),
+             updated_at=datetime('now')
+           WHERE id=?
+             AND assigned_to=?
+             AND status='in_progress'`
+        ).bind(
+          executionStageId,
+          session.user_id
+        ),
     db.prepare(
-      `UPDATE trace_execution_stages SET status='pending_approval', submitted_at=datetime('now'), updated_at=datetime('now') WHERE id=? AND assigned_to=? AND status='in_progress'`
-    ).bind(executionStageId, session.user_id),
-    db.prepare(
-      `UPDATE trace_executions SET status='pending_approval', updated_at=datetime('now') WHERE id=? AND tenant_id=?`
-    ).bind(task.execution_id, session.tenant_id),
+      `UPDATE trace_executions
+       SET
+         status='pending_approval',
+         updated_at=datetime('now')
+       WHERE id=?
+         AND tenant_id=?`
+    ).bind(
+      task.execution_id,
+      session.tenant_id
+    ),
     db.prepare(
       `INSERT INTO trace_approvals (
-         id, tenant_id, execution_id, execution_stage_id, requested_by,
-         assigned_approver_id, status, requested_at, metadata_json
-       ) VALUES (?, ?, ?, ?, ?, ?, 'pending', datetime('now'), '{}')`
-    ).bind(approvalId, session.tenant_id, task.execution_id, executionStageId, session.user_id, approverId),
+         id, tenant_id, execution_id,
+         execution_stage_id,
+         execution_activity_id,
+         requested_by,
+         assigned_approver_id,
+         status,
+         requested_at,
+         metadata_json
+       )
+       VALUES (
+         ?,?,?,?,?,?,?,
+         'pending',
+         datetime('now'),
+         ?
+       )`
+    ).bind(
+      approvalId,
+      session.tenant_id,
+      task.execution_id,
+      executionStageId,
+      executionActivity?.id || null,
+      session.user_id,
+      approverId,
+      JSON.stringify({
+        executionActivityId:
+          executionActivity?.id ||
+          null,
+      })
+    ),
   ]);
   await insertEvent(db, session, {
-    executionId: task.execution_id, executionStageId, assetId: task.asset_id,
+    executionId:
+      task.execution_id,
+    executionStageId,
+    executionActivityId:
+      executionActivity?.id ||
+      null,
+    assetId: task.asset_id,
     eventType: "approval.requested", description: `Aprobación solicitada para: ${task.stage_name}`,
     payload: { approvalId, approverId, evidenceCount: Number(task.evidence_count || 0) },
   });
@@ -596,7 +1001,45 @@ async function decideApproval(request, env, approvalId, decision) {
   if (!approval) return json({ ok: false, error: "approval_not_available", message: "La aprobación no está disponible para esta sesión." }, 404);
   const parsed = await bodyJson(request);
   if (!parsed.ok) return parsed.response;
-  const notes = text(parsed.body.notes, 4000);
+  const notes =
+    text(
+      parsed.body.notes,
+      4000
+    );
+
+  if (
+    approval
+      .execution_activity_id
+  ) {
+    const activityDecision =
+      await decideActivityApproval(
+        db,
+        session,
+        approval,
+        decision,
+        notes
+      );
+
+    if (!activityDecision.ok) {
+      return json(
+        {
+          ok: false,
+          error:
+            activityDecision.error,
+          message:
+            activityDecision.message,
+        },
+        activityDecision.status ||
+          500
+      );
+    }
+
+    return json({
+      ok: true,
+      data:
+        activityDecision.data,
+    });
+  }
 
   if (decision === "approve") {
     await db.prepare(

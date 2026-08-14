@@ -1,4 +1,5 @@
 import { requireOperationalSession } from "./trace/shared/operational-auth.js";
+import { resolveExecutionActivity } from "./trace/shared/activity-context.js";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -734,6 +735,41 @@ async function addEvidence(request, env, executionStageId) {
     );
   }
 
+  const executionActivityId =
+    normalizeText(
+      formData.get("executionActivityId"),
+      100
+    );
+
+  const executionActivity =
+    executionActivityId
+      ? await resolveExecutionActivity(
+          db,
+          {
+            tenantId: session.tenant_id,
+            executionId: task.execution_id,
+            executionStageId,
+            activityId:
+              executionActivityId,
+          }
+        )
+      : null;
+
+  if (
+    executionActivityId &&
+    !executionActivity
+  ) {
+    return json(
+      {
+        ok: false,
+        error: "invalid_execution_activity",
+        message:
+          "La actividad no pertenece a esta etapa.",
+      },
+      422
+    );
+  }
+
   const file = formData.get("file");
   if (!file || typeof file === "string") {
     return json({ ok: false, error: "file_required", message: "Debes adjuntar un archivo." }, 422);
@@ -825,6 +861,8 @@ async function addEvidence(request, env, executionStageId) {
       tenantId: session.tenant_id,
       executionId: task.execution_id,
       executionStageId,
+      executionActivityId:
+        executionActivityId || "",
       uploadedBy: session.user_id,
     },
   });
@@ -839,6 +877,7 @@ async function addEvidence(request, env, executionStageId) {
            tenant_id,
            execution_id,
            execution_stage_id,
+           execution_activity_id,
            asset_id,
            event_type,
            event_source,
@@ -849,12 +888,13 @@ async function addEvidence(request, env, executionStageId) {
            occurred_at,
            received_at
          )
-         VALUES (?, ?, ?, ?, ?, 'evidence.added', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
+         VALUES (?, ?, ?, ?, ?, ?, 'evidence.added', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
       ).bind(
         eventId,
         session.tenant_id,
         task.execution_id,
         executionStageId,
+        executionActivityId || null,
         task.asset_id || null,
         eventSourceForSession(session),
         session.user_id,
@@ -875,6 +915,7 @@ async function addEvidence(request, env, executionStageId) {
            tenant_id,
            execution_id,
            execution_stage_id,
+           execution_activity_id,
            field_id,
            event_id,
            evidence_type,
@@ -889,12 +930,13 @@ async function addEvidence(request, env, executionStageId) {
            captured_at,
            created_at
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
       ).bind(
         evidenceId,
         session.tenant_id,
         task.execution_id,
         executionStageId,
+        executionActivityId || null,
         fieldId,
         eventId,
         evidenceType,
@@ -917,7 +959,14 @@ async function addEvidence(request, env, executionStageId) {
     db,
     session,
     "operational.evidence.added",
-    { executionStageId, evidenceId, evidenceType, fileSize: file.size },
+    {
+      executionStageId,
+      executionActivityId:
+        executionActivityId || null,
+      evidenceId,
+      evidenceType,
+      fileSize: file.size
+    },
     task.execution_id
   );
 
