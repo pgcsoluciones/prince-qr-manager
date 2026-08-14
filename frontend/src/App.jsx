@@ -61,6 +61,7 @@ function isCodeOnboardingComplete(user) {
   const settings = user.settings || {};
   if (settings.onboarding_done === true || settings.onboarding_done === 1 || settings.onboarding_done === "1") return true;
   if (settings.company || settings.industry) return true;
+  if (user.enterprise_id) return true;
   if (user.rubro && user.rubro !== "general") return true;
   return Boolean(localStorage.getItem("onboarding_done_" + user.id) || localStorage.getItem("onboarding_done"));
 }
@@ -105,6 +106,35 @@ function TracePreviewEntry() {
   return <TraceProjectCommandCenterPage />;
 }
 
+function TraceSetupEntry() {
+  const { user, loading } = useAuth();
+  const [checking, setChecking] = useState(true);
+  const [hasWorkspace, setHasWorkspace] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      if (!user) { setChecking(false); return; }
+      try {
+        const data = await api.get("/api/trace/v1/admin/workspace");
+        const ready = (data?.data?.projects || []).length > 0;
+        if (!cancelled) setHasWorkspace(ready);
+      } catch {
+        if (!cancelled) setHasWorkspace(false);
+      } finally {
+        if (!cancelled) setChecking(false);
+      }
+    }
+    check();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  if (loading || checking) return <Spinner />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (hasWorkspace) return <Navigate to="/trace" replace />;
+  return <TraceOnboardingPage />;
+}
+
 function OnboardingGate({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
@@ -129,7 +159,7 @@ export default function App() {
     <Route path="/trace-public/:slug" element={<TracePublicPage />} />
     {IS_PREVIEW && <Route path="/trace-project/:slug" element={<TraceProjectPublicPage />} />}
     {IS_PREVIEW && <Route path="/trace" element={<TracePreviewEntry />} />}
-    {IS_PREVIEW && <Route path="/trace/setup" element={<ProtectedRoute><TraceOnboardingPage /></ProtectedRoute>} />}
+    {IS_PREVIEW && <Route path="/trace/setup" element={<TraceSetupEntry />} />}
     {IS_PREVIEW && <Route path="/trace/setup/company" element={<ProtectedRoute><TraceCompanySetupPage /></ProtectedRoute>} />}
     {IS_PREVIEW && <Route path="/trace/setup/team" element={<ProtectedRoute><TraceTeamSetupPage /></ProtectedRoute>} />}
     {IS_PREVIEW && <Route path="/trace/setup/review" element={<ProtectedRoute><TraceTrackingSetupPage /></ProtectedRoute>} />}
