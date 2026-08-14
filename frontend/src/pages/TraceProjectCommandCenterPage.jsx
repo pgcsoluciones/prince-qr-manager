@@ -6,7 +6,7 @@ import TraceProjectTimeline from "../components/trace/TraceProjectTimeline.jsx";
 import TraceTimelineEventDrawer from "../components/trace/TraceTimelineEventDrawer.jsx";
 import TraceStagesPage from "../components/trace/TraceStagesPage.jsx";
 import TraceIncidentsPage from "../components/trace/TraceIncidentsPage.jsx";
-import TraceEvidencePage from "../components/trace/TraceEvidencePage.jsx";
+import TraceEvidenceWorkspacePage from "../components/trace/TraceEvidenceWorkspacePage.jsx";
 import TraceApprovalsPage from "../components/trace/TraceApprovalsPage.jsx";
 import TraceTeamDirectory from "../components/trace/TraceTeamDirectory.jsx";
 import TraceReportsCanvas from "../components/trace/TraceReportsCanvas.jsx";
@@ -38,7 +38,7 @@ export default function TraceProjectCommandCenterPage(){
   if(view==="activities")return <TraceProjectTimeline key={`${projectId}:${timelineRefresh}`} projectId={projectId} onRegister={()=>openRegister()} onOpenEvent={setSelectedTimelineEvent} onReviewApproval={reviewApproval}/>;
   if(view==="stages")return <TraceStagesPage executionId={selectedExecution} onRegister={openStageRegister} onOpenIncident={setSelectedIncident} onNavigate={(target)=>setView(target)}/>;
   if(view==="incidents")return <TraceIncidentsPage projectId={projectId} executions={work}/>;
-  if(view==="evidence")return <TraceEvidencePage projectId={projectId} executions={work} onNavigate={setView}/>;
+  if(view==="evidence")return <TraceEvidenceWorkspacePage projectId={projectId} executions={work} onNavigate={setView}/>;
   if(view==="approvals")return <TraceApprovalsPage projectId={projectId} onOpenIncident={()=>setView("incidents")} onChanged={()=>{setTimelineRefresh(x=>x+1);loadProject()}}/>;
   if(view==="team")return <TraceTeamDirectory/>;
   if(view==="reports")return <TraceReportsCanvas operations={work}/>;
