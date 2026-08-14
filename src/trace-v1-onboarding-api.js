@@ -7,6 +7,7 @@ const CORS={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"GE
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{...CORS,"Content-Type":"application/json","Cache-Control":"no-store"}});
 const txt=(v,n=300)=>v==null?"":String(v).trim().slice(0,n);
 const bool=v=>v===true||v===1;
+const APPROVAL_RESPONSIBILITIES=new Set(["stage_supervisor","project_admin"]);
 const slugPart=v=>String(v||"trace").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,45)||"trace";
 
 async function auth(request,env){
@@ -18,18 +19,38 @@ async function auth(request,env){
  if(!user||Number(user.is_active)!==1)return null; return{db,user,tenantId:user.enterprise_id||user.id};
 }
 
+function normalizeApprovalResponsibility(stage){
+ if(!bool(stage.approvalRequired))return"";
+ const explicit=txt(stage.approvalResponsibility,40);
+ if(APPROVAL_RESPONSIBILITIES.has(explicit))return explicit;
+ const legacy=txt(stage.approverRole,40);
+ if(legacy==="supervisor")return"stage_supervisor";
+ if(legacy==="manager")return"project_admin";
+ return"";
+}
+
 function normalizeStages(value){
  if(!Array.isArray(value))return[];
  return value.map((s,i)=>({
-  name:txt(s.name,160), order:i+1,
-  evidence:bool(s.evidenceRequired), incidents:bool(s.incidentEnabled), dates:bool(s.dueDatesEnabled), approval:bool(s.approvalRequired),
-  approverRole:bool(s.approvalRequired)?txt(s.approverRole,40):"",
+  name:txt(s.name,160),
+  order:i+1,
+  evidence:bool(s.evidenceRequired),
+  incidents:bool(s.incidentEnabled),
+  dates:bool(s.dueDatesEnabled),
+  approval:bool(s.approvalRequired),
+  approvalResponsibility:normalizeApprovalResponsibility(s),
  })).filter(s=>s.name);
 }
 
 function validate(stages){
- const errors=[]; if(!stages.length)errors.push("Debe existir al menos una etapa.");
- stages.forEach((s,i)=>{if(!s.name)errors.push(`La etapa ${i+1} necesita nombre.`);if(s.approval&&!s.approverRole)errors.push(`${s.name}: selecciona quién aprueba.`)});
+ const errors=[];
+ if(!stages.length)errors.push("Debe existir al menos una etapa.");
+ stages.forEach((s,i)=>{
+  if(!s.name)errors.push(`La etapa ${i+1} necesita nombre.`);
+  if(s.approval&&!s.approvalResponsibility)errors.push(`${s.name}: selecciona el Responsable de aprobación.`);
+  if(s.approval&&s.approvalResponsibility&&!APPROVAL_RESPONSIBILITIES.has(s.approvalResponsibility))errors.push(`${s.name}: el Responsable de aprobación no es válido.`);
+  if(!s.approval&&s.approvalResponsibility)errors.push(`${s.name}: no debe tener responsable porque no requiere aprobación.`);
+ });
  return errors;
 }
 
@@ -49,10 +70,10 @@ async function saveConfig(request,env,activate=false){
   c.db.prepare(`INSERT INTO trace_process_versions (id,process_id,version_number,name,description,status,schema_json,created_by,created_at) VALUES (?,?,1,?,?,'draft','{}',?,datetime('now'))`).bind(versionId,processId,operation,company?`${company} · ${operation}`:operation,c.user.id),
   c.db.prepare(`UPDATE trace_assets SET process_id=?,updated_at=datetime('now') WHERE id=? AND tenant_id=?`).bind(processId,projectId,c.tenantId)
  ]);}
- const inserts=stages.map((s,i)=>c.db.prepare(`INSERT INTO trace_stages (id,process_version_id,name,description,stage_order,stage_type,responsible_role,instructions,estimated_duration_minutes,requires_evidence,requires_approval,allow_skip,settings_json,created_at) VALUES (?,?,?,?,?,?,?,?,NULL,?,?,0,?,datetime('now'))`).bind(crypto.randomUUID(),versionId,s.name,null,i+1,i===0?'start':i===stages.length-1?'completion':'operation','member',null,s.evidence?1:0,s.approval?1:0,JSON.stringify({incidentEnabled:s.incidents,dueDatesEnabled:s.dates,approverRole:s.approverRole||null})));
+ const inserts=stages.map((s,i)=>c.db.prepare(`INSERT INTO trace_stages (id,process_version_id,name,description,stage_order,stage_type,responsible_role,instructions,estimated_duration_minutes,requires_evidence,requires_approval,allow_skip,settings_json,created_at) VALUES (?,?,?,?,?,?,?,?,NULL,?,?,0,?,datetime('now'))`).bind(crypto.randomUUID(),versionId,s.name,null,i+1,i===0?'start':i===stages.length-1?'completion':'operation','member',null,s.evidence?1:0,s.approval?1:0,JSON.stringify({incidentEnabled:s.incidents,dueDatesEnabled:s.dates,approvalResponsibility:s.approval?s.approvalResponsibility:null})));
  if(inserts.length)await c.db.batch(inserts);
  let slug=project.qr_slug||null;
- if(activate){slug=slug||`${slugPart(project.name)}-${crypto.randomUUID().slice(0,8)}`;const schema={processId,versionId,stages:stages.map(s=>({name:s.name,order:s.order,requiresEvidence:s.evidence,incidentEnabled:s.incidents,dueDatesEnabled:s.dates,requiresApproval:s.approval,approverRole:s.approverRole||null}))};await c.db.batch([
+ if(activate){slug=slug||`${slugPart(project.name)}-${crypto.randomUUID().slice(0,8)}`;const schema={processId,versionId,stages:stages.map(s=>({name:s.name,order:s.order,requiresEvidence:s.evidence,incidentEnabled:s.incidents,dueDatesEnabled:s.dates,requiresApproval:s.approval,approvalResponsibility:s.approval?s.approvalResponsibility:null}))};await c.db.batch([
   c.db.prepare(`UPDATE trace_process_versions SET status='published',schema_json=?,published_at=datetime('now'),published_by=? WHERE id=? AND process_id=? AND status='draft'`).bind(JSON.stringify(schema),c.user.id,versionId,processId),
   c.db.prepare(`UPDATE trace_processes SET status='active',updated_at=datetime('now') WHERE id=? AND tenant_id=?`).bind(processId,c.tenantId),
   c.db.prepare(`UPDATE trace_assets SET status='active',qr_slug=?,metadata_json=?,updated_at=datetime('now') WHERE id=? AND tenant_id=?`).bind(slug,JSON.stringify({onboardingActivatedAt:new Date().toISOString(),company,operation}),projectId,c.tenantId)
