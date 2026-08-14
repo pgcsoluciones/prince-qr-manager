@@ -12,6 +12,19 @@ export async function loadDefinedActivities(db, tenantId, processVersionId){
   return result.results||[];
 }
 
+export async function loadDefinedEvidenceRequirements(db,tenantId,processVersionId){
+  const result=await db.prepare(`
+    SELECT r.*,a.stage_id,a.activity_order,s.stage_order
+    FROM trace_stage_activity_evidence_requirements r
+    JOIN trace_stage_activities a ON a.id=r.stage_activity_id
+    JOIN trace_stages s ON s.id=a.stage_id
+    WHERE r.tenant_id=?
+      AND s.process_version_id=?
+    ORDER BY s.stage_order,a.activity_order,r.requirement_order
+  `).bind(tenantId,processVersionId).all();
+  return result.results||[];
+}
+
 export function buildExecutionActivityStatements(db,{
   tenantId,
   executionId,
@@ -52,4 +65,42 @@ export function buildExecutionActivityStatements(db,{
     ));
   }
   return{statements,activityRows};
+}
+
+export function buildExecutionEvidenceRequirementStatements(db,{
+  tenantId,
+  executionId,
+  requirementDefinitions,
+  activityRows,
+}){
+  const activityByDefinition=new Map(activityRows.map(row=>[row.stageActivityId,row]));
+  const requirementRows=[];
+  const statements=[];
+  for(const def of requirementDefinitions||[]){
+    const activity=activityByDefinition.get(def.stage_activity_id);
+    if(!activity)continue;
+    const id=uuid();
+    requirementRows.push({
+      id,
+      stageRequirementId:def.id,
+      executionActivityId:activity.id,
+      executionStageId:activity.executionStageId,
+      requiredCount:Number(def.required_count||1),
+      evidenceType:def.evidence_type||'photo',
+      requiresValidation:Number(def.requires_validation??1),
+    });
+    statements.push(db.prepare(`
+      INSERT INTO trace_execution_evidence_requirements (
+        id,tenant_id,execution_id,execution_stage_id,execution_activity_id,
+        stage_requirement_id,label,description,requirement_order,evidence_type,
+        required_count,requires_validation,settings_json,created_at,updated_at
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))
+    `).bind(
+      id,tenantId,executionId,activity.executionStageId,activity.id,
+      def.id,def.label,def.description||null,Number(def.requirement_order||0),
+      def.evidence_type||'photo',Number(def.required_count||1),Number(def.requires_validation??1),
+      def.settings_json||'{}'
+    ));
+  }
+  return{statements,requirementRows};
 }
