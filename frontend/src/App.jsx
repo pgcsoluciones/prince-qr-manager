@@ -20,6 +20,8 @@ import TraceAdminPage from "./pages/TraceAdminPage.jsx";
 import TraceCommandCenterPage from "./pages/TraceCommandCenterPage.jsx";
 import TraceOnboardingPage from "./pages/TraceOnboardingPage.jsx";
 import TraceCompanySetupPage from "./pages/TraceCompanySetupPage.jsx";
+import TraceTeamSetupPage from "./pages/TraceTeamSetupPage.jsx";
+import TraceFinalSetupPage from "./pages/TraceFinalSetupPage.jsx";
 import TracePublicPage from "./pages/TracePublicPage.jsx";
 import CollaboratorsPage from "./pages/CollaboratorsPage.jsx";
 import TraceResponsesPage from "./pages/TraceResponsesPage.jsx";
@@ -85,6 +87,8 @@ export default function App() {
     {IS_PREVIEW && <Route path="/trace" element={<TracePreviewEntry />} />}
     {IS_PREVIEW && <Route path="/trace/setup" element={<ProtectedRoute><TraceOnboardingPage /></ProtectedRoute>} />}
     {IS_PREVIEW && <Route path="/trace/setup/company" element={<ProtectedRoute><TraceCompanySetupPage /></ProtectedRoute>} />}
+    {IS_PREVIEW && <Route path="/trace/setup/team" element={<ProtectedRoute><TraceTeamSetupPage /></ProtectedRoute>} />}
+    {IS_PREVIEW && <Route path="/trace/setup/review" element={<ProtectedRoute><TraceFinalSetupPage /></ProtectedRoute>} />}
     <Route path="/trace-management" element={<ProtectedRoute><div className="min-h-screen bg-slate-50 p-4 sm:p-8"><TraceAdminPage /></div></ProtectedRoute>} />
     <Route path="/dashboard" element={<OnboardingGate><DashboardLayout /></OnboardingGate>}>
       <Route index element={<Navigate to="links" replace />} />
