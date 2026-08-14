@@ -9,9 +9,12 @@ import { handleTraceV1ProjectDashboardApi } from "./trace-v1-project-dashboard-a
 import { handleTraceV1ProjectSummaryApi } from "./trace-v1-project-summary-api.js";
 import { handleTraceV1ProjectTimelineApi } from "./trace-v1-project-timeline-api.js";
 import { handleTraceV1OnboardingExecutionApi } from "./trace-v1-onboarding-execution-api.js";
+import { handleTraceV1StagesOverviewApi } from "./trace-v1-stages-overview-api.js";
 
 export default {
   async fetch(request, env, ctx) {
+    const stagesOverviewResponse = await handleTraceV1StagesOverviewApi(request, env);
+    if (stagesOverviewResponse) return stagesOverviewResponse;
     const operationalizeResponse = await handleTraceV1OnboardingExecutionApi(request, env);
     if (operationalizeResponse) return operationalizeResponse;
     const projectTimelineResponse = await handleTraceV1ProjectTimelineApi(request, env);
