@@ -41,7 +41,7 @@ export default function TraceProjectCommandCenterPage(){
   if(view==="evidence")return <TraceEvidenceWorkspacePage projectId={projectId} executions={work} onNavigate={setView}/>;
   if(view==="approvals")return <TraceApprovalsPage projectId={projectId} onOpenIncident={()=>setView("incidents")} onChanged={()=>{setTimelineRefresh(x=>x+1);loadProject()}}/>;
   if(view==="team")return <TraceTeamDirectory/>;
-  if(view==="reports")return <TraceReportsCanvas operations={work}/>;
+  if(view==="reports")return <TraceReportsCanvas projectId={projectId}/>;
   if(view==="settings")return <div className="rounded-2xl border border-slate-200 bg-white p-6"><h1 className="text-3xl font-black">Configuración del proyecto</h1><p className="mt-2 text-sm text-slate-500">Etapas, responsabilidades, permisos y vista compartida.</p></div>;
   if(view==="help")return <div className="rounded-2xl border border-slate-200 bg-white p-6"><h1 className="text-3xl font-black">Ayuda</h1><p className="mt-2 text-sm text-slate-500">Ayuda contextual de KAWVO Trace.</p></div>;
   return null;
