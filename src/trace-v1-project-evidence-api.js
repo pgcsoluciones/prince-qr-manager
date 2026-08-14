@@ -46,13 +46,13 @@ function rowSelect(){return `
  LEFT JOIN trace_execution_evidence_requirements er ON er.id=ev.requirement_id
  LEFT JOIN users u ON u.id=ev.uploaded_by
  LEFT JOIN users vu ON vu.id=ev.validated_by`}
-function mapRow(r,projectId){return{
- id:r.id,code:`EVI-${String(r.id).replace(/-/g,'').slice(0,6).toUpperCase()}`,title:r.requirement_label||r.activity_title||r.original_filename||'Evidencia',
+function mapRow(r,projectId){const metadata=parse(r.metadata_json,{});return{
+ id:r.id,code:`EVI-${String(r.id).replace(/-/g,'').slice(0,6).toUpperCase()}`,title:metadata.displayName||r.requirement_label||r.activity_title||r.original_filename||'Evidencia',
  executionId:r.execution_id,executionCode:r.execution_code,executionTitle:r.execution_title,executionStageId:r.execution_stage_id,stageId:r.stage_id,stageName:r.stage_name,
  executionActivityId:r.execution_activity_id,activityTitle:r.activity_title,requirementId:r.requirement_id,requirementLabel:r.requirement_label,requiredCount:Number(r.required_count||0),requiresValidation:r.requires_validation===null?true:Number(r.requires_validation)===1,
  type:r.evidence_type,mimeType:r.mime_type,fileSize:Number(r.file_size||0),checksum:r.checksum,originalFilename:r.original_filename,
  status:r.validation_status||'pending',observation:r.validation_notes||null,uploadedBy:r.uploaded_by,uploaderEmail:r.uploader_email,capturedAt:r.captured_at,createdAt:r.created_at,validatedAt:r.validated_at,validatorEmail:r.validator_email,
- metadata:parse(r.metadata_json,{}),fileUrl:`/api/trace/v1/admin/projects/${encodeURIComponent(projectId)}/evidence/${encodeURIComponent(r.id)}/file`,thumbnailUrl:r.thumbnail_r2_key?`/api/trace/v1/admin/projects/${encodeURIComponent(projectId)}/evidence/${encodeURIComponent(r.id)}/thumbnail`:null,
+ metadata,fileUrl:`/api/trace/v1/admin/projects/${encodeURIComponent(projectId)}/evidence/${encodeURIComponent(r.id)}/file`,thumbnailUrl:r.thumbnail_r2_key?`/api/trace/v1/admin/projects/${encodeURIComponent(projectId)}/evidence/${encodeURIComponent(r.id)}/thumbnail`:null,
  relatedIncident:r.related_incident_id?{id:r.related_incident_id,code:r.related_incident_code}:null
 }}
 async function evidenceRow(c,projectId,evidenceId,ownOnly=false){
@@ -76,7 +76,7 @@ async function detailEvidence(c,projectId,pc,evidenceId){
 }
 async function serveObject(c,env,projectId,pc,evidenceId,thumbnail=false){
  const r=await evidenceRow(c,projectId,evidenceId,pc.ownOnly);if(!r)return json({ok:false,error:'evidence_not_found'},404);const key=thumbnail?r.thumbnail_r2_key:r.r2_key;if(!key||!env.ASSETS)return json({ok:false,error:'evidence_file_not_found'},404);
- const obj=await env.ASSETS.get(key);if(!obj)return json({ok:false,error:'evidence_file_not_found'},404);const h=new Headers();obj.writeHttpMetadata(h);h.set('Cache-Control','private, max-age=300');h.set('Content-Disposition',`inline; filename="${(r.original_filename||'evidence').replace(/"/g,'')}"`);return new Response(obj.body,{headers:h});
+ const obj=await env.ASSETS.get(key);if(!obj)return json({ok:false,error:'evidence_file_not_found'},404);const h=new Headers();obj.writeHttpMetadata(h);for(const [k,v] of Object.entries(CORS))h.set(k,v);h.set('Cache-Control','private, max-age=300');h.set('Content-Disposition',`inline; filename="${(r.original_filename||'evidence').replace(/"/g,'')}"`);return new Response(obj.body,{headers:h});
 }
 async function uploadEvidence(request,c,env,projectId,pc){
  if(!env.ASSETS)return json({ok:false,error:'evidence_storage_unavailable'},503);let f;try{f=await request.formData()}catch{return json({ok:false,error:'invalid_multipart'},400)}
