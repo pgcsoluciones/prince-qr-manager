@@ -29,6 +29,6 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
-      - name: Build frontend
+      - name: Build Preview frontend
         working-directory: frontend
-        run: npm run build
+        run: npm run build:preview
