@@ -1,6 +1,6 @@
 import {useState} from "react";
 
-const NAV=[["summary","⌂","Resumen"],["activities","▤","Actividades"],["stages","◇","Etapas"],["incidents","△","Incidencias"],["evidence","▣","Evidencias"],["team","♙","Equipo"],["reports","▥","Reportes"]];
+const NAV=[["summary","⌂","Resumen"],["activities","▤","Actividades"],["stages","◇","Etapas"],["incidents","△","Incidencias"],["evidence","▣","Evidencias"],["approvals","✓","Aprobaciones"],["team","♙","Equipo"],["reports","▥","Reportes"]];
 export default function TraceProjectShell({view,onView,projects=[],projectId,onProjectChange,incidentCount=0,userLabel="Usuario",children}){
  const[menuOpen,setMenuOpen]=useState(false),active=projects.find(p=>p.id===projectId)||projects[0]||null;
  const choose=v=>{onView?.(v);setMenuOpen(false)};
