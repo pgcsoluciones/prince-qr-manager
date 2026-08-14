@@ -23,8 +23,10 @@ jobs:
       - name: Check Worker module syntax
         run: |
           cp src/trace-v1-project-approvals-api.js /tmp/trace-v1-project-approvals-api.mjs
+          cp src/trace-v1-evidence-library-api.js /tmp/trace-v1-evidence-library-api.mjs
           cp src/preview-command-entry.js /tmp/preview-command-entry.mjs
           node --check /tmp/trace-v1-project-approvals-api.mjs
+          node --check /tmp/trace-v1-evidence-library-api.mjs
           node --check /tmp/preview-command-entry.mjs
       - name: Install frontend dependencies
         working-directory: frontend
