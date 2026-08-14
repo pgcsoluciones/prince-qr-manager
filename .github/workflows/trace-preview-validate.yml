@@ -19,7 +19,7 @@ jobs:
             package-lock.json
             frontend/package-lock.json
       - name: Install Worker dependencies
-        run: npm ci
+        run: npm install
       - name: Check Worker module syntax
         run: |
           cp src/trace-v1-project-approvals-api.js /tmp/trace-v1-project-approvals-api.mjs
