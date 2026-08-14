@@ -1,7 +1,7 @@
 import {useEffect,useState} from "react";
 import {useAuth} from "../context/AuthContext.jsx";
 import TraceProjectShell from "../components/trace/TraceProjectShell.jsx";
-import TraceProjectActivityDashboard from "../components/trace/TraceProjectActivityDashboard.jsx";
+import TraceProjectSummaryDashboard from "../components/trace/TraceProjectSummaryDashboard.jsx";
 import TraceOperationsCanvas from "../components/trace/TraceOperationsCanvas.jsx";
 import TraceSupervisionBoard from "../components/trace/TraceSupervisionBoard.jsx";
 import TraceTeamDirectory from "../components/trace/TraceTeamDirectory.jsx";
@@ -15,20 +15,20 @@ async function req(path,options={}){const r=await fetch(`${BASE}${path}`,{...opt
 
 export default function TraceProjectCommandCenterPage(){
  const{user}=useAuth();
- const[view,setView]=useState("activities"),[projects,setProjects]=useState([]),[projectId,setProjectId]=useState(""),[dashboard,setDashboard]=useState(null),[period,setPeriod]=useState("week"),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
+ const[view,setView]=useState("summary"),[projects,setProjects]=useState([]),[projectId,setProjectId]=useState(""),[dashboard,setDashboard]=useState(null),[summary,setSummary]=useState(null),[period,setPeriod]=useState("week"),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
  const[activityOpen,setActivityOpen]=useState(false),[activityText,setActivityText]=useState(""),[activityType,setActivityType]=useState("progress.updated"),[selectedExecution,setSelectedExecution]=useState(""),[busy,setBusy]=useState(false),[selectedIncident,setSelectedIncident]=useState(null);
  async function loadWorkspace(){setLoading(true);setError("");try{const d=await req("/api/trace/v1/admin/workspace");const ps=d.data?.projects||[];setProjects(ps);setProjectId(id=>id||localStorage.getItem("trace_active_project")||ps[0]?.id||"")}catch(e){setError(e.message)}finally{setLoading(false)}}
- async function loadDashboard(id=projectId){if(!id){setDashboard(null);return}setLoading(true);setError("");try{const d=await req(`/api/trace/v1/admin/projects/${encodeURIComponent(id)}/dashboard?period=${period}`);setDashboard(d.data||null);const execs=d.data?.executions||[];setSelectedExecution(x=>execs.some(e=>e.id===x)?x:(execs[0]?.id||""))}catch(e){setError(e.message)}finally{setLoading(false)}}
+ async function loadProject(id=projectId){if(!id){setDashboard(null);setSummary(null);return}setLoading(true);setError("");try{const[d,s]=await Promise.all([req(`/api/trace/v1/admin/projects/${encodeURIComponent(id)}/dashboard?period=${period}`),req(`/api/trace/v1/admin/projects/${encodeURIComponent(id)}/summary`)]);setDashboard(d.data||null);setSummary(s.data||null);const execs=d.data?.executions||[];setSelectedExecution(x=>execs.some(e=>e.id===x)?x:(execs[0]?.id||""))}catch(e){setError(e.message)}finally{setLoading(false)}}
  useEffect(()=>{loadWorkspace()},[]);
- useEffect(()=>{if(projectId){localStorage.setItem("trace_active_project",projectId);loadDashboard(projectId)}},[projectId,period]);
- async function saveActivity(){if(!selectedExecution||!activityText.trim()){setError("Selecciona una actividad del proyecto y describe lo ocurrido.");return}setBusy(true);setError("");try{await req("/api/trace/v1/admin/activities",{method:"POST",body:JSON.stringify({executionId:selectedExecution,type:activityType,description:activityText.trim()})});setActivityOpen(false);setActivityText("");setMessage("Actividad registrada.");await loadDashboard()}catch(e){setError(e.message)}finally{setBusy(false)}}
- async function share(){const path=dashboard?.project?.publicPath;if(!path)return;const url=`${window.location.origin}${path}`;try{await navigator.clipboard.writeText(url);setMessage("Enlace de seguimiento copiado.")}catch{window.open(url,"_blank","noopener,noreferrer")}}
+ useEffect(()=>{if(projectId){localStorage.setItem("trace_active_project",projectId);loadProject(projectId)}},[projectId,period]);
+ async function saveActivity(){if(!selectedExecution||!activityText.trim()){setError("Selecciona una actividad del proyecto y describe lo ocurrido.");return}setBusy(true);setError("");try{await req("/api/trace/v1/admin/activities",{method:"POST",body:JSON.stringify({executionId:selectedExecution,type:activityType,description:activityText.trim()})});setActivityOpen(false);setActivityText("");setMessage("Actividad registrada.");await loadProject()}catch(e){setError(e.message)}finally{setBusy(false)}}
+ async function share(){const path=summary?.project?.publicPath||dashboard?.project?.publicPath;if(!path)return;const url=`${window.location.origin}${path}`;try{await navigator.clipboard.writeText(url);setMessage("Enlace de seguimiento copiado.")}catch{window.open(url,"_blank","noopener,noreferrer")}}
  const work=dashboard?.executions||[],incidents=dashboard?.incidents||[],approvals=dashboard?.approvals||[];
  function openRegister(){setSelectedExecution(selectedExecution||work[0]?.id||"");setActivityOpen(true)}
  function body(){
-  if(view==="activities")return <TraceProjectActivityDashboard data={dashboard} period={period} setPeriod={setPeriod} onRegister={openRegister} onShare={share} onOpenIncident={setSelectedIncident} onNavigate={setView}/>;
-  if(view==="summary")return <TraceProjectActivityDashboard data={dashboard} period={period} setPeriod={setPeriod} onRegister={openRegister} onShare={share} onOpenIncident={setSelectedIncident} onNavigate={setView}/>;
-  if(view==="stages")return <TraceOperationsCanvas operations={work} onOpen={()=>setView("activities")} onNewControl={openRegister}/>;
+  if(view==="summary")return <TraceProjectSummaryDashboard data={summary} period={period} setPeriod={setPeriod} onRegister={openRegister} onShare={share} onOpenIncident={setSelectedIncident} onNavigate={setView}/>;
+  if(view==="activities")return <div className="grid min-h-[62vh] place-items-center rounded-2xl border border-dashed border-slate-300 bg-white"><div className="max-w-lg text-center"><div className="text-xs font-black uppercase tracking-[.16em] text-blue-600">Actividades</div><h1 className="mt-2 text-3xl font-black">Gestión detallada de actividades</h1><p className="mt-3 text-sm leading-6 text-slate-500">Esta pantalla se diseñará por separado para listar, buscar, filtrar, asignar y gestionar actividades. El Resumen ya no reutiliza esta vista.</p></div></div>;
+  if(view==="stages")return <TraceOperationsCanvas operations={work} onOpen={()=>setView("summary")} onNewControl={openRegister}/>;
   if(view==="incidents")return <div className="space-y-4"><div><h1 className="text-3xl font-black">Incidencias</h1><p className="mt-1 text-sm text-slate-500">Situaciones del proyecto que requieren atención o decisión.</p></div><TraceSupervisionBoard incidents={incidents} approvals={approvals} onOpenIncident={setSelectedIncident}/></div>;
   if(view==="evidence")return <div className="rounded-2xl border border-slate-200 bg-white p-6"><h1 className="text-3xl font-black">Evidencias</h1><p className="mt-2 text-sm text-slate-500">Las evidencias aparecerán aquí conforme se registren actividades con fotografías o documentos.</p></div>;
   if(view==="team")return <TraceTeamDirectory/>;
@@ -37,11 +37,11 @@ export default function TraceProjectCommandCenterPage(){
   if(view==="help")return <div className="rounded-2xl border border-slate-200 bg-white p-6"><h1 className="text-3xl font-black">Ayuda</h1><p className="mt-2 text-sm text-slate-500">Ayuda contextual de KAWVO Trace.</p></div>;
   return null;
  }
- return <TraceProjectShell view={view} onView={setView} projects={projects} projectId={projectId} onProjectChange={setProjectId} incidentCount={Number(dashboard?.metrics?.openIncidents||0)} userLabel={user?.email||"Usuario"}>
+ return <TraceProjectShell view={view} onView={setView} projects={projects} projectId={projectId} onProjectChange={setProjectId} incidentCount={Number(summary?.metrics?.openIncidents||dashboard?.metrics?.openIncidents||0)} userLabel={user?.email||"Usuario"}>
   {loading&&<div className="fixed left-[264px] right-0 top-0 z-50 h-1 bg-blue-100"><div className="h-full w-1/3 animate-pulse bg-blue-600"/></div>}
   {error&&<div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
   {message&&<div className="mb-4 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700"><span>{message}</span><button onClick={()=>setMessage("")}>×</button></div>}
-  {!projectId&&!loading?<div className="grid min-h-[65vh] place-items-center"><div className="text-center"><h1 className="text-3xl font-black">Agrega tu primer proyecto</h1><p className="mt-2 text-sm text-slate-500">Cuando exista un proyecto activo, su actividad aparecerá aquí.</p></div></div>:body()}
+  {!projectId&&!loading?<div className="grid min-h-[65vh] place-items-center"><div className="text-center"><h1 className="text-3xl font-black">Agrega tu primer proyecto</h1><p className="mt-2 text-sm text-slate-500">Cuando exista un proyecto activo, su resumen aparecerá aquí.</p></div></div>:body()}
   <TraceActivityModal open={activityOpen} work={work} executionId={selectedExecution} setExecutionId={setSelectedExecution} type={activityType} setType={setActivityType} description={activityText} setDescription={setActivityText} busy={busy} onClose={()=>setActivityOpen(false)} onSave={saveActivity}/>
   <TraceIncidentDrawer incident={selectedIncident} onClose={()=>setSelectedIncident(null)}/>
  </TraceProjectShell>
