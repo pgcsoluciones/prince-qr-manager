@@ -16,9 +16,12 @@ import { handleTraceV1ProjectEvidenceApi } from "./trace-v1-project-evidence-api
 import { handleTraceV1OperationalEvidenceRequirementApi } from "./trace-v1-operational-evidence-requirement-api.js";
 import { handleTraceV1OnboardingExecutionApi } from "./trace-v1-onboarding-execution-api.js";
 import { handleTraceV1StagesOverviewApi } from "./trace-v1-stages-overview-api.js";
+import { handleTraceV1ProjectApprovalsApi } from "./trace-v1-project-approvals-api.js";
 
 export default {
   async fetch(request, env, ctx) {
+    const approvalsResponse = await handleTraceV1ProjectApprovalsApi(request, env);
+    if (approvalsResponse) return approvalsResponse;
     const operationalEvidenceResponse = await handleTraceV1OperationalEvidenceRequirementApi(request, env);
     if (operationalEvidenceResponse) return operationalEvidenceResponse;
     const projectEvidenceResponse = await handleTraceV1ProjectEvidenceApi(request, env);
