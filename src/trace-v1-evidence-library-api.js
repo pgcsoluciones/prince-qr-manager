@@ -88,9 +88,13 @@ async function serve(c,env,projectId,itemId,thumbnail=false){
 }
 
 export async function handleTraceV1EvidenceLibraryApi(request,env){
- const u=new URL(request.url),m=u.pathname.match(/^\/api\/trace\/v1\/admin\/projects\/([^/]+)\/evidence-library(?:\/([^/]+))?(?:\/(context|links|file|thumbnail))?$/);if(!m)return null;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:CORS});
- const c=await context(request,env);if(!c)return json({ok:false,error:'unauthorized'},401);const projectId=decodeURIComponent(m[1]),itemId=m[2]?decodeURIComponent(m[2]):null,action=m[3]||null;
- if(!itemId&&action==='context'&&request.method==='GET')return contextOptions(c,projectId);
+ const u=new URL(request.url);
+ const contextMatch=u.pathname.match(/^\/api\/trace\/v1\/admin\/projects\/([^/]+)\/evidence-library\/context$/);
+ const mainMatch=u.pathname.match(/^\/api\/trace\/v1\/admin\/projects\/([^/]+)\/evidence-library(?:\/([^/]+)(?:\/(links|file|thumbnail))?)?$/);
+ if(!contextMatch&&!mainMatch)return null;if(request.method==='OPTIONS')return new Response(null,{status:204,headers:CORS});
+ const c=await context(request,env);if(!c)return json({ok:false,error:'unauthorized'},401);
+ if(contextMatch){if(request.method!=='GET')return json({ok:false,error:'method_not_allowed'},405);return contextOptions(c,decodeURIComponent(contextMatch[1]))}
+ const projectId=decodeURIComponent(mainMatch[1]),itemId=mainMatch[2]?decodeURIComponent(mainMatch[2]):null,action=mainMatch[3]||null;
  if(!itemId&&!action&&request.method==='GET')return list(c,projectId);
  if(!itemId&&!action&&request.method==='POST')return upload(request,c,env,projectId);
  if(itemId&&action==='links'&&request.method==='POST')return link(request,c,projectId,itemId);
