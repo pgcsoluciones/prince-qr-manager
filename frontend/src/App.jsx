@@ -17,7 +17,7 @@ import OnboardingPage from "./pages/OnboardingPage.jsx";
 import TracePage from "./pages/TracePage.jsx";
 import TraceOperationalPage from "./pages/TraceOperationalPage.jsx";
 import TraceAdminPage from "./pages/TraceAdminPage.jsx";
-import TraceCommandCenterPage from "./pages/TraceCommandCenterPage.jsx";
+import TraceProjectCommandCenterPage from "./pages/TraceProjectCommandCenterPage.jsx";
 import TraceOnboardingPage from "./pages/TraceOnboardingPage.jsx";
 import TraceCompanySetupPage from "./pages/TraceCompanySetupPage.jsx";
 import TraceTeamSetupPage from "./pages/TraceTeamSetupPage.jsx";
@@ -60,7 +60,7 @@ function TracePreviewEntry() {
   if (!user) return <Navigate to="/login" replace />;
   const done = localStorage.getItem("trace_onboarding_done_" + user.id) || localStorage.getItem("trace_onboarding_done");
   if (!done) return <Navigate to="/trace/setup" replace />;
-  return <TraceCommandCenterPage />;
+  return <TraceProjectCommandCenterPage />;
 }
 
 function OnboardingGate({ children }) {
