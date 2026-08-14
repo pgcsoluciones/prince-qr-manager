@@ -5,7 +5,7 @@ import TraceProjectSummaryDashboard from "../components/trace/TraceProjectSummar
 import TraceProjectTimeline from "../components/trace/TraceProjectTimeline.jsx";
 import TraceTimelineEventDrawer from "../components/trace/TraceTimelineEventDrawer.jsx";
 import TraceStagesPage from "../components/trace/TraceStagesPage.jsx";
-import TraceSupervisionBoard from "../components/trace/TraceSupervisionBoard.jsx";
+import TraceIncidentsPage from "../components/trace/TraceIncidentsPage.jsx";
 import TraceTeamDirectory from "../components/trace/TraceTeamDirectory.jsx";
 import TraceReportsCanvas from "../components/trace/TraceReportsCanvas.jsx";
 import TraceActivityModal from "../components/trace/TraceActivityModal.jsx";
@@ -26,7 +26,7 @@ export default function TraceProjectCommandCenterPage(){
  async function saveActivity(){if(!selectedExecution||!activityText.trim()){setError("Selecciona una actividad del proyecto y describe lo ocurrido.");return}setBusy(true);setError("");try{await req("/api/trace/v1/admin/activities",{method:"POST",body:JSON.stringify({executionId:selectedExecution,executionStageId:activityStageId||undefined,executionActivityId:activityExecutionActivityId||undefined,type:activityType,description:activityText.trim()})});setActivityOpen(false);setActivityText("");setActivityStageId("");setActivityExecutionActivityId("");setMessage("Registro añadido a la bitácora.");setTimelineRefresh(x=>x+1);await loadProject()}catch(e){setError(e.message)}finally{setBusy(false)}}
  async function decideApproval(decision,event,notes){const approvalId=event?.payload?.approvalId;if(!approvalId||!projectId)return;setApprovalBusy(true);setError("");try{await req(`/api/trace/v1/admin/projects/${encodeURIComponent(projectId)}/approvals/${encodeURIComponent(approvalId)}/${decision}`,{method:"POST",body:JSON.stringify({notes:notes||null})});setSelectedTimelineEvent(null);setMessage(decision==="approve"?"Aprobación registrada.":decision==="correction"?"Corrección solicitada.":"Aprobación rechazada.");setTimelineRefresh(x=>x+1);await loadProject()}catch(e){setError(e.message)}finally{setApprovalBusy(false)}}
  async function share(){const path=summary?.project?.publicPath||dashboard?.project?.publicPath;if(!path)return;const url=`${window.location.origin}${path}`;try{await navigator.clipboard.writeText(url);setMessage("Enlace de seguimiento copiado.")}catch{window.open(url,"_blank","noopener,noreferrer")}}
- const work=dashboard?.executions||[],incidents=dashboard?.incidents||[],approvals=dashboard?.approvals||[];
+ const work=dashboard?.executions||[];
  function openRegister(type="progress.updated",event=null){if(event?.execution_id)setSelectedExecution(event.execution_id);else setSelectedExecution(selectedExecution||work[0]?.id||"");setActivityStageId(event?.execution_stage_id||"");setActivityExecutionActivityId(event?.execution_activity_id||"");setActivityType(type);setActivityText(type==="comment.added"?"Comentario: ":type==="correction.responded"?"Respuesta a corrección: ":"");setActivityOpen(true)}
  function openStageRegister(stage){setSelectedExecution(selectedExecution||work[0]?.id||"");setActivityStageId(stage?.id||"");setActivityExecutionActivityId("");setActivityType("progress.updated");setActivityText(stage?.name?`${stage.name}: `:"");setActivityOpen(true)}
  function contextAction(action,event){if(action==="comment")openRegister("comment.added",event);else if(action==="evidence"){setSelectedTimelineEvent(null);setView("evidence");setMessage("Abriendo Evidencias en el contexto del proyecto.")}else if(action==="correction")openRegister("correction.responded",event)}
@@ -35,7 +35,7 @@ export default function TraceProjectCommandCenterPage(){
   if(view==="summary")return <TraceProjectSummaryDashboard data={summary} period={period} setPeriod={setPeriod} onRegister={()=>openRegister()} onShare={share} onOpenIncident={setSelectedIncident} onNavigate={setView}/>;
   if(view==="activities")return <TraceProjectTimeline key={`${projectId}:${timelineRefresh}`} projectId={projectId} onRegister={()=>openRegister()} onOpenEvent={setSelectedTimelineEvent} onReviewApproval={reviewApproval}/>;
   if(view==="stages")return <TraceStagesPage executionId={selectedExecution} onRegister={openStageRegister} onOpenIncident={setSelectedIncident} onNavigate={(target)=>setView(target)}/>;
-  if(view==="incidents")return <div className="space-y-4"><div><h1 className="text-3xl font-black">Incidencias</h1><p className="mt-1 text-sm text-slate-500">Situaciones del proyecto que requieren atención o decisión.</p></div><TraceSupervisionBoard incidents={incidents} approvals={approvals} onOpenIncident={setSelectedIncident}/></div>;
+  if(view==="incidents")return <TraceIncidentsPage projectId={projectId} executions={work}/>;
   if(view==="evidence")return <div className="rounded-2xl border border-slate-200 bg-white p-6"><h1 className="text-3xl font-black">Evidencias</h1><p className="mt-2 text-sm text-slate-500">Las evidencias aparecerán aquí conforme se registren actividades con fotografías o documentos.</p></div>;
   if(view==="team")return <TraceTeamDirectory/>;
   if(view==="reports")return <TraceReportsCanvas operations={work}/>;
@@ -44,7 +44,7 @@ export default function TraceProjectCommandCenterPage(){
   return null;
  }
  return <TraceProjectShell view={view} onView={setView} projects={projects} projectId={projectId} onProjectChange={setProjectId} incidentCount={Number(summary?.metrics?.openIncidents||dashboard?.metrics?.openIncidents||0)} userLabel={user?.email||"Usuario"}>
-  {loading&&<div className="fixed left-[264px] right-0 top-0 z-50 h-1 bg-blue-100"><div className="h-full w-1/3 animate-pulse bg-blue-600"/></div>}
+  {loading&&<div className="fixed left-0 right-0 top-0 z-50 h-1 bg-blue-100 md:left-[264px]"><div className="h-full w-1/3 animate-pulse bg-blue-600"/></div>}
   {error&&<div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
   {message&&<div className="mb-4 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700"><span>{message}</span><button onClick={()=>setMessage("")}>×</button></div>}
   {!projectId&&!loading?<div className="grid min-h-[65vh] place-items-center"><div className="text-center"><h1 className="text-3xl font-black">Agrega tu primer proyecto</h1><p className="mt-2 text-sm text-slate-500">Cuando exista un proyecto activo, su resumen aparecerá aquí.</p></div></div>:body()}
