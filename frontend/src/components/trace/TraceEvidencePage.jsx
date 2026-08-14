@@ -125,72 +125,159 @@ export default function TraceEvidencePage({projectId,executions=[],onNavigate}){
  </div>
 }
 function Detail({projectId,data,evidence,showHistory,setShowHistory,onClose,onValidate,onActivity}){
+ const[galleryOpen,setGalleryOpen]=useState(false);
  const canValidate=data?.viewer?.canValidate&&evidence.status==="pending";
- return <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm xl:sticky xl:top-5">
-  <div className="flex items-start justify-between gap-4">
-   <div className="min-w-0">
-    <div className="text-[11px] font-black uppercase tracking-[.12em] text-blue-600">{evidence.code}</div>
-    <h2 className="mt-2 break-words text-xl font-black leading-tight text-slate-950">{evidence.title}</h2>
-    <div className="mt-3 flex flex-wrap gap-2">
-     <span className={`inline-flex rounded-lg px-2.5 py-1 text-[9px] font-black ${tone(evidence.status)}`}>{statusLabel(evidence.status)}</span>
-     <span className="inline-flex rounded-lg bg-slate-100 px-2.5 py-1 text-[9px] font-black text-slate-600">{typeLabel(evidence.type)}</span>
+
+ return <>
+  <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm xl:sticky xl:top-5">
+   <div className="flex items-start justify-between gap-4">
+    <div className="min-w-0 flex-1">
+     <div className="text-[11px] font-black uppercase tracking-[.12em] text-blue-600">{evidence.code}</div>
+     <h2
+      title={evidence.title}
+      className="mt-2 overflow-hidden text-xl font-black leading-tight text-slate-950 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]"
+     >
+      {evidence.title}
+     </h2>
+     <div className="mt-3 flex flex-wrap gap-2">
+      <span className={`inline-flex rounded-lg px-2.5 py-1 text-[9px] font-black ${tone(evidence.status)}`}>{statusLabel(evidence.status)}</span>
+      <span className="inline-flex rounded-lg bg-slate-100 px-2.5 py-1 text-[9px] font-black text-slate-600">{typeLabel(evidence.type)}</span>
+     </div>
     </div>
+    <button onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200">×</button>
    </div>
-   <button onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200">×</button>
-  </div>
 
-  <div className="mt-5">
-   <EvidenceViewer projectId={projectId} evidence={evidence}/>
-  </div>
-
-  {evidence.metadata?.notes&&<Block title="Nota de carga">
-   <p className="whitespace-pre-wrap text-xs leading-5 text-slate-600">{evidence.metadata.notes}</p>
-  </Block>}
-
-  <div className="mt-5 grid grid-cols-2 gap-x-5 gap-y-4 border-y border-slate-100 py-5">
-   <Info label="Etapa" value={evidence.stageName||"Proyecto"}/>
-   <Info label="Actividad" value={evidence.activityTitle||"Sin actividad"}/>
-   <Info label="Subida por" value={evidence.uploaderEmail||"—"}/>
-   <Info label="Fecha" value={date(evidence.createdAt)}/>
-   <Info label="Archivo original" value={evidence.originalFilename||"—"}/>
-   <Info label="ID único" value={evidence.code}/>
-  </div>
-
-  <Block title="Integridad">
-   <div className="rounded-xl bg-slate-50 p-3">
-    <div className="text-[9px] font-black uppercase tracking-[.12em] text-slate-400">Checksum SHA-256</div>
-    <div className="mt-1 break-all font-mono text-[10px] leading-4 text-slate-600">{evidence.checksum||"—"}</div>
+   <div className="mt-5">
+    <EvidenceViewer evidence={evidence} compact onOpen={()=>setGalleryOpen(true)}/>
    </div>
-  </Block>
 
-  {evidence.observation&&<Block title="Observación">
-   <p className="text-xs leading-5 text-slate-600">{evidence.observation}</p>
-  </Block>}
+   {evidence.metadata?.notes&&<Block title="Nota de carga">
+    <p
+     title={evidence.metadata.notes}
+     className="overflow-hidden whitespace-pre-wrap text-xs leading-5 text-slate-600 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:4]"
+    >
+     {evidence.metadata.notes}
+    </p>
+    {String(evidence.metadata.notes).length>220&&
+     <button onClick={()=>setGalleryOpen(true)} className="mt-2 text-[11px] font-black text-blue-600">Ver más</button>}
+   </Block>}
 
-  {evidence.requirementLabel&&<Block title="Requisito">
-   <p className="text-xs font-semibold text-slate-700">{evidence.requirementLabel}</p>
-   <p className="mt-1 text-[10px] text-slate-400">Requeridas: {evidence.requiredCount}</p>
-  </Block>}
-
-  {evidence.relatedIncident&&<Block title="Relación">
-   <span className="text-xs font-black text-blue-600">Relacionada con {evidence.relatedIncident.code}</span>
-  </Block>}
-
-  <Block title="Validación">
-   <div className={`rounded-xl p-4 ${tone(evidence.status)}`}>
-    <div className="text-xs font-black">{statusLabel(evidence.status)}</div>
-    <p className="mt-1 text-[11px] opacity-75">{evidence.status==="pending"?"La evidencia está en espera de revisión.":evidence.observation||`Validada ${evidence.validatedAt?date(evidence.validatedAt):""}`}</p>
+   <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5 border-y border-slate-100 py-5">
+    <DetailInfo label="Etapa" value={evidence.stageName||"Proyecto"}/>
+    <DetailInfo label="Actividad" value={evidence.activityTitle||"Sin actividad"}/>
+    <DetailInfo label="Subida por" value={evidence.uploaderEmail||"—"} single/>
+    <DetailInfo label="Fecha" value={date(evidence.createdAt)} single/>
+    <div className="col-span-2">
+     <DetailInfo label="Archivo original" value={evidence.originalFilename||"—"} lines={2}/>
+    </div>
+    <DetailInfo label="ID único" value={evidence.code} single/>
+    <DetailInfo label="Tipo" value={typeLabel(evidence.type)} single/>
    </div>
-  </Block>
 
-  {showHistory&&<Block title="Historial">{(data?.history||[]).map(h=><div key={h.id} className="border-t border-slate-100 py-3 first:border-0"><div className="text-[10px] font-black">{statusLabel(h.decision)}</div><div className="mt-1 text-[10px] text-slate-500">{h.notes||"Sin observación"}</div><div className="mt-1 text-[9px] text-slate-400">{date(h.decided_at)}{h.decided_by_email?` · ${h.decided_by_email}`:""}</div></div>)}</Block>}
+   <Block title="Integridad">
+    <div className="rounded-xl bg-slate-50 p-3">
+     <div className="text-[9px] font-black uppercase tracking-[.12em] text-slate-400">Checksum SHA-256</div>
+     <div
+      title={evidence.checksum||"—"}
+      className="mt-1 truncate font-mono text-[10px] leading-4 text-slate-600"
+     >
+      {evidence.checksum||"—"}
+     </div>
+    </div>
+   </Block>
 
-  <div className="mt-5 grid grid-cols-2 gap-2">
-   <button onClick={()=>setShowHistory(v=>!v)} className="rounded-xl border border-blue-200 px-4 py-3 text-xs font-black text-blue-600">{showHistory?"Ocultar historial":"Ver historial"}</button>
-   <button onClick={canValidate?onValidate:onActivity} className="rounded-xl bg-blue-600 px-4 py-3 text-xs font-black text-white">{canValidate?"Validar evidencia":"Ver actividad"}</button>
-  </div>
- </section>
+   {evidence.observation&&<Block title="Observación">
+    <p
+     title={evidence.observation}
+     className="overflow-hidden text-xs leading-5 text-slate-600 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:4]"
+    >
+     {evidence.observation}
+    </p>
+   </Block>}
+
+   {evidence.requirementLabel&&<Block title="Requisito">
+    <p
+     title={evidence.requirementLabel}
+     className="overflow-hidden text-xs font-semibold text-slate-700 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]"
+    >
+     {evidence.requirementLabel}
+    </p>
+    <p className="mt-1 text-[10px] text-slate-400">Requeridas: {evidence.requiredCount}</p>
+   </Block>}
+
+   {evidence.relatedIncident&&<Block title="Relación">
+    <span className="text-xs font-black text-blue-600">Relacionada con {evidence.relatedIncident.code}</span>
+   </Block>}
+
+   <Block title="Validación">
+    <div className={`rounded-xl p-4 ${tone(evidence.status)}`}>
+     <div className="text-xs font-black">{statusLabel(evidence.status)}</div>
+     <p className="mt-1 overflow-hidden text-[11px] opacity-75 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]">
+      {evidence.status==="pending"?"La evidencia está en espera de revisión.":evidence.observation||`Validada ${evidence.validatedAt?date(evidence.validatedAt):""}`}
+     </p>
+    </div>
+   </Block>
+
+   {showHistory&&<Block title="Historial">
+    {(data?.history||[]).map(h=><div key={h.id} className="border-t border-slate-100 py-3 first:border-0">
+     <div className="text-[10px] font-black">{statusLabel(h.decision)}</div>
+     <div className="mt-1 overflow-hidden text-[10px] text-slate-500 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]">{h.notes||"Sin observación"}</div>
+     <div className="mt-1 truncate text-[9px] text-slate-400">{date(h.decided_at)}{h.decided_by_email?` · ${h.decided_by_email}`:""}</div>
+    </div>)}
+   </Block>}
+
+   <div className="mt-5 grid grid-cols-2 gap-2">
+    <button onClick={()=>setShowHistory(v=>!v)} className="rounded-xl border border-blue-200 px-4 py-3 text-xs font-black text-blue-600">{showHistory?"Ocultar historial":"Ver historial"}</button>
+    <button onClick={canValidate?onValidate:onActivity} className="rounded-xl bg-blue-600 px-4 py-3 text-xs font-black text-white">{canValidate?"Validar evidencia":"Ver actividad"}</button>
+   </div>
+  </section>
+
+  {galleryOpen&&
+   <EvidenceGallery
+    evidence={evidence}
+    onClose={()=>setGalleryOpen(false)}
+   />}
+ </>
 }
+
+function DetailInfo({label,value,single=false,lines=1}){
+ const clamp=single||lines===1
+  ?"truncate"
+  :lines===2
+   ?"[display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden"
+   :"";
+ return <div className="min-w-0">
+  <div className="text-[9px] font-black uppercase tracking-[.12em] text-slate-400">{label}</div>
+  <div title={value||"—"} className={`mt-1 min-h-[18px] text-xs font-semibold leading-[18px] text-slate-700 ${clamp}`}>{value||"—"}</div>
+ </div>
+}
+
+function EvidenceGallery({evidence,onClose}){
+ return <div
+  className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-950/80 p-3 sm:p-6"
+  onMouseDown={e=>e.target===e.currentTarget&&onClose()}
+ >
+  <div className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+   <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
+    <div className="min-w-0">
+     <div className="text-[10px] font-black uppercase tracking-[.12em] text-blue-600">{evidence.code}</div>
+     <div title={evidence.title} className="mt-1 truncate text-sm font-black text-slate-900">{evidence.title}</div>
+    </div>
+    <button onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 text-xl">×</button>
+   </div>
+
+   <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-3 sm:p-5">
+    <EvidenceViewer evidence={evidence}/>
+   </div>
+
+   <div className="flex items-center justify-between gap-4 border-t border-slate-200 px-5 py-3 text-[10px] text-slate-500 sm:px-6">
+    <span className="min-w-0 truncate">{evidence.originalFilename||"Evidencia"}</span>
+    <span className="shrink-0 font-black text-slate-700">{evidence.code}</span>
+   </div>
+  </div>
+ </div>
+}
+
 function UploadFilePreview({file,onRemove}){
  const[src,setSrc]=useState("");
  useEffect(()=>{let url="";if(file?.type?.startsWith("image/")){url=URL.createObjectURL(file);setSrc(url)}else setSrc("");return()=>{if(url)URL.revokeObjectURL(url)}},[file]);
@@ -212,7 +299,7 @@ function UploadFilePreview({file,onRemove}){
 }
 
 function EvidenceThumb({projectId,item}){const[src,setSrc]=useState("");useEffect(()=>{let url="",cancel=false;if(item.type!=="photo")return;const path=item.thumbnailUrl||item.fileUrl;fetch(`${BASE}${path}`,{headers:auth()}).then(r=>r.ok?r.blob():null).then(b=>{if(b&&!cancel){url=URL.createObjectURL(b);setSrc(url)}}).catch(()=>{});return()=>{cancel=true;if(url)URL.revokeObjectURL(url)}},[projectId,item.id,item.thumbnailUrl,item.fileUrl,item.type]);return <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 text-[10px] font-black text-slate-400">{src?<img src={src} alt="" className="h-full w-full object-cover"/>:typeLabel(item.type)}</div>}
-function EvidenceViewer({evidence}){
+function EvidenceViewer({evidence,compact=false,onOpen}){
  const[src,setSrc]=useState(""),[docHtml,setDocHtml]=useState(""),[viewerError,setViewerError]=useState("");
  const mime=String(evidence.mimeType||"").toLowerCase(),name=String(evidence.originalFilename||"").toLowerCase();
  const isPdf=mime==="application/pdf"||name.endsWith(".pdf");
@@ -244,27 +331,61 @@ function EvidenceViewer({evidence}){
  },[evidence.id,evidence.fileUrl,isDocx]);
 
  const watermark=<div className="pointer-events-none absolute left-3 top-3 z-10 rounded-lg bg-slate-950/70 px-3 py-2 text-[9px] font-black tracking-wide text-white shadow">KAWVO TRACE · {evidence.code}</div>;
+ const openLayer=compact&&onOpen?<button
+  type="button"
+  onClick={onOpen}
+  aria-label="Ampliar evidencia"
+  className="absolute inset-0 z-20 flex items-end justify-end bg-transparent p-3"
+ >
+  <span className="rounded-xl bg-white/95 px-3 py-2 text-[10px] font-black text-blue-600 shadow-lg">Ampliar ↗</span>
+ </button>:null;
 
  if(viewerError)return <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-xs font-semibold text-red-700">{viewerError}</div>;
 
- if(evidence.type==="photo")return <div className="relative overflow-hidden rounded-2xl bg-slate-100">{watermark}{src?<img src={src} alt={evidence.title} className="max-h-[520px] w-full object-contain"/>:<Placeholder/>}</div>;
-
- if(evidence.type==="video")return <div className="relative">{watermark}{src?<video controls src={src} className="w-full rounded-2xl"/>:<Placeholder/>}</div>;
-
- if(evidence.type==="audio")return src?<audio controls src={src} className="w-full"/>:<Placeholder/>;
-
- if(isPdf)return <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">{watermark}{src?<iframe title={evidence.title} src={src} className="h-[560px] w-full bg-white"/>:<Placeholder/>}</div>;
-
- if(isDocx)return <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white">{watermark}{docHtml?<div className="max-h-[560px] overflow-y-auto p-8 pt-14 text-sm leading-6 text-slate-800 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-black [&_h2]:mb-3 [&_h2]:mt-5 [&_h2]:text-xl [&_h2]:font-black [&_p]:mb-3 [&_table]:w-full [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2" dangerouslySetInnerHTML={{__html:docHtml}}/>:<Placeholder/>}</div>;
-
- return <div className="relative rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+ if(evidence.type==="photo")return <div className={`relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 ${compact?"h-48":"min-h-[420px]"}`}>
   {watermark}
-  <div className="pt-7 text-xs font-black text-slate-700">{evidence.originalFilename||typeLabel(evidence.type)}</div>
-  <a href={src||undefined} download={evidence.originalFilename||"evidencia"} className="mt-3 inline-flex rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white">Abrir archivo</a>
-  <p className="mt-3 text-[10px] text-slate-400">Este formato todavía no dispone de vista previa interna.</p>
+  {src?<img src={src} alt={evidence.title} className={`${compact?"h-full":"max-h-[76vh]"} w-full object-contain`}/>:<Placeholder compact={compact}/>}
+  {openLayer}
+ </div>;
+
+ if(evidence.type==="video")return <div className={`relative overflow-hidden rounded-2xl bg-slate-950 ${compact?"h-48":""}`}>
+  {watermark}
+  {src?<video controls={!compact} src={src} className={`${compact?"h-full":"max-h-[76vh]"} w-full object-contain`}/>:<Placeholder compact={compact}/>}
+  {openLayer}
+ </div>;
+
+ if(evidence.type==="audio")return <div className="relative rounded-2xl border border-slate-200 bg-slate-50 p-5">
+  {src?<audio controls src={src} className="w-full"/>:<Placeholder compact/>}
+ </div>;
+
+ if(isPdf)return <div className={`relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 ${compact?"h-48":"h-[78vh]"}`}>
+  {watermark}
+  {src?<iframe title={evidence.title} src={src} className="h-full w-full bg-white"/>:<Placeholder compact={compact}/>}
+  {openLayer}
+ </div>;
+
+ if(isDocx)return <div className={`relative overflow-hidden rounded-2xl border border-slate-200 bg-white ${compact?"h-48":"max-h-[78vh]"}`}>
+  {watermark}
+  {docHtml?<div
+   className={`${compact?"h-full overflow-hidden p-5 pt-14":"max-h-[78vh] overflow-y-auto p-8 pt-14"} text-sm leading-6 text-slate-800 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-black [&_h2]:mb-3 [&_h2]:mt-5 [&_h2]:text-xl [&_h2]:font-black [&_p]:mb-3 [&_table]:w-full [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2`}
+   dangerouslySetInnerHTML={{__html:docHtml}}
+  />:<Placeholder compact={compact}/>}
+  {openLayer}
+ </div>;
+
+ return <div className={`relative rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center ${compact?"h-48":""}`}>
+  {watermark}
+  <div className="flex h-full flex-col items-center justify-center pt-7">
+   <div title={evidence.originalFilename} className="max-w-full truncate text-xs font-black text-slate-700">{evidence.originalFilename||typeLabel(evidence.type)}</div>
+   {!compact&&<a href={src||undefined} download={evidence.originalFilename||"evidencia"} className="mt-3 inline-flex rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white">Abrir archivo</a>}
+   <p className="mt-3 text-[10px] text-slate-400">Vista previa no disponible para este formato.</p>
+  </div>
+  {openLayer}
  </div>
 }
-function Placeholder(){return <div className="grid h-40 place-items-center rounded-2xl bg-slate-50 text-xs text-slate-400">Cargando archivo…</div>}
+
+function Placeholder({compact=false}){return <div className={`grid place-items-center rounded-2xl bg-slate-50 text-xs text-slate-400 ${compact?"h-full":"h-40"}`}>Cargando archivo…</div>}
+
 function Metric({label,value,tone:t="violet",active,onClick}){const cls=t==="green"?"bg-emerald-50 text-emerald-600":t==="amber"?"bg-amber-50 text-amber-600":t==="red"?"bg-red-50 text-red-600":"bg-violet-50 text-violet-600";return <button onClick={onClick} className={`rounded-2xl border bg-white p-4 text-left ${active?"border-blue-500 ring-1 ring-blue-500":"border-slate-200"}`}><div className="flex items-center gap-3"><span className={`grid h-11 w-11 place-items-center rounded-xl ${cls}`}>○</span><div><div className="text-xs text-slate-500">{label}</div><div className="mt-1 text-2xl font-black">{value}</div></div></div></button>}
 function Modal({title,subtitle,onClose,children,wide=false}){return <div className="fixed inset-0 z-[120] grid place-items-end bg-slate-950/40 sm:place-items-center sm:p-6" onMouseDown={e=>e.target===e.currentTarget&&onClose()}><div className={`max-h-[94vh] w-full overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl sm:p-8 ${wide?"max-w-3xl":"max-w-xl"}`}><div className="mb-7 flex items-start justify-between gap-4"><div><h2 className="text-2xl font-black tracking-[-.02em]">{title}</h2>{subtitle&&<p className="mt-1 text-sm leading-5 text-slate-500">{subtitle}</p>}</div><button onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200">×</button></div><div className="space-y-6">{children}</div></div></div>}
 function Field({label,help,children}){return <div className="block"><div className="text-xs font-black text-slate-700">{label}</div>{help&&<p className="mt-1 text-[11px] font-normal leading-4 text-slate-400">{help}</p>}<div className="mt-3">{children}</div></div>}
