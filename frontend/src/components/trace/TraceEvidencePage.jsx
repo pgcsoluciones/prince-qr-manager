@@ -17,8 +17,8 @@ export default function TraceEvidencePage({projectId,executions=[],onNavigate}){
  useEffect(()=>{load()},[projectId,stage,type,status,sort]);useEffect(()=>{setShowHistory(false);loadDetail(selected)},[selected]);useEffect(()=>{loadStages(upload.executionId)},[upload.executionId]);
  const evidence=detail?.evidence||data.items?.find(x=>x.id===selected)||null,chosenStage=(stageOverview?.stages||[]).find(s=>s.id===upload.executionStageId),activities=chosenStage?.activities||[],chosenActivity=activities.find(a=>a.id===upload.executionActivityId),requirements=chosenActivity?.evidence_requirements||[];
  const stageSelected=Boolean(upload.executionStageId),activitiesAvailable=activities.length>0,activityWithoutResponsible=Boolean(chosenActivity&&!chosenActivity.assigned_to&&!chosenActivity.assigned_email);
- const uploadReady=Boolean(upload.executionActivityId&&upload.file);
- async function saveUpload(){if(!upload.executionActivityId||!upload.file)return setError("Selecciona la actividad y el archivo de evidencia.");setBusy(true);setError("");try{const prepared=await prepareTraceAttachment(upload.file),fd=new FormData();fd.set("executionActivityId",upload.executionActivityId);if(upload.requirementId)fd.set("requirementId",upload.requirementId);fd.set("file",prepared.file);if(prepared.thumbnail)fd.set("thumbnail",prepared.thumbnail);fd.set("metadata",JSON.stringify(prepared.metadata||{}));const d=await api(`/api/trace/v1/admin/projects/${encodeURIComponent(projectId)}/evidence`,{method:"POST",body:fd});setUploadOpen(false);setUpload({executionId:"",executionStageId:"",executionActivityId:"",requirementId:"",file:null});await load();setSelected(d.data?.id||"")}catch(e){setError(e.message)}finally{setBusy(false)}}
+ const uploadReady=Boolean(upload.executionId&&upload.executionStageId&&upload.file);
+ async function saveUpload(){if(!upload.executionId||!upload.executionStageId||!upload.file)return setError("Selecciona el trabajo, la etapa y el archivo de evidencia.");setBusy(true);setError("");try{const prepared=await prepareTraceAttachment(upload.file),fd=new FormData();fd.set("executionId",upload.executionId);fd.set("executionStageId",upload.executionStageId);if(upload.executionActivityId)fd.set("executionActivityId",upload.executionActivityId);if(upload.requirementId)fd.set("requirementId",upload.requirementId);fd.set("file",prepared.file);if(prepared.thumbnail)fd.set("thumbnail",prepared.thumbnail);fd.set("metadata",JSON.stringify(prepared.metadata||{}));const d=await api(`/api/trace/v1/admin/projects/${encodeURIComponent(projectId)}/evidence`,{method:"POST",body:fd});setUploadOpen(false);setUpload({executionId:"",executionStageId:"",executionActivityId:"",requirementId:"",file:null});await load();setSelected(d.data?.id||"")}catch(e){setError(e.message)}finally{setBusy(false)}}
  async function saveDecision(){if(!evidence)return;setBusy(true);setError("");try{await api(`/api/trace/v1/admin/projects/${encodeURIComponent(projectId)}/evidence/${encodeURIComponent(evidence.id)}/validate`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(decision)});setValidateOpen(false);setDecision({decision:"approved",notes:""});await load();await loadDetail(evidence.id)}catch(e){setError(e.message)}finally{setBusy(false)}}
  return <div className="mx-auto max-w-[1560px] space-y-5">
   <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><h1 className="text-3xl font-black tracking-[-.035em] sm:text-4xl">Evidencias</h1><p className="mt-1 text-sm text-slate-500">Consulta y valida las pruebas clave del proyecto.</p></div><button onClick={()=>setUploadOpen(true)} className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-black text-white">＋&nbsp;&nbsp;Subir evidencia</button></header>
@@ -29,7 +29,7 @@ export default function TraceEvidencePage({projectId,executions=[],onNavigate}){
    {evidence&&<aside className="hidden xl:block"><Detail projectId={projectId} data={detail} evidence={evidence} showHistory={showHistory} setShowHistory={setShowHistory} onClose={()=>setSelected("")} onValidate={()=>setValidateOpen(true)} onActivity={()=>onNavigate?.("stages")}/></aside>}
   </div>
   {evidence&&<div className="fixed inset-0 z-[85] bg-slate-950/30 xl:hidden" onMouseDown={e=>e.target===e.currentTarget&&setSelected("")}><div className="absolute inset-y-0 right-0 w-full max-w-[520px] overflow-y-auto bg-[#f6f8fb] p-3 shadow-2xl sm:p-5"><Detail projectId={projectId} data={detail} evidence={evidence} showHistory={showHistory} setShowHistory={setShowHistory} onClose={()=>setSelected("")} onValidate={()=>setValidateOpen(true)} onActivity={()=>onNavigate?.("stages")}/></div></div>}
-  {uploadOpen&&<Modal title="Subir evidencia" subtitle="Registra una prueba vinculada a una actividad real del proyecto." wide onClose={()=>setUploadOpen(false)}>
+  {uploadOpen&&<Modal title="Subir evidencia" subtitle="Registra una prueba del proyecto. La actividad es opcional." wide onClose={()=>setUploadOpen(false)}>
    <div className="grid gap-5 md:grid-cols-2">
     <Field label="Trabajo" help="Define la ejecución donde ocurrió el trabajo.">
      <select className="control" value={upload.executionId} onChange={e=>setUpload(x=>({...x,executionId:e.target.value,executionStageId:"",executionActivityId:"",requirementId:""}))}>
@@ -45,19 +45,18 @@ export default function TraceEvidencePage({projectId,executions=[],onNavigate}){
     </Field>
    </div>
 
-   <Field label="Actividad" help="La evidencia debe demostrar una actividad concreta para que pueda afectar su cumplimiento.">
+   <Field label="Actividad" help="Opcional. Selecciónala solo si esta evidencia demuestra una actividad concreta.">
     {!stageSelected?
      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-xs text-slate-500">Selecciona primero una etapa para consultar sus actividades.</div>
      :activitiesAvailable?
      <select className="control" value={upload.executionActivityId} onChange={e=>setUpload(x=>({...x,executionActivityId:e.target.value,requirementId:""}))}>
-      <option value="">Selecciona una actividad…</option>
+      <option value="">Sin actividad específica · Evidencia de etapa</option>
       {activities.map(a=><option key={a.id} value={a.id}>{a.title}</option>)}
      </select>
      :
-     <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-      <div className="text-sm font-black text-amber-900">No hay actividades disponibles en esta etapa</div>
-      <p className="mt-1 text-xs leading-5 text-amber-700">No puedes subir una evidencia operativa hasta que la etapa tenga una actividad materializada.</p>
-      <button type="button" onClick={()=>{setUploadOpen(false);onNavigate?.("stages")}} className="mt-3 rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-black text-amber-800">Ir a Etapas</button>
+     <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+      <div className="text-sm font-black text-blue-900">Evidencia de etapa</div>
+      <p className="mt-1 text-xs leading-5 text-blue-700">No hay actividades materializadas en esta etapa. Puedes subir la evidencia igualmente; quedará vinculada a la etapa y no afectará el cumplimiento de ninguna actividad.</p>
      </div>}
    </Field>
 

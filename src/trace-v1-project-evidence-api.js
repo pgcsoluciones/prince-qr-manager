@@ -80,19 +80,38 @@ async function serveObject(c,env,projectId,pc,evidenceId,thumbnail=false){
 }
 async function uploadEvidence(request,c,env,projectId,pc){
  if(!env.ASSETS)return json({ok:false,error:'evidence_storage_unavailable'},503);let f;try{f=await request.formData()}catch{return json({ok:false,error:'invalid_multipart'},400)}
- const activityId=text(f.get('executionActivityId'),100),requirementId=text(f.get('requirementId'),100),file=f.get('file'),thumb=f.get('thumbnail');
- if(!activityId)return json({ok:false,error:'activity_and_file_required'},422);
+ const executionId=text(f.get('executionId'),100),stageExecutionId=text(f.get('executionStageId'),100),activityId=text(f.get('executionActivityId'),100),requirementId=text(f.get('requirementId'),100),file=f.get('file'),thumb=f.get('thumbnail');
  const check=validateEvidenceUpload(file);
  if(!check.ok)return json({ok:false,error:check.error,mime:check.mime||null,maxBytes:check.maxBytes||null},422);
- const a=await c.db.prepare(`SELECT ea.*,e.asset_id FROM trace_execution_activities ea JOIN trace_executions e ON e.id=ea.execution_id AND e.tenant_id=ea.tenant_id WHERE ea.id=? AND ea.tenant_id=? AND e.asset_id=? LIMIT 1`).bind(activityId,c.tenantId,projectId).first();if(!a)return json({ok:false,error:'invalid_execution_activity'},422);
- let req=null;if(requirementId){req=await c.db.prepare(`SELECT * FROM trace_execution_evidence_requirements WHERE id=? AND tenant_id=? AND execution_activity_id=? LIMIT 1`).bind(requirementId,c.tenantId,activityId).first();if(!req)return json({ok:false,error:'invalid_evidence_requirement'},422)}
+
+ let a=null;
+
+ if(activityId){
+  a=await c.db.prepare(`SELECT ea.*,e.asset_id FROM trace_execution_activities ea JOIN trace_executions e ON e.id=ea.execution_id AND e.tenant_id=ea.tenant_id WHERE ea.id=? AND ea.tenant_id=? AND e.asset_id=? LIMIT 1`).bind(activityId,c.tenantId,projectId).first();
+  if(!a)return json({ok:false,error:'invalid_execution_activity'},422);
+  if(executionId&&a.execution_id!==executionId)return json({ok:false,error:'activity_execution_mismatch'},422);
+  if(stageExecutionId&&a.execution_stage_id!==stageExecutionId)return json({ok:false,error:'activity_stage_mismatch'},422);
+ }else{
+  if(!executionId||!stageExecutionId)return json({ok:false,error:'execution_stage_and_file_required'},422);
+
+  a=await c.db.prepare(`SELECT es.id execution_stage_id,es.execution_id,e.asset_id FROM trace_execution_stages es JOIN trace_executions e ON e.id=es.execution_id AND e.tenant_id=? WHERE es.id=? AND es.execution_id=? AND e.asset_id=? LIMIT 1`).bind(c.tenantId,stageExecutionId,executionId,projectId).first();
+
+  if(!a)return json({ok:false,error:'invalid_execution_stage'},422);
+ }
+
+ let req=null;
+ if(requirementId){
+  if(!activityId)return json({ok:false,error:'requirement_requires_activity'},422);
+  req=await c.db.prepare(`SELECT * FROM trace_execution_evidence_requirements WHERE id=? AND tenant_id=? AND execution_activity_id=? LIMIT 1`).bind(requirementId,c.tenantId,activityId).first();
+  if(!req)return json({ok:false,error:'invalid_evidence_requirement'},422);
+ }
  const mime=check.mime,evidenceType=check.evidenceType;if(req&&req.evidence_type!==evidenceType&&!(req.evidence_type==='file'))return json({ok:false,error:'evidence_type_mismatch'},422);
  const metadata=sanitizeEvidenceMetadata(parse(text(f.get('metadata'),8000),{}));
- const id=uuid(),ext=evidenceExtension(file.name,mime),key=`trace/${c.tenantId}/${a.execution_id}/${a.execution_stage_id}/${id}.${ext}`,buffer=await file.arrayBuffer(),checksum=await sha256Hex(buffer);await env.ASSETS.put(key,buffer,{httpMetadata:{contentType:mime},customMetadata:{tenantId:c.tenantId,executionId:a.execution_id,executionStageId:a.execution_stage_id,executionActivityId:activityId,uploadedBy:c.user.id}});
+ const id=uuid(),ext=evidenceExtension(file.name,mime),key=`trace/${c.tenantId}/${a.execution_id}/${a.execution_stage_id}/${id}.${ext}`,buffer=await file.arrayBuffer(),checksum=await sha256Hex(buffer);await env.ASSETS.put(key,buffer,{httpMetadata:{contentType:mime},customMetadata:{tenantId:c.tenantId,executionId:a.execution_id,executionStageId:a.execution_stage_id,executionActivityId:activityId||"",uploadedBy:c.user.id}});
  let thumbKey=null;if(thumb&&typeof thumb!=='string'&&thumb.size>0&&thumb.size<=2*1024*1024&&String(thumb.type||'').startsWith('image/')){thumbKey=`trace/${c.tenantId}/${a.execution_id}/${a.execution_stage_id}/${id}.thumb.jpg`;await env.ASSETS.put(thumbKey,await thumb.arrayBuffer(),{httpMetadata:{contentType:thumb.type||'image/jpeg'}})}
  const status=req&&Number(req.requires_validation)===0?'approved':'pending',eventId=uuid();try{await c.db.batch([
-  c.db.prepare(`INSERT INTO trace_events(id,tenant_id,execution_id,execution_stage_id,execution_activity_id,asset_id,event_type,event_source,actor_user_id,actor_role,description,payload_json,occurred_at,received_at) VALUES(?,?,?,?,?,?,'evidence.added','admin',?,?,?, ?,datetime('now'),datetime('now'))`).bind(eventId,c.tenantId,a.execution_id,a.execution_stage_id,activityId,projectId,c.user.id,c.user.role,'Evidencia registrada.',JSON.stringify({evidenceId:id,requirementId:requirementId||null,evidenceType})),
-  c.db.prepare(`INSERT INTO trace_evidences(id,tenant_id,execution_id,execution_stage_id,execution_activity_id,requirement_id,event_id,evidence_type,r2_key,thumbnail_r2_key,original_filename,mime_type,file_size,checksum,metadata_json,uploaded_by,captured_at,validation_status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`).bind(id,c.tenantId,a.execution_id,a.execution_stage_id,activityId,requirementId||null,eventId,evidenceType,key,thumbKey,text(file.name,255)||'evidence',mime,file.size,checksum,JSON.stringify(metadata),c.user.id,text(f.get('capturedAt'),80),status)
+  c.db.prepare(`INSERT INTO trace_events(id,tenant_id,execution_id,execution_stage_id,execution_activity_id,asset_id,event_type,event_source,actor_user_id,actor_role,description,payload_json,occurred_at,received_at) VALUES(?,?,?,?,?,?,'evidence.added','admin',?,?,?, ?,datetime('now'),datetime('now'))`).bind(eventId,c.tenantId,a.execution_id,a.execution_stage_id,activityId||null,projectId,c.user.id,c.user.role,'Evidencia registrada.',JSON.stringify({evidenceId:id,requirementId:requirementId||null,evidenceType})),
+  c.db.prepare(`INSERT INTO trace_evidences(id,tenant_id,execution_id,execution_stage_id,execution_activity_id,requirement_id,event_id,evidence_type,r2_key,thumbnail_r2_key,original_filename,mime_type,file_size,checksum,metadata_json,uploaded_by,captured_at,validation_status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`).bind(id,c.tenantId,a.execution_id,a.execution_stage_id,activityId||null,requirementId||null,eventId,evidenceType,key,thumbKey,text(file.name,255)||'evidence',mime,file.size,checksum,JSON.stringify(metadata),c.user.id,text(f.get('capturedAt'),80),status)
  ])}catch(error){await env.ASSETS.delete(key).catch(()=>{});if(thumbKey)await env.ASSETS.delete(thumbKey).catch(()=>{});throw error}
  return json({ok:true,data:{id,status}},201)
 }

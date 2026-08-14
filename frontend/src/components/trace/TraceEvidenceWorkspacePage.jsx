@@ -9,11 +9,11 @@ const categoryLabel=v=>({general:"General",documentation:"Documentación",refuta
 const date=v=>v?new Date(v).toLocaleString("es-DO",{day:"2-digit",month:"short",year:"numeric",hour:"numeric",minute:"2-digit"}):"—";
 
 export default function TraceEvidenceWorkspacePage({projectId,executions=[],onNavigate}){
- const[mode,setMode]=useState("library");
+ const[mode,setMode]=useState("project");
  return <div className="space-y-4">
   <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2">
+   <button onClick={()=>setMode("project")} className={`rounded-xl px-4 py-2.5 text-sm font-black ${mode==="project"?"bg-blue-600 text-white":"text-slate-600 hover:bg-slate-50"}`}>Evidencias</button>
    <button onClick={()=>setMode("library")} className={`rounded-xl px-4 py-2.5 text-sm font-black ${mode==="library"?"bg-blue-600 text-white":"text-slate-600 hover:bg-slate-50"}`}>Mi repositorio</button>
-   <button onClick={()=>setMode("project")} className={`rounded-xl px-4 py-2.5 text-sm font-black ${mode==="project"?"bg-blue-600 text-white":"text-slate-600 hover:bg-slate-50"}`}>Evidencias operativas</button>
    <span className="ml-auto hidden items-center px-3 text-xs font-semibold text-slate-400 md:flex">Captura una vez · relaciona cuando haga falta</span>
   </div>
   {mode==="project"?<TraceEvidencePage projectId={projectId} executions={executions} onNavigate={onNavigate}/>:<EvidenceLibrary projectId={projectId} executions={executions}/>} 
