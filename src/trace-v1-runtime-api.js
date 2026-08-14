@@ -1,6 +1,11 @@
 import jwt from "@tsndr/cloudflare-worker-jwt";
 import { getTraceDatabase } from "./trace/shared/database.js";
-import { loadDefinedActivities, buildExecutionActivityStatements } from "./trace/shared/execution-activities.js";
+import {
+  loadDefinedActivities,
+  loadDefinedEvidenceRequirements,
+  buildExecutionActivityStatements,
+  buildExecutionEvidenceRequirementStatements,
+} from "./trace/shared/execution-activities.js";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -1103,6 +1108,13 @@ async function createExecution(
       publishedVersion.id
     );
 
+  const evidenceRequirementDefinitions =
+    await loadDefinedEvidenceRequirements(
+      getTraceDatabase(env),
+      auth.tenantId,
+      publishedVersion.id
+    );
+
   const activityRoleAssignees =
     activityDefinitions
       .map(
@@ -1340,6 +1352,23 @@ async function createExecution(
     ...activityMaterialization.statements
   );
 
+  const evidenceRequirementMaterialization =
+    buildExecutionEvidenceRequirementStatements(
+      getTraceDatabase(env),
+      {
+        tenantId: auth.tenantId,
+        executionId,
+        requirementDefinitions:
+          evidenceRequirementDefinitions,
+        activityRows:
+          activityMaterialization.activityRows,
+      }
+    );
+
+  statements.push(
+    ...evidenceRequirementMaterialization.statements
+  );
+
   for (
     const userId
     of uniqueAssignees
@@ -1456,6 +1485,9 @@ async function createExecution(
         activitiesMaterialized:
           activityMaterialization
             .activityRows.length,
+        evidenceRequirementsMaterialized:
+          evidenceRequirementMaterialization
+            .requirementRows.length,
       })
     )
   );
