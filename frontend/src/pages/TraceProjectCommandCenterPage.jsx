@@ -46,7 +46,7 @@ export default function TraceProjectCommandCenterPage(){
   if(view==="help")return <div className="rounded-2xl border border-slate-200 bg-white p-6"><h1 className="text-3xl font-black">Ayuda</h1><p className="mt-2 text-sm text-slate-500">Ayuda contextual de KAWVO Trace.</p></div>;
   return null;
  }
- return <TraceProjectShell view={view} onView={setView} projects={projects} projectId={projectId} onProjectChange={setProjectId} incidentCount={Number(summary?.metrics?.openIncidents||dashboard?.metrics?.openIncidents||0)} userLabel={user?.email||"Usuario"}>
+ return <TraceProjectShell view={view} onView={setView} projects={projects} projectId={projectId} onProjectChange={setProjectId} incidentCount={Number(summary?.metrics?.openIncidents||dashboard?.metrics?.openIncidents||0)} approvalCount={Number(summary?.metrics?.pendingApprovals||0)} userLabel={user?.email||"Usuario"}>
   {loading&&<div className="fixed left-0 right-0 top-0 z-50 h-1 bg-blue-100 md:left-[264px]"><div className="h-full w-1/3 animate-pulse bg-blue-600"/></div>}
   {error&&<div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
   {message&&<div className="mb-4 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700"><span>{message}</span><button onClick={()=>setMessage("")}>×</button></div>}
