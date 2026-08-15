@@ -1,6 +1,6 @@
-import TraceProjectTeamPage from './TraceProjectTeamPage.jsx';
+import TraceProjectTeamSecurePage from './TraceProjectTeamSecurePage.jsx';
 
 export default function TraceTeamDirectory({projectId}){
   const activeProjectId=projectId||localStorage.getItem('trace_active_project')||'';
-  return <TraceProjectTeamPage projectId={activeProjectId}/>;
+  return <TraceProjectTeamSecurePage projectId={activeProjectId}/>;
 }
