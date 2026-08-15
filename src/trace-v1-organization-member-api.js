@@ -5,7 +5,14 @@ const CORS={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"PO
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{...CORS,"Content-Type":"application/json","Cache-Control":"no-store"}});
 const uuid=()=>crypto.randomUUID();
 const email=v=>String(v||"").trim().toLowerCase();
-const phone=v=>{const s=String(v||"").replace(/[^\d+]/g,"");return /^\+[1-9]\d{7,14}$/.test(s)?s:null};
+function phone(v){
+ const raw=String(v||'').trim();if(!raw)return null;
+ const digits=raw.replace(/\D/g,'');
+ if(/^\+?[1-9]\d{7,14}$/.test(raw.replace(/[\s().-]/g,''))&&raw.startsWith('+'))return `+${digits}`;
+ if(/^1(?:809|829|849)\d{7}$/.test(digits))return `+${digits}`;
+ if(/^(809|829|849)\d{7}$/.test(digits))return `+1${digits}`;
+ return null;
+}
 const ACCOUNT_ROLES=new Set(['admin','manager','operator','viewer']);
 
 async function context(request,env){
@@ -28,7 +35,7 @@ async function addOrganizationMember(request,env,projectId){
  let b={};try{b=await request.json()}catch{return json({ok:false,error:'invalid_json'},400)}
  const memberEmail=email(b.email),phoneE164=phone(b.phone),accountRole=ACCOUNT_ROLES.has(b.accountRole)?b.accountRole:'operator',departmentId=String(b.departmentId||'').trim()||null;
  if(!memberEmail||!memberEmail.includes('@'))return json({ok:false,error:'valid_email_required',message:'Indica un correo válido.'},422);
- if(!phoneE164)return json({ok:false,error:'valid_phone_required',message:'Indica el teléfono con código de país, por ejemplo +18095550000.'},422);
+ if(!phoneE164)return json({ok:false,error:'valid_phone_required',message:'Indica un teléfono válido. En República Dominicana puedes escribir 809, 829 o 849 sin +1; KAWVO lo normaliza automáticamente.'},422);
  if(departmentId){const dep=await c.db.prepare(`SELECT id FROM trace_departments WHERE id=? AND tenant_id=? AND status='active' LIMIT 1`).bind(departmentId,c.tenantId).first();if(!dep)return json({ok:false,error:'department_not_found',message:'El departamento seleccionado no pertenece a la organización.'},422)}
  const tenant=await c.db.prepare(`SELECT id,plan FROM users WHERE id=? AND is_active=1 LIMIT 1`).bind(c.tenantId).first();if(!tenant)return json({ok:false,error:'tenant_not_found'},404);
  const plan=await c.db.prepare(`SELECT plan FROM plan_configs WHERE plan=? LIMIT 1`).bind(tenant.plan).first();if(!plan)return json({ok:false,error:'tenant_plan_invalid',message:'El plan de la organización no está configurado correctamente.'},409);
@@ -45,7 +52,7 @@ async function addOrganizationMember(request,env,projectId){
  let tm=await c.db.prepare(`SELECT id FROM tenant_members WHERE tenant_owner_id=? AND lower(email)=lower(?) LIMIT 1`).bind(c.tenantId,memberEmail).first();
  if(!tm){const id=uuid();await c.db.prepare(`INSERT INTO tenant_members (id,tenant_owner_id,user_id,email,role,status,invited_at,joined_at,invited_by) VALUES (?,?,?,?,?,'active',datetime('now'),datetime('now'),?)`).bind(id,c.tenantId,user.id,memberEmail,accountRole,c.user.id).run();tm={id}}else await c.db.prepare(`UPDATE tenant_members SET user_id=?,role=?,status='active',joined_at=COALESCE(joined_at,datetime('now')),invited_by=? WHERE id=?`).bind(user.id,accountRole,c.user.id,tm.id).run();
  if(departmentId)await c.db.prepare(`INSERT INTO trace_department_members (id,tenant_id,department_id,user_id,membership_role,is_primary,status,created_by,created_at,updated_at) VALUES (?,?,?,?, 'member',0,'active',?,datetime('now'),datetime('now')) ON CONFLICT(department_id,user_id) DO UPDATE SET status='active',updated_at=datetime('now')`).bind(uuid(),c.tenantId,departmentId,user.id,c.user.id).run();
- return json({ok:true,data:{memberId:tm.id,userId:user.id,email:memberEmail,phone:phoneE164,accountRole,departmentId,projectMembership:false}},201);
+ return json({ok:true,message:'Miembro agregado correctamente a la organización.',data:{memberId:tm.id,userId:user.id,email:memberEmail,phone:phoneE164,accountRole,departmentId,projectMembership:false}},201);
 }
 
 export async function handleTraceV1OrganizationMemberApi(request,env){
