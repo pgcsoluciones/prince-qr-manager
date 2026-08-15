@@ -26,6 +26,7 @@ export default function TraceProjectTeamSecurePage({projectId}){
 function InviteModal({departments,busy,onClose,onSave}){const[email,setEmail]=useState(''),[phone,setPhone]=useState(''),[projectRole,setRole]=useState('member'),[departmentId,setDepartment]=useState('');return <Modal title="Invitar miembro" onClose={onClose}><p className="text-xs leading-5 text-slate-500">La persona no será miembro activo hasta aceptar la invitación.</p><label className="mt-4 block text-xs font-black">Correo</label><input autoFocus value={email} onChange={e=>setEmail(e.target.value)} placeholder="persona@empresa.com" className="mt-2 w-full rounded-xl border px-4 py-3 text-sm"/><label className="mt-3 block text-xs font-black">Teléfono para validar</label><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+18095550000" className="mt-2 w-full rounded-xl border px-4 py-3 text-sm"/><select value={projectRole} onChange={e=>setRole(e.target.value)} className="mt-3 w-full rounded-xl border px-3 py-3 text-sm">{Object.entries(ROLES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select><select value={departmentId} onChange={e=>setDepartment(e.target.value)} className="mt-3 w-full rounded-xl border px-3 py-3 text-sm"><option value="">Sin departamento</option>{departments.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select><button disabled={busy||!email} onClick={()=>onSave({email,phone:phone||undefined,projectRole,departmentId})} className="mt-5 w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white disabled:opacity-50">{busy?'Creando…':'Crear invitación segura'}</button></Modal>}
 
 function InviteResult({result,projectName,onClose}){
+ const[copied,setCopied]=useState('');
  const url=`${window.location.origin}${result.acceptPath}`;
  const inviter=result.inviterName||'Un responsable';
  const company=result.companyName||null;
@@ -33,7 +34,7 @@ function InviteResult({result,projectName,onClose}){
  const intro=company?`${inviter} de ${company} te invitó ${project?`al proyecto ${project}`:'a su equipo de trabajo'}.`:`${inviter} te invitó ${project?`al proyecto ${project}`:'a un equipo de trabajo'}.`;
  const message=`${intro}\nAceptar: ${url}\nCódigo: ${result.code}\nAcceso seguro mediante KAWVO Trace.`;
  const whatsappUrl=`https://wa.me/?text=${encodeURIComponent(message)}`;
- async function copy(value){try{await navigator.clipboard.writeText(value);return true}catch{return false}}
+ async function copy(value,label){let ok=false;try{await navigator.clipboard.writeText(value);ok=true}catch{}if(!ok){try{const area=document.createElement('textarea');area.value=value;area.setAttribute('readonly','');area.style.position='fixed';area.style.opacity='0';document.body.appendChild(area);area.select();ok=document.execCommand('copy');document.body.removeChild(area)}catch{ok=false}}setCopied(ok?label:'error');setTimeout(()=>setCopied(''),2200)}
  function openInvite(){window.open(url,'_blank','noopener,noreferrer')}
  function shareWhatsApp(){window.open(whatsappUrl,'_blank','noopener,noreferrer')}
  return <Modal title="Invitación creada" onClose={onClose}>
@@ -43,8 +44,9 @@ function InviteResult({result,projectName,onClose}){
    <button onClick={openInvite} className="mt-3 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-[10px] font-black text-emerald-800">Abrir enlace ↗</button>
   </div>
   <div className="mt-3 rounded-2xl bg-slate-50 p-4 text-center"><div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Código temporal</div><div className="mt-1 text-3xl font-black tracking-[.25em] text-slate-950">{result.code}</div><div className="mt-1 text-[10px] text-slate-400">Expira: {result.expiresAt}</div></div>
-  <div className="mt-4 grid grid-cols-2 gap-2"><button onClick={()=>copy(url)} className="rounded-xl border px-3 py-3 text-xs font-black">Copiar enlace</button><button onClick={shareWhatsApp} className="rounded-xl bg-emerald-600 px-3 py-3 text-xs font-black text-white">Compartir por WhatsApp</button></div>
-  <button onClick={()=>copy(message)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[11px] font-black text-slate-600">Copiar mensaje completo</button>
+  {copied&&<div className={`mt-3 rounded-xl px-3 py-2 text-center text-[11px] font-black ${copied==='error'?'bg-red-50 text-red-700':'bg-emerald-50 text-emerald-700'}`}>{copied==='link'?'✓ Enlace copiado':copied==='message'?'✓ Mensaje copiado':'No se pudo copiar. Usa el enlace visible.'}</div>}
+  <div className="mt-4 grid grid-cols-2 gap-2"><button onClick={()=>copy(url,'link')} className="rounded-xl border px-3 py-3 text-xs font-black">{copied==='link'?'✓ Copiado':'Copiar enlace'}</button><button onClick={shareWhatsApp} className="rounded-xl bg-emerald-600 px-3 py-3 text-xs font-black text-white">Compartir por WhatsApp</button></div>
+  <button onClick={()=>copy(message,'message')} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[11px] font-black text-slate-600">{copied==='message'?'✓ Mensaje copiado':'Copiar mensaje completo'}</button>
   <p className="mt-4 text-[10px] leading-4 text-slate-400">Al generar un nuevo enlace, el anterior queda invalidado. El miembro solo se activa después de verificar el código y aceptar.</p>
  </Modal>
 }
