@@ -4,6 +4,7 @@ import { handleTraceV1WorkspaceApi } from "./trace-v1-workspace-api.js";
 import { handleTraceV1ProjectTeamApi } from "./trace-v1-project-team-api.js";
 import { handleTraceV1ProjectTeamWorkspaceApi } from "./trace-v1-project-team-workspace-api.js";
 import { handleTraceV1OrganizationMemberApi } from "./trace-v1-organization-member-api.js";
+import { handleTraceV1TeamMemberDirectoryApi } from "./trace-v1-team-member-directory-api.js";
 import { handleTraceV1TeamInvitationAdminApi } from "./trace-v1-team-invitation-admin-api.js";
 import { handleTraceV1TeamInvitationClaimApi } from "./trace-v1-team-invitation-claim-api.js";
 import { handleTraceV1TeamOverviewApi } from "./trace-v1-team-overview-api.js";
@@ -33,6 +34,8 @@ export default {
     if (invitationAdminResponse) return invitationAdminResponse;
     const organizationMemberResponse = await handleTraceV1OrganizationMemberApi(request, env);
     if (organizationMemberResponse) return organizationMemberResponse;
+    const teamMemberDirectoryResponse = await handleTraceV1TeamMemberDirectoryApi(request, env);
+    if (teamMemberDirectoryResponse) return teamMemberDirectoryResponse;
     const reportFilesResponse = await handleTraceV1ProjectReportFilesApi(request, env);
     if (reportFilesResponse) return reportFilesResponse;
     const reportsResponse = await handleTraceV1ProjectReportsApi(request, env);
