@@ -27,6 +27,8 @@ jobs:
           cp src/trace-v1-project-reports-api.js /tmp/trace-v1-project-reports-api.mjs
           cp src/trace-v1-project-report-files-api.js /tmp/trace-v1-project-report-files-api.mjs
           cp src/trace-v1-project-team-workspace-api.js /tmp/trace-v1-project-team-workspace-api.mjs
+          cp src/trace-v1-team-invitation-admin-api.js /tmp/trace-v1-team-invitation-admin-api.mjs
+          cp src/trace-v1-team-invitation-claim-api.js /tmp/trace-v1-team-invitation-claim-api.mjs
           cp src/trace/report-renderers.js /tmp/trace-report-renderers.mjs
           cp src/preview-command-entry.js /tmp/preview-command-entry.mjs
           node --check /tmp/trace-v1-project-approvals-api.mjs
@@ -34,6 +36,8 @@ jobs:
           node --check /tmp/trace-v1-project-reports-api.mjs
           node --check /tmp/trace-v1-project-report-files-api.mjs
           node --check /tmp/trace-v1-project-team-workspace-api.mjs
+          node --check /tmp/trace-v1-team-invitation-admin-api.mjs
+          node --check /tmp/trace-v1-team-invitation-claim-api.mjs
           node --check /tmp/trace-report-renderers.mjs
           node --check /tmp/preview-command-entry.mjs
       - name: Smoke report document renderers
