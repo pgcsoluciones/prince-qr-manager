@@ -3,6 +3,8 @@ import { handleTraceV1CommandCenterApi } from "./trace-v1-command-center-api.js"
 import { handleTraceV1WorkspaceApi } from "./trace-v1-workspace-api.js";
 import { handleTraceV1ProjectTeamApi } from "./trace-v1-project-team-api.js";
 import { handleTraceV1ProjectTeamWorkspaceApi } from "./trace-v1-project-team-workspace-api.js";
+import { handleTraceV1TeamInvitationAdminApi } from "./trace-v1-team-invitation-admin-api.js";
+import { handleTraceV1TeamInvitationClaimApi } from "./trace-v1-team-invitation-claim-api.js";
 import { handleTraceV1TeamOverviewApi } from "./trace-v1-team-overview-api.js";
 import { handleTraceV1EvaluationsApi } from "./trace-v1-evaluations-api.js";
 import { handleTraceV1OnboardingApi } from "./trace-v1-onboarding-api.js";
@@ -24,6 +26,10 @@ import { handleTraceV1ProjectReportFilesApi } from "./trace-v1-project-report-fi
 
 export default {
   async fetch(request, env, ctx) {
+    const invitationClaimResponse = await handleTraceV1TeamInvitationClaimApi(request, env);
+    if (invitationClaimResponse) return invitationClaimResponse;
+    const invitationAdminResponse = await handleTraceV1TeamInvitationAdminApi(request, env);
+    if (invitationAdminResponse) return invitationAdminResponse;
     const reportFilesResponse = await handleTraceV1ProjectReportFilesApi(request, env);
     if (reportFilesResponse) return reportFilesResponse;
     const reportsResponse = await handleTraceV1ProjectReportsApi(request, env);
