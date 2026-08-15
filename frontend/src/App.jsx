@@ -26,6 +26,7 @@ import TraceTeamSetupPage from "./pages/TraceTeamSetupPage.jsx";
 import TraceTrackingSetupPage from "./pages/TraceTrackingSetupPage.jsx";
 import TraceActivationConfirmPage from "./pages/TraceActivationConfirmPage.jsx";
 import TraceProjectPublicPage from "./pages/TraceProjectPublicPage.jsx";
+import TraceTeamInvitationPage from "./pages/TraceTeamInvitationPage.jsx";
 import TracePublicPage from "./pages/TracePublicPage.jsx";
 import CollaboratorsPage from "./pages/CollaboratorsPage.jsx";
 import TraceResponsesPage from "./pages/TraceResponsesPage.jsx";
@@ -157,6 +158,7 @@ export default function App() {
     <Route path="/register" element={<RegisterPage />} />
     <Route path="/trace-operational" element={<TraceOperationalPage />} />
     <Route path="/trace-public/:slug" element={<TracePublicPage />} />
+    {IS_PREVIEW && <Route path="/trace/invite/:token" element={<TraceTeamInvitationPage />} />}
     {IS_PREVIEW && <Route path="/trace-project/:slug" element={<TraceProjectPublicPage />} />}
     {IS_PREVIEW && <Route path="/trace" element={<TracePreviewEntry />} />}
     {IS_PREVIEW && <Route path="/trace/setup" element={<TraceSetupEntry />} />}
