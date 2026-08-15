@@ -43,7 +43,6 @@ function InviteResult({result,projectName,onClose}){
    <button onClick={openInvite} className="mt-3 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-[10px] font-black text-emerald-800">Abrir enlace ↗</button>
   </div>
   <div className="mt-3 rounded-2xl bg-slate-50 p-4 text-center"><div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Código temporal</div><div className="mt-1 text-3xl font-black tracking-[.25em] text-slate-950">{result.code}</div><div className="mt-1 text-[10px] text-slate-400">Expira: {result.expiresAt}</div></div>
-  <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3"><div className="text-[10px] font-black uppercase tracking-wider text-slate-400">Mensaje</div><p className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-700">{message}</p></div>
   <div className="mt-4 grid grid-cols-2 gap-2"><button onClick={()=>copy(url)} className="rounded-xl border px-3 py-3 text-xs font-black">Copiar enlace</button><button onClick={shareWhatsApp} className="rounded-xl bg-emerald-600 px-3 py-3 text-xs font-black text-white">Compartir por WhatsApp</button></div>
   <button onClick={()=>copy(message)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[11px] font-black text-slate-600">Copiar mensaje completo</button>
   <p className="mt-4 text-[10px] leading-4 text-slate-400">Al generar un nuevo enlace, el anterior queda invalidado. El miembro solo se activa después de verificar el código y aceptar.</p>
