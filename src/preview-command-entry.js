@@ -2,6 +2,7 @@ import previewApp from "./preview-entry.js";
 import { handleTraceV1CommandCenterApi } from "./trace-v1-command-center-api.js";
 import { handleTraceV1WorkspaceApi } from "./trace-v1-workspace-api.js";
 import { handleTraceV1ProjectTeamApi } from "./trace-v1-project-team-api.js";
+import { handleTraceV1ProjectTeamWorkspaceApi } from "./trace-v1-project-team-workspace-api.js";
 import { handleTraceV1TeamOverviewApi } from "./trace-v1-team-overview-api.js";
 import { handleTraceV1EvaluationsApi } from "./trace-v1-evaluations-api.js";
 import { handleTraceV1OnboardingApi } from "./trace-v1-onboarding-api.js";
@@ -57,6 +58,8 @@ export default {
     if (onboardingResponse) return onboardingResponse;
     const evaluationsResponse = await handleTraceV1EvaluationsApi(request, env);
     if (evaluationsResponse) return evaluationsResponse;
+    const projectTeamWorkspaceResponse = await handleTraceV1ProjectTeamWorkspaceApi(request, env);
+    if (projectTeamWorkspaceResponse) return projectTeamWorkspaceResponse;
     const teamOverviewResponse = await handleTraceV1TeamOverviewApi(request, env);
     if (teamOverviewResponse) return teamOverviewResponse;
     const projectTeamResponse = await handleTraceV1ProjectTeamApi(request, env);
