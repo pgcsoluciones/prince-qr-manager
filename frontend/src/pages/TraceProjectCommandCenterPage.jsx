@@ -10,6 +10,7 @@ import TraceEvidenceWorkspacePage from "../components/trace/TraceEvidenceWorkspa
 import TraceApprovalsPage from "../components/trace/TraceApprovalsPage.jsx";
 import TraceTeamDirectory from "../components/trace/TraceTeamDirectory.jsx";
 import TraceReportsCanvas from "../components/trace/TraceReportsCanvas.jsx";
+import TraceConfigurationPage from "../components/trace/TraceConfigurationPage.jsx";
 import TraceActivityModal from "../components/trace/TraceActivityModal.jsx";
 import TraceIncidentDrawer from "../components/trace/TraceIncidentDrawer.jsx";
 
@@ -40,9 +41,9 @@ export default function TraceProjectCommandCenterPage(){
   if(view==="incidents")return <TraceIncidentsPage projectId={projectId} executions={work}/>;
   if(view==="evidence")return <TraceEvidenceWorkspacePage projectId={projectId} executions={work} onNavigate={setView}/>;
   if(view==="approvals")return <TraceApprovalsPage projectId={projectId} onOpenIncident={()=>setView("incidents")} onChanged={()=>{setTimelineRefresh(x=>x+1);loadProject()}}/>;
-  if(view==="team")return <TraceTeamDirectory/>;
+  if(view==="team")return <TraceTeamDirectory projectId={projectId}/>;
   if(view==="reports")return <TraceReportsCanvas projectId={projectId}/>;
-  if(view==="settings")return <div className="rounded-2xl border border-slate-200 bg-white p-6"><h1 className="text-3xl font-black">Configuración del proyecto</h1><p className="mt-2 text-sm text-slate-500">Etapas, responsabilidades, permisos y vista compartida.</p></div>;
+  if(view==="settings")return <TraceConfigurationPage projectId={projectId} projects={projects}/>;
   if(view==="help")return <div className="rounded-2xl border border-slate-200 bg-white p-6"><h1 className="text-3xl font-black">Ayuda</h1><p className="mt-2 text-sm text-slate-500">Ayuda contextual de KAWVO Trace.</p></div>;
   return null;
  }
