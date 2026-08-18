@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite build",
+    "dev": "vite",
     "build": "vite build",
     "build:preview": "vite build --mode preview",
     "preview": "vite preview"
