@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { api } from "../utils/api.js";
@@ -11,12 +11,17 @@ function normalizeRows(data = []) {
   return data.map((r) => {
     const slug = String(r.slug ?? r.Slug ?? r.SLUG ?? "").trim().toLowerCase().replace(/[^a-z0-9-_]/g, "");
     const destination_url = String(r.url ?? r.URL ?? r.destination_url ?? r.Destination ?? r.target ?? "").trim();
-    return { slug, destination_url };
+    const project_name = String(r.proyecto ?? r.Proyecto ?? r.PROYECTO ?? r.project ?? r.Project ?? "").trim();
+    return { slug, destination_url, project_name };
   }).filter((r) => {
     if (!r.slug || !r.destination_url || seen.has(r.slug)) return false;
     seen.add(r.slug);
     return true;
   });
+}
+
+function projectKey(value) {
+  return String(value || "").trim().toLocaleLowerCase("es");
 }
 
 function downloadBlob(blob, name) {
@@ -32,11 +37,33 @@ function downloadBlob(blob, name) {
 
 export default function BulkImportModal({ onClose, onImported }) {
   const [rows, setRows] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [batchName, setBatchName] = useState("");
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
   const fileRef = useRef();
+
+  useEffect(() => {
+    let active = true;
+    api.get("/api/projects")
+      .then((data) => { if (active) setProjects(data.projects || []); })
+      .catch(() => { if (active) setProjects([]); });
+    return () => { active = false; };
+  }, []);
+
+  const projectsByName = useMemo(() => {
+    const map = new Map();
+    projects.forEach((p) => map.set(projectKey(p.name), p));
+    return map;
+  }, [projects]);
+
+  const unknownProjects = useMemo(() => {
+    return [...new Set(rows
+      .map((r) => r.project_name)
+      .filter(Boolean)
+      .filter((name) => !projectsByName.has(projectKey(name))))];
+  }, [rows, projectsByName]);
 
   const applyRows = (data, file) => {
     const mapped = normalizeRows(data);
@@ -91,27 +118,37 @@ export default function BulkImportModal({ onClose, onImported }) {
   };
 
   const downloadCsvTemplate = () => {
-    const csv = "slug,url\nmi-link,https://destino.com\notro-qr,https://otro.com/pagina\n";
+    const csv = "slug,url,proyecto\nmi-link,https://destino.com,Tarjetas NFC Agosto\notro-qr,https://otro.com/pagina,Tarjetas NFC Agosto\n";
     downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), "plantilla-carga-masiva-qr.csv");
   };
 
   const downloadExcelTemplate = () => {
     const data = [
-      { slug: "mi-link", url: "https://destino.com" },
-      { slug: "otro-qr", url: "https://otro.com/pagina" },
+      { slug: "mi-link", url: "https://destino.com", proyecto: "Tarjetas NFC Agosto" },
+      { slug: "otro-qr", url: "https://otro.com/pagina", proyecto: "Tarjetas NFC Agosto" },
     ];
-    const ws = XLSX.utils.json_to_sheet(data, { header: ["slug", "url"] });
-    ws["!cols"] = [{ wch: 24 }, { wch: 44 }];
+    const ws = XLSX.utils.json_to_sheet(data, { header: ["slug", "url", "proyecto"] });
+    ws["!cols"] = [{ wch: 24 }, { wch: 44 }, { wch: 32 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "QRs");
     XLSX.writeFile(wb, "plantilla-carga-masiva-qr.xlsx");
   };
 
   const run = async () => {
-    if (!batchName || rows.length === 0) return;
+    if (!batchName || rows.length === 0 || unknownProjects.length > 0) return;
+    const links = rows.map((row) => {
+      const project = row.project_name ? projectsByName.get(projectKey(row.project_name)) : null;
+      return {
+        slug: row.slug,
+        destination_url: row.destination_url,
+        project_name: row.project_name || "",
+        project_id: project?.id || null,
+      };
+    });
+
     setImporting(true);
     try {
-      const data = await api.post("/api/bulk/upload", { batch_name: batchName, links: rows });
+      const data = await api.post("/api/bulk/upload", { batch_name: batchName, links });
       toast(`${data.total_inserted} QRs importados exitosamente`);
       onImported();
       onClose();
@@ -127,16 +164,16 @@ export default function BulkImportModal({ onClose, onImported }) {
       <div className="card w-full max-w-xl" onClick={(e) => e.stopPropagation()}>
         <div className="p-5 border-b border-gray-100">
           <h2 className="font-bold text-gray-900">Generar códigos por lote</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Importa múltiples QRs desde CSV o Excel.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Importa múltiples QRs desde CSV o Excel y asígnalos a sus proyectos.</p>
         </div>
 
         <div className="p-5 space-y-4">
           <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold text-gray-700">Columnas requeridas</p>
-                <p className="text-xs font-mono text-gray-600 mt-1">slug &nbsp;|&nbsp; url</p>
-                <p className="text-[11px] text-gray-500 mt-1">Formatos admitidos: CSV, Excel XLSX y Excel XLS.</p>
+                <p className="text-xs font-semibold text-gray-700">Columnas de la plantilla</p>
+                <p className="text-xs font-mono text-gray-600 mt-1">slug &nbsp;|&nbsp; url &nbsp;|&nbsp; proyecto</p>
+                <p className="text-[11px] text-gray-500 mt-1">Proyecto es opcional; si se indica debe existir previamente en tu cuenta.</p>
               </div>
               <div className="flex gap-2">
                 <button type="button" onClick={downloadCsvTemplate} className="btn-secondary text-xs">Plantilla CSV</button>
@@ -168,6 +205,12 @@ export default function BulkImportModal({ onClose, onImported }) {
               <input ref={fileRef} type="file" accept={ACCEPTED} className="hidden" onChange={onFile} />
             </div>
             {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+            {unknownProjects.length > 0 && (
+              <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                <p className="font-semibold">Proyecto no encontrado</p>
+                <p className="mt-0.5">Corrige o crea primero: {unknownProjects.join(", ")}</p>
+              </div>
+            )}
           </div>
 
           {rows.length > 0 && (
@@ -177,13 +220,17 @@ export default function BulkImportModal({ onClose, onImported }) {
                   <tr>
                     <th className="text-left px-3 py-2 text-gray-500">Slug</th>
                     <th className="text-left px-3 py-2 text-gray-500">URL</th>
+                    <th className="text-left px-3 py-2 text-gray-500">Proyecto</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {rows.slice(0, 20).map((r, i) => (
                     <tr key={`${r.slug}-${i}`}>
                       <td className="px-3 py-1.5 font-mono text-brand-700">/{r.slug}</td>
-                      <td className="px-3 py-1.5 text-gray-500 max-w-[260px] truncate">{r.destination_url}</td>
+                      <td className="px-3 py-1.5 text-gray-500 max-w-[220px] truncate">{r.destination_url}</td>
+                      <td className={`px-3 py-1.5 max-w-[180px] truncate ${r.project_name && !projectsByName.has(projectKey(r.project_name)) ? "text-red-600 font-medium" : "text-gray-500"}`}>
+                        {r.project_name || "—"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -195,7 +242,7 @@ export default function BulkImportModal({ onClose, onImported }) {
 
         <div className="p-5 border-t border-gray-100 flex justify-between">
           <button onClick={onClose} className="btn-secondary">Cancelar</button>
-          <button onClick={run} disabled={!batchName || rows.length === 0 || importing} className="btn-primary">
+          <button onClick={run} disabled={!batchName || rows.length === 0 || importing || unknownProjects.length > 0} className="btn-primary">
             {importing ? "Importando..." : `Importar ${rows.length} QRs`}
           </button>
         </div>
