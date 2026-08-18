@@ -5,6 +5,7 @@ import CreateQRModal from "../components/CreateQRModal.jsx";
 import EditQRModal from "../components/EditQRModal.jsx";
 import QRDownloadModal from "../components/QRDownloadModal.jsx";
 import BulkImportModal from "../components/BulkImportModal.jsx";
+import BulkDownloadModal from "../components/BulkDownloadModal.jsx";
 import { toast } from "../components/Toast.jsx";
 import PageHeader from "../components/PageHeader.jsx";
 import GuidedTour from "../components/GuidedTour.jsx";
@@ -316,6 +317,7 @@ export default function LinksPage() {
   const [view, setView]               = useState("list"); // "list" | "grid"
   const [showCreate, setShowCreate]   = useState(false);
   const [showBulk, setShowBulk]       = useState(false);
+  const [showBulkDownload, setShowBulkDownload] = useState(false);
   const [editLink, setEditLink]       = useState(null);
   const [qrLink, setQrLink]           = useState(null);
   const [selected, setSelected]       = useState(new Set());
@@ -437,11 +439,22 @@ export default function LinksPage() {
               ? Ver visita guiada
             </button>
             {canBulk && (
-              <button onClick={() => setShowBulk(true)} className="btn-secondary btn-sm gap-1.5">
-                <Ico name="upload" className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Importar CSV</span>
-                <span className="sm:hidden">CSV</span>
-              </button>
+              <>
+                <button onClick={() => setShowBulk(true)} className="btn-secondary btn-sm gap-1.5">
+                  <Ico name="upload" className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Importar lote</span>
+                  <span className="sm:hidden">Importar</span>
+                </button>
+                <button
+                  onClick={() => setShowBulkDownload(true)}
+                  disabled={!links.length}
+                  className="btn-secondary btn-sm gap-1.5"
+                >
+                  <Ico name="download" className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Descargar lote</span>
+                  <span className="sm:hidden">Descargar</span>
+                </button>
+              </>
             )}
             <button data-tour="create-qr" onClick={() => setShowCreate(true)} className="btn-primary">
               <Ico name="plus" className="w-4 h-4" />
@@ -562,6 +575,13 @@ export default function LinksPage() {
           <span className="text-sm text-blue-700 font-semibold">
             {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
           </span>
+          <button
+            onClick={() => setShowBulkDownload(true)}
+            className="btn-secondary btn-sm"
+          >
+            <Ico name="download" className="w-3.5 h-3.5" />
+            Descargar selección
+          </button>
           <button onClick={bulkDelete} className="btn-danger btn-sm">
             <Ico name="trash" className="w-3.5 h-3.5" />
             Eliminar
@@ -818,6 +838,16 @@ export default function LinksPage() {
       )}
       {showBulk && (
         <BulkImportModal onClose={() => setShowBulk(false)} onImported={load} />
+      )}
+      {showBulkDownload && (
+        <BulkDownloadModal
+          links={links}
+          filteredLinks={filtered}
+          selectedSlugs={selected}
+          projects={projects}
+          defaultProjectId={filterProject}
+          onClose={() => setShowBulkDownload(false)}
+        />
       )}
       {editLink && (
         <EditQRModal link={editLink} projects={projects} onClose={() => setEditLink(null)} onSaved={load} />
