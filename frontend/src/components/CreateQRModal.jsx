@@ -1,12 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { api } from "../utils/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import QRStyler from "./QRStyler.jsx";
 import CampaignConfig from "./CampaignConfig.jsx";
+import QRDownloadModal from "./QRDownloadModal.jsx";
 import { toast } from "./Toast.jsx";
-import QRCodeStyling from "qr-code-styling";
-
-const WORKER = "https://qr.intaprd.com";
 
 const QR_TYPES = [
   { id: "url",       icon: "🔗", label: "URL / Sitio web" },
@@ -86,91 +84,6 @@ function TypeFields({ type, fields, onChange }) {
 
 const STEPS = ["Tipo", "Contenido", "Campaña", "Diseño", "Finalizar"];
 
-function FinalScreen({ slug, destinationUrl, style, qrType, user, onClose, onCreated }) {
-  const qrRef = useRef(null);
-  const qrInstance = useRef(null);
-  const url = `${WORKER}/${slug}`;
-
-  useEffect(() => {
-    if (!qrRef.current) return;
-    qrInstance.current = new QRCodeStyling({
-      width: 200, height: 200,
-      data: url,
-      dotsOptions: { color: style.dotColor || "#0c4a6e", type: style.dotStyle || "rounded" },
-      cornersSquareOptions: { type: style.cornerStyle || "extra-rounded", color: style.dotColor || "#0c4a6e" },
-      cornersDotOptions: { type: style.cornerStyle || "dot", color: style.accentColor || "#0ea5e9" },
-      backgroundOptions: { color: style.bgColor || "#ffffff" },
-      image: style.logo || undefined,
-      imageOptions: { crossOrigin: "anonymous", margin: 4 },
-    });
-    qrInstance.current.append(qrRef.current);
-  }, [url]);
-
-  const copyUrl = () => {
-    navigator.clipboard.writeText(url).then(() => toast("URL copiada"));
-  };
-
-  const canSvg = ["starter", "pro", "enterprise"].includes(user?.plan);
-  const canPdf = ["pro", "enterprise"].includes(user?.plan);
-
-  return (
-    <div className="text-center space-y-4 py-2">
-      <div className="text-3xl mb-1">🎉</div>
-      <h3 className="font-bold text-gray-900 text-lg">¡Tu código QR está listo!</h3>
-      <p className="text-sm text-gray-500">/{slug}</p>
-
-      <div ref={qrRef} className="flex justify-center" />
-
-      {destinationUrl && (
-        <p className="text-xs text-gray-400 break-all px-4">{destinationUrl.slice(0, 60)}{destinationUrl.length > 60 ? "…" : ""}</p>
-      )}
-
-      <div className="flex flex-wrap gap-2 justify-center">
-        <button
-          onClick={() => qrInstance.current?.download({ name: `qr-${slug}`, extension: "png" })}
-          className="btn-primary text-sm"
-        >
-          ↓ Descargar PNG
-        </button>
-        {canSvg && (
-          <button
-            onClick={() => qrInstance.current?.download({ name: `qr-${slug}`, extension: "svg" })}
-            className="btn-secondary text-sm"
-          >
-            ↓ SVG
-          </button>
-        )}
-        {canPdf && (
-          <button
-            onClick={() => qrInstance.current?.download({ name: `qr-${slug}`, extension: "pdf" })}
-            className="btn-secondary text-sm"
-          >
-            ↓ PDF
-          </button>
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-2 justify-center">
-        <button onClick={copyUrl} className="btn-secondary text-sm">
-          📋 Copiar URL
-        </button>
-        <a
-          href={`https://wa.me/?text=Escanea%20este%20QR%3A%20${encodeURIComponent(url)}`}
-          target="_blank"
-          rel="noreferrer"
-          className="btn-secondary text-sm"
-        >
-          💬 WhatsApp
-        </a>
-      </div>
-
-      <button onClick={() => { onCreated(); onClose(); }} className="btn-secondary w-full text-sm mt-2">
-        Cerrar
-      </button>
-    </div>
-  );
-}
-
 export default function CreateQRModal({ projects, onClose, onCreated }) {
   const { user } = useAuth();
   const [step, setStep]       = useState(0);
@@ -192,7 +105,6 @@ export default function CreateQRModal({ projects, onClose, onCreated }) {
     try {
       let finalProjectId = projectId;
 
-      // Create new project if name was typed
       if (!projectId && newProjectName.trim()) {
         try {
           const pd = await api.post("/api/projects", { name: newProjectName.trim() });
@@ -228,10 +140,19 @@ export default function CreateQRModal({ projects, onClose, onCreated }) {
     return true;
   };
 
+  if (done) {
+    return (
+      <QRDownloadModal
+        slug={slug}
+        styleJson={JSON.stringify({ ...style, type: qrType })}
+        onClose={() => { onCreated(); onClose(); }}
+      />
+    );
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
       <div className="card w-full max-w-lg my-4" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
         <div className="p-5 border-b border-gray-100">
           <h2 className="font-bold text-gray-900">Nuevo código QR</h2>
           <div className="flex items-center gap-1 mt-3">
@@ -247,7 +168,6 @@ export default function CreateQRModal({ projects, onClose, onCreated }) {
           </div>
         </div>
 
-        {/* Content */}
         <div className="p-5 max-h-[65vh] overflow-y-auto">
           {step === 0 && (
             <div className="grid grid-cols-2 gap-2">
@@ -279,7 +199,7 @@ export default function CreateQRModal({ projects, onClose, onCreated }) {
             <QRStyler url={destinationUrl} style={style} onChange={setStyle} />
           )}
 
-          {step === 4 && !done && (
+          {step === 4 && (
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">¿Cómo se verá tu dirección web?</label>
@@ -302,7 +222,6 @@ export default function CreateQRModal({ projects, onClose, onCreated }) {
                   />
                 )}
               </div>
-              {/* Resumen */}
               <div className="bg-gray-50 rounded-xl p-3 text-xs space-y-1 text-gray-600">
                 <p><span className="font-medium">Tipo:</span> {qrType}</p>
                 <p><span className="font-medium">Modo:</span> {campaign.redirect_mode}</p>
@@ -311,37 +230,22 @@ export default function CreateQRModal({ projects, onClose, onCreated }) {
               </div>
             </div>
           )}
-
-          {step === 4 && done && (
-            <FinalScreen
-              slug={slug}
-              destinationUrl={destinationUrl}
-              style={style}
-              qrType={qrType}
-              user={user}
-              onClose={onClose}
-              onCreated={onCreated}
-            />
-          )}
         </div>
 
-        {/* Footer */}
-        {!done && (
-          <div className="p-5 border-t border-gray-100 flex justify-between">
-            <button onClick={step === 0 ? onClose : () => setStep(s => s - 1)} className="btn-secondary">
-              {step === 0 ? "Cancelar" : "← Atrás"}
+        <div className="p-5 border-t border-gray-100 flex justify-between">
+          <button onClick={step === 0 ? onClose : () => setStep(s => s - 1)} className="btn-secondary">
+            {step === 0 ? "Cancelar" : "← Atrás"}
+          </button>
+          {step < STEPS.length - 1 ? (
+            <button onClick={() => setStep(s => s + 1)} disabled={!canNext()} className="btn-primary">
+              Siguiente →
             </button>
-            {step < STEPS.length - 1 ? (
-              <button onClick={() => setStep(s => s + 1)} disabled={!canNext()} className="btn-primary">
-                Siguiente →
-              </button>
-            ) : (
-              <button onClick={save} disabled={!canNext() || saving} className="btn-primary">
-                {saving ? "Creando..." : "✓ Crear QR"}
-              </button>
-            )}
-          </div>
-        )}
+          ) : (
+            <button onClick={save} disabled={!canNext() || saving} className="btn-primary">
+              {saving ? "Creando..." : "✓ Crear QR"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
