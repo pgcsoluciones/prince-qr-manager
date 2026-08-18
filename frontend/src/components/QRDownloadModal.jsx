@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import QRCodeStyling from "qr-code-styling";
 import QRCode from "qrcode";
 
@@ -10,7 +10,9 @@ function safeStyle(styleJson) {
   catch { return {}; }
 }
 function matrixFor(data) {
-  const qr = QRCode.create(data, { errorCorrectionLevel: "H" });
+  const text = String(data || "");
+  if (!text || text.length > 2800) throw new Error("El enlace QR es demasiado largo para exportarse correctamente.");
+  const qr = QRCode.create(text, { errorCorrectionLevel: "M" });
   return { size: qr.modules.size, data: qr.modules.data };
 }
 function isDark(matrix, x, y) { return Boolean(matrix.data[y * matrix.size + x]); }
@@ -75,49 +77,57 @@ function vectorPdf(data, dotColor, bgColor) {
 }
 
 export default function QRDownloadModal({ slug, styleJson, onClose }) {
-  const containerRef = useRef(null);
-  const qrRef = useRef(null);
   const [size, setSize] = useState(1024);
+  const [error, setError] = useState("");
   const style = safeStyle(styleJson);
-  const url = `${WORKER}/${slug}`;
+  const safeSlug = typeof slug === "string" ? slug.trim() : String(slug || "");
+  const url = `${WORKER}/${safeSlug}`;
   const dotColor = style.dotColor || "#0c4a6e";
   const bgColor = style.bgColor || "#ffffff";
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    containerRef.current.innerHTML = "";
-    qrRef.current = new QRCodeStyling({
-      width: 300, height: 300, data: url,
-      dotsOptions: { color: dotColor, type: style.dotStyle || "rounded" },
-      cornersSquareOptions: { type: style.cornerStyle || "extra-rounded", color: dotColor },
-      cornersDotOptions: { type: style.cornerStyle || "dot", color: style.accentColor || "#0ea5e9" },
-      backgroundOptions: { color: bgColor },
-      image: style.logo || undefined,
-      imageOptions: { crossOrigin: "anonymous", margin: 4 },
-    });
-    qrRef.current.append(containerRef.current);
-  }, [slug]);
+  const preview = useMemo(() => {
+    try { return vectorSvg(url, dotColor, bgColor); }
+    catch (e) { return null; }
+  }, [url, dotColor, bgColor]);
 
   const raster = async (ext) => {
-    const qr = new QRCodeStyling({
-      width: size, height: size, data: url,
-      dotsOptions: { color: dotColor, type: style.dotStyle || "rounded" },
-      cornersSquareOptions: { type: style.cornerStyle || "extra-rounded", color: dotColor },
-      cornersDotOptions: { type: style.cornerStyle || "dot", color: style.accentColor || "#0ea5e9" },
-      backgroundOptions: { color: bgColor }, image: style.logo || undefined,
-      imageOptions: { crossOrigin: "anonymous", margin: Math.max(4, Math.round(size / 75)) },
-    });
-    await qr.download({ name: `qr-${slug}-${size}`, extension: ext });
+    setError("");
+    try {
+      if (!safeSlug || url.length > 2800) throw new Error("El enlace QR es demasiado largo para exportarse correctamente.");
+      const qr = new QRCodeStyling({
+        width: size, height: size, data: url,
+        dotsOptions: { color: dotColor, type: style.dotStyle || "rounded" },
+        cornersSquareOptions: { type: style.cornerStyle || "extra-rounded", color: dotColor },
+        cornersDotOptions: { type: style.cornerStyle || "dot", color: style.accentColor || "#0ea5e9" },
+        backgroundOptions: { color: bgColor }, image: style.logo || undefined,
+        imageOptions: { crossOrigin: "anonymous", margin: Math.max(4, Math.round(size / 75)) },
+      });
+      await qr.download({ name: `qr-${safeSlug}-${size}`, extension: ext });
+    } catch (e) { setError(e?.message || "No se pudo generar la descarga."); }
   };
-  const svg = () => downloadBlob(new Blob([vectorSvg(url, dotColor, bgColor)], { type: "image/svg+xml;charset=utf-8" }), `qr-${slug}-vector.svg`);
-  const pdf = () => downloadBlob(vectorPdf(url, dotColor, bgColor), `qr-${slug}-vector.pdf`);
+  const svg = () => {
+    setError("");
+    try { downloadBlob(new Blob([vectorSvg(url, dotColor, bgColor)], { type: "image/svg+xml;charset=utf-8" }), `qr-${safeSlug}-vector.svg`); }
+    catch (e) { setError(e?.message || "No se pudo generar el SVG."); }
+  };
+  const pdf = () => {
+    setError("");
+    try { downloadBlob(vectorPdf(url, dotColor, bgColor), `qr-${safeSlug}-vector.pdf`); }
+    catch (e) { setError(e?.message || "No se pudo generar el PDF."); }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="card p-6 w-full max-w-md text-center" onClick={(e) => e.stopPropagation()}>
-        <h3 className="font-semibold text-gray-900 mb-1">Código QR — /{slug}</h3>
+        <h3 className="font-semibold text-gray-900 mb-1">Código QR — /{safeSlug}</h3>
         <p className="text-xs text-gray-500 mb-4 break-all">{url}</p>
-        <div className="flex justify-center mb-5" ref={containerRef} />
+
+        {preview ? (
+          <div className="flex justify-center mb-5" dangerouslySetInnerHTML={{ __html: preview }} />
+        ) : (
+          <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-5 text-xs text-red-700">No se pudo generar la vista previa de este QR.</div>
+        )}
+        {error && <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-left text-xs text-red-700">{error}</div>}
 
         <div className="rounded-xl border border-slate-200 p-3 mb-3 text-left">
           <div className="flex items-center justify-between gap-3 mb-2">
