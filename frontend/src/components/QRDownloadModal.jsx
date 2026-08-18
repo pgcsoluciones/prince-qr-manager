@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import QRCodeStyling from "qr-code-styling";
 import QRCode from "qrcode";
 
 const WORKER = "https://qr.intaprd.com";
@@ -75,6 +74,36 @@ function vectorPdf(data, dotColor, bgColor) {
   pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
   return new Blob([pdf], { type: "application/pdf" });
 }
+async function rasterBlob(data, size, dotColor, bgColor, ext, logo) {
+  const matrix = matrixFor(data);
+  const total = matrix.size + QUIET * 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext("2d", { alpha: ext === "webp" });
+  if (!ctx) throw new Error("No se pudo preparar el lienzo de exportación.");
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = bgColor; ctx.fillRect(0, 0, size, size);
+  const unit = size / total;
+  ctx.fillStyle = dotColor;
+  for (const [x, y, len] of runs(matrix)) {
+    const x0 = Math.round((x + QUIET) * unit);
+    const y0 = Math.round((y + QUIET) * unit);
+    const x1 = Math.round((x + QUIET + len) * unit);
+    const y1 = Math.round((y + QUIET + 1) * unit);
+    ctx.fillRect(x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0));
+  }
+  if (logo) {
+    try {
+      const img = new Image(); img.crossOrigin = "anonymous";
+      await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = logo; });
+      const box = Math.round(size * 0.18), pad = Math.round(size * 0.018), x = Math.round((size - box) / 2), y = x;
+      ctx.fillStyle = bgColor; ctx.fillRect(x - pad, y - pad, box + pad * 2, box + pad * 2);
+      ctx.drawImage(img, x, y, box, box);
+    } catch { /* logo remoto bloqueado: se exporta QR limpio */ }
+  }
+  const mime = ext === "webp" ? "image/webp" : "image/png";
+  return new Promise((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error("No se pudo crear el archivo.")), mime, 1));
+}
 
 export default function QRDownloadModal({ slug, styleJson, onClose }) {
   const [size, setSize] = useState(1024);
@@ -87,22 +116,14 @@ export default function QRDownloadModal({ slug, styleJson, onClose }) {
 
   const preview = useMemo(() => {
     try { return vectorSvg(url, dotColor, bgColor); }
-    catch (e) { return null; }
+    catch { return null; }
   }, [url, dotColor, bgColor]);
 
   const raster = async (ext) => {
     setError("");
     try {
-      if (!safeSlug || url.length > 2800) throw new Error("El enlace QR es demasiado largo para exportarse correctamente.");
-      const qr = new QRCodeStyling({
-        width: size, height: size, data: url,
-        dotsOptions: { color: dotColor, type: style.dotStyle || "rounded" },
-        cornersSquareOptions: { type: style.cornerStyle || "extra-rounded", color: dotColor },
-        cornersDotOptions: { type: style.cornerStyle || "dot", color: style.accentColor || "#0ea5e9" },
-        backgroundOptions: { color: bgColor }, image: style.logo || undefined,
-        imageOptions: { crossOrigin: "anonymous", margin: Math.max(4, Math.round(size / 75)) },
-      });
-      await qr.download({ name: `qr-${safeSlug}-${size}`, extension: ext });
+      const blob = await rasterBlob(url, size, dotColor, bgColor, ext, style.logo);
+      downloadBlob(blob, `qr-${safeSlug}-${size}.${ext}`);
     } catch (e) { setError(e?.message || "No se pudo generar la descarga."); }
   };
   const svg = () => {
@@ -123,7 +144,7 @@ export default function QRDownloadModal({ slug, styleJson, onClose }) {
         <p className="text-xs text-gray-500 mb-4 break-all">{url}</p>
 
         {preview ? (
-          <div className="flex justify-center mb-5" dangerouslySetInnerHTML={{ __html: preview }} />
+          <div className="flex justify-center mb-5 [&_svg]:w-[300px] [&_svg]:h-[300px]" dangerouslySetInnerHTML={{ __html: preview }} />
         ) : (
           <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-5 text-xs text-red-700">No se pudo generar la vista previa de este QR.</div>
         )}
@@ -131,7 +152,7 @@ export default function QRDownloadModal({ slug, styleJson, onClose }) {
 
         <div className="rounded-xl border border-slate-200 p-3 mb-3 text-left">
           <div className="flex items-center justify-between gap-3 mb-2">
-            <div><p className="text-xs font-bold text-slate-800">Uso digital</p><p className="text-[11px] text-slate-400">Mantiene estilo y logo del QR.</p></div>
+            <div><p className="text-xs font-bold text-slate-800">Uso digital</p><p className="text-[11px] text-slate-400">PNG/WEBP limpio y estable; conserva colores y logo cuando el navegador puede cargarlo.</p></div>
             <select value={size} onChange={e => setSize(Number(e.target.value))} className="input text-xs py-1.5 w-32">
               {[512,1024,2048,4096].map(v => <option key={v} value={v}>{v} × {v}</option>)}
             </select>
@@ -149,7 +170,7 @@ export default function QRDownloadModal({ slug, styleJson, onClose }) {
             <button onClick={svg} className="btn-secondary text-xs">SVG Vectorial</button>
             <button onClick={pdf} className="btn-secondary text-xs">PDF Vectorial</button>
           </div>
-          {style.logo && <p className="mt-2 text-[10px] text-amber-700">Para máxima compatibilidad, las salidas vectoriales exportan el QR limpio sin el logo incrustado. PNG/WEBP mantienen el logo.</p>}
+          {style.logo && <p className="mt-2 text-[10px] text-amber-700">SVG/PDF exportan el QR limpio sin logo para máxima compatibilidad vectorial.</p>}
         </div>
 
         <button onClick={onClose} className="btn-secondary w-full">Cerrar</button>
