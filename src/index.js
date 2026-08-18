@@ -904,25 +904,101 @@ export default {
           return json({ ok: false, error: "batch_name y links[] requeridos" }, 400);
         }
 
+        const ownedProjects = await env.DB.prepare(
+          "SELECT id, name FROM projects WHERE user_id=?"
+        ).bind(user.sub).all();
+
+        const projectById = new Map(
+          (ownedProjects.results || []).map((p) => [String(p.id), p])
+        );
+
+        const projectByName = new Map(
+          (ownedProjects.results || []).map((p) => [
+            String(p.name || "").trim().toLocaleLowerCase("es"),
+            p
+          ])
+        );
+
+        for (const link of links) {
+          if (!link.project_id && !link.project_name) continue;
+
+          const byId = link.project_id
+            ? projectById.get(String(link.project_id))
+            : null;
+
+          const byName = link.project_name
+            ? projectByName.get(
+                String(link.project_name).trim().toLocaleLowerCase("es")
+              )
+            : null;
+
+          if (!byId && !byName) {
+            return json({
+              ok: false,
+              error: `Proyecto no encontrado o no autorizado: ${link.project_name || link.project_id}`
+            }, 400);
+          }
+
+          if (byId && byName && String(byId.id) !== String(byName.id)) {
+            return json({
+              ok: false,
+              error: `El proyecto indicado no coincide: ${link.project_name}`
+            }, 400);
+          }
+        }
+
         const batchId = uuid();
-        await env.DB.prepare("INSERT INTO bulk_batches (id, user_id, name, total_links) VALUES (?,?,?,?)").bind(batchId, user.sub, batch_name, links.length).run();
+        await env.DB.prepare(
+          "INSERT INTO bulk_batches (id, user_id, name, total_links) VALUES (?,?,?,?)"
+        ).bind(batchId, user.sub, batch_name, links.length).run();
 
         let inserted = 0;
+
         for (const link of links) {
           const slug = (link.slug || "").trim().toLowerCase();
           const dest = link.destination_url || link.url || link.target;
+
           if (!slug || !dest) continue;
+
+          const project =
+            (link.project_id && projectById.get(String(link.project_id))) ||
+            (link.project_name &&
+              projectByName.get(
+                String(link.project_name).trim().toLocaleLowerCase("es")
+              )) ||
+            null;
+
           try {
-            await env.DB.prepare(
-              "INSERT OR IGNORE INTO short_links (slug, destination_url, user_id, batch_id) VALUES (?,?,?,?)"
-            ).bind(slug, dest, user.sub, batchId).run();
-            ctx.waitUntil(env.QR_CACHE.put(slug, dest, { expirationTtl: 3600 }));
-            inserted++;
-          } catch (_) {}
+            const result = await env.DB.prepare(
+              "INSERT OR IGNORE INTO short_links (slug, destination_url, user_id, batch_id, project_id) VALUES (?,?,?,?,?)"
+            ).bind(
+              slug,
+              dest,
+              user.sub,
+              batchId,
+              project?.id || null
+            ).run();
+
+            if ((result.meta?.changes || 0) > 0) {
+              ctx.waitUntil(
+                env.QR_CACHE.put(slug, dest, { expirationTtl: 3600 })
+              );
+              inserted++;
+            }
+          } catch (e) {
+            console.error("bulk upload:", slug, e);
+          }
         }
 
-        await env.DB.prepare("UPDATE bulk_batches SET total_links=? WHERE id=?").bind(inserted, batchId).run();
-        return json({ ok: true, batch_id: batchId, total_inserted: inserted }, 201);
+        await env.DB.prepare(
+          "UPDATE bulk_batches SET total_links=? WHERE id=?"
+        ).bind(inserted, batchId).run();
+
+        return json({
+          ok: true,
+          batch_id: batchId,
+          total_inserted: inserted
+        }, 201);
       }
 
       // ══════════════════════════════════════════
