@@ -145,10 +145,8 @@ export default function BulkDownloadModal({ links, filteredLinks, selectedSlugs,
     try {
       const exportDate = new Date();
       const exportStamp = stamp(exportDate);
-      const folderName = `${baseFolderName}_${exportStamp}`;
+      const exportName = `${baseFolderName}_${exportStamp}-${format}`;
       const zip = new JSZip();
-      zip.file(`${folderName}/`, null, { dir: true, date: exportDate });
-      const folder = zip.folder(folderName);
       const manifest = [["archivo", "slug", "url_dinamica", "destino", "proyecto"]];
 
       for (let i = 0; i < targetLinks.length; i++) {
@@ -160,23 +158,23 @@ export default function BulkDownloadModal({ links, filteredLinks, selectedSlugs,
         const fileName = `qr-${safeName(link.slug)}.${format}`;
         const opts = { date: exportDate };
 
-        if (format === "svg") folder.file(fileName, vectorSvg(url, dotColor, bgColor), opts);
-        else if (format === "pdf") folder.file(fileName, vectorPdf(url, dotColor, bgColor), opts);
-        else folder.file(fileName, await rasterBlob(url, size, dotColor, bgColor, format), opts);
+        if (format === "svg") zip.file(fileName, vectorSvg(url, dotColor, bgColor), opts);
+        else if (format === "pdf") zip.file(fileName, vectorPdf(url, dotColor, bgColor), opts);
+        else zip.file(fileName, await rasterBlob(url, size, dotColor, bgColor, format), opts);
 
         const pName = projects.find(p => String(p.id) === String(link.project_id))?.name || "";
         manifest.push([fileName, link.slug, url, link.destination_url || "", pName]);
         setProgress(Math.round(((i + 1) / targetLinks.length) * 90));
       }
 
-      folder.file("manifiesto.xlsx", excelManifest(manifest), { date: exportDate });
+      zip.file("manifiesto.xlsx", excelManifest(manifest), { date: exportDate });
       const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } }, meta => {
         setProgress(Math.max(90, Math.round(90 + meta.percent * 0.1)));
       });
       const href = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = href;
-      a.download = `${folderName}-${format}.zip`;
+      a.download = `${exportName}.zip`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -189,7 +187,7 @@ export default function BulkDownloadModal({ links, filteredLinks, selectedSlugs,
     } finally { setWorking(false); }
   };
 
-  const previewFolder = `${baseFolderName}_AAAA-MM-DD_HH-mm`;
+  const previewFolder = `${baseFolderName}_AAAA-MM-DD_HH-mm-${format}`;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={working ? undefined : onClose}>
@@ -240,7 +238,7 @@ export default function BulkDownloadModal({ links, filteredLinks, selectedSlugs,
           </div>
 
           <div className="rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-600">
-            <strong>{targetLinks.length}</strong> QR se incluirán en una carpeta fechada como <strong>{previewFolder}</strong>, junto con <strong>manifiesto.xlsx</strong>.
+            <strong>{targetLinks.length}</strong> QR se incluirán en el ZIP. Al descomprimir en macOS, Finder creará una carpeta nueva con el mismo nombre fechado del archivo: <strong>{previewFolder}</strong>, junto con <strong>manifiesto.xlsx</strong>.
           </div>
 
           {working && (
