@@ -40,9 +40,21 @@ export default function BulkImportModal({ onClose, onImported }) {
   const [projects, setProjects] = useState([]);
   const [batchName, setBatchName] = useState("");
   const [importing, setImporting] = useState(false);
+  const [creatingProjects, setCreatingProjects] = useState(false);
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
   const fileRef = useRef();
+
+  const loadProjects = async () => {
+    try {
+      const data = await api.get("/api/projects");
+      setProjects(data.projects || []);
+      return data.projects || [];
+    } catch (_) {
+      setProjects([]);
+      return [];
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -134,6 +146,26 @@ export default function BulkImportModal({ onClose, onImported }) {
     XLSX.writeFile(wb, "plantilla-carga-masiva-qr.xlsx");
   };
 
+  const createMissingProjects = async () => {
+    if (unknownProjects.length === 0 || creatingProjects) return;
+    setCreatingProjects(true);
+    setError("");
+
+    try {
+      for (const name of unknownProjects) {
+        await api.post("/api/projects", { name });
+      }
+      await loadProjects();
+      toast(unknownProjects.length === 1
+        ? `Proyecto ${unknownProjects[0]} creado correctamente`
+        : `${unknownProjects.length} proyectos creados correctamente`);
+    } catch (e) {
+      toast(e.message || "No se pudieron crear los proyectos", "error");
+    } finally {
+      setCreatingProjects(false);
+    }
+  };
+
   const run = async () => {
     if (!batchName || rows.length === 0 || unknownProjects.length > 0) return;
     const links = rows.map((row) => {
@@ -173,7 +205,7 @@ export default function BulkImportModal({ onClose, onImported }) {
               <div>
                 <p className="text-xs font-semibold text-gray-700">Columnas de la plantilla</p>
                 <p className="text-xs font-mono text-gray-600 mt-1">slug &nbsp;|&nbsp; url &nbsp;|&nbsp; proyecto</p>
-                <p className="text-[11px] text-gray-500 mt-1">Proyecto es opcional; si se indica debe existir previamente en tu cuenta.</p>
+                <p className="text-[11px] text-gray-500 mt-1">Proyecto es opcional; si no existe, podrás crearlo aquí antes de importar.</p>
               </div>
               <div className="flex gap-2">
                 <button type="button" onClick={downloadCsvTemplate} className="btn-secondary text-xs">Plantilla CSV</button>
@@ -206,9 +238,25 @@ export default function BulkImportModal({ onClose, onImported }) {
             </div>
             {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
             {unknownProjects.length > 0 && (
-              <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                <p className="font-semibold">Proyecto no encontrado</p>
-                <p className="mt-0.5">Corrige o crea primero: {unknownProjects.join(", ")}</p>
+              <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-800">
+                <p className="font-semibold">{unknownProjects.length === 1 ? "Este proyecto todavía no existe" : "Hay proyectos que todavía no existen"}</p>
+                <p className="mt-1">
+                  {unknownProjects.length === 1
+                    ? `El archivo usa el proyecto “${unknownProjects[0]}”. ¿Quieres crearlo ahora?`
+                    : `El archivo usa ${unknownProjects.length} proyectos nuevos: ${unknownProjects.join(", ")}.`}
+                </p>
+                <button
+                  type="button"
+                  onClick={createMissingProjects}
+                  disabled={creatingProjects}
+                  className="btn-primary text-xs mt-3"
+                >
+                  {creatingProjects
+                    ? "Creando..."
+                    : unknownProjects.length === 1
+                      ? `Crear proyecto “${unknownProjects[0]}”`
+                      : `Crear ${unknownProjects.length} proyectos`}
+                </button>
               </div>
             )}
           </div>
@@ -228,7 +276,7 @@ export default function BulkImportModal({ onClose, onImported }) {
                     <tr key={`${r.slug}-${i}`}>
                       <td className="px-3 py-1.5 font-mono text-brand-700">/{r.slug}</td>
                       <td className="px-3 py-1.5 text-gray-500 max-w-[220px] truncate">{r.destination_url}</td>
-                      <td className={`px-3 py-1.5 max-w-[180px] truncate ${r.project_name && !projectsByName.has(projectKey(r.project_name)) ? "text-red-600 font-medium" : "text-gray-500"}`}>
+                      <td className={`px-3 py-1.5 max-w-[180px] truncate ${r.project_name && !projectsByName.has(projectKey(r.project_name)) ? "text-amber-700 font-medium" : "text-gray-500"}`}>
                         {r.project_name || "—"}
                       </td>
                     </tr>
@@ -242,7 +290,7 @@ export default function BulkImportModal({ onClose, onImported }) {
 
         <div className="p-5 border-t border-gray-100 flex justify-between">
           <button onClick={onClose} className="btn-secondary">Cancelar</button>
-          <button onClick={run} disabled={!batchName || rows.length === 0 || importing || unknownProjects.length > 0} className="btn-primary">
+          <button onClick={run} disabled={!batchName || rows.length === 0 || importing || creatingProjects || unknownProjects.length > 0} className="btn-primary">
             {importing ? "Importando..." : `Importar ${rows.length} QRs`}
           </button>
         </div>
