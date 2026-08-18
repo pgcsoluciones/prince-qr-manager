@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import JSZip from "jszip";
 import QRCode from "qrcode";
+import * as XLSX from "xlsx";
 import { toast } from "./Toast.jsx";
 
 const WORKER = "https://qr.intaprd.com";
@@ -97,13 +98,27 @@ async function rasterBlob(data, size, dotColor, bgColor, ext) {
   return new Promise((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error("No se pudo crear el archivo.")), mime, 1));
 }
 
-function csvCell(value) {
-  const s = String(value ?? "");
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
 function safeName(value) {
   return String(value || "lote-qr").trim().replace(/[^a-z0-9-_]+/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "lote-qr";
+}
+
+function stamp(date = new Date()) {
+  const pad = n => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}_${pad(date.getHours())}-${pad(date.getMinutes())}`;
+}
+
+function excelManifest(rows) {
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [
+    { wch: 34 },
+    { wch: 28 },
+    { wch: 48 },
+    { wch: 52 },
+    { wch: 30 },
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Manifiesto");
+  return XLSX.write(wb, { bookType: "xlsx", type: "array" });
 }
 
 export default function BulkDownloadModal({ links, filteredLinks, selectedSlugs, projects, defaultProjectId = "", onClose }) {
@@ -122,13 +137,17 @@ export default function BulkDownloadModal({ links, filteredLinks, selectedSlugs,
   }, [scope, links, filteredLinks, selectedSlugs, projectId]);
 
   const project = projects.find(p => String(p.id) === String(projectId));
-  const folderName = safeName(scope === "project" ? project?.name : scope === "selected" ? "qrs-seleccionados" : "qrs-filtrados");
+  const baseFolderName = safeName(scope === "project" ? project?.name : scope === "selected" ? "qrs-seleccionados" : "qrs-filtrados");
 
   const download = async () => {
     if (!targetLinks.length) return;
     setWorking(true); setProgress(0);
     try {
+      const exportDate = new Date();
+      const exportStamp = stamp(exportDate);
+      const folderName = `${baseFolderName}_${exportStamp}`;
       const zip = new JSZip();
+      zip.file(`${folderName}/`, null, { dir: true, date: exportDate });
       const folder = zip.folder(folderName);
       const manifest = [["archivo", "slug", "url_dinamica", "destino", "proyecto"]];
 
@@ -139,23 +158,28 @@ export default function BulkDownloadModal({ links, filteredLinks, selectedSlugs,
         const bgColor = style.bgColor || "#ffffff";
         const url = `${WORKER}/${link.slug}`;
         const fileName = `qr-${safeName(link.slug)}.${format}`;
+        const opts = { date: exportDate };
 
-        if (format === "svg") folder.file(fileName, vectorSvg(url, dotColor, bgColor));
-        else if (format === "pdf") folder.file(fileName, vectorPdf(url, dotColor, bgColor));
-        else folder.file(fileName, await rasterBlob(url, size, dotColor, bgColor, format));
+        if (format === "svg") folder.file(fileName, vectorSvg(url, dotColor, bgColor), opts);
+        else if (format === "pdf") folder.file(fileName, vectorPdf(url, dotColor, bgColor), opts);
+        else folder.file(fileName, await rasterBlob(url, size, dotColor, bgColor, format), opts);
 
         const pName = projects.find(p => String(p.id) === String(link.project_id))?.name || "";
         manifest.push([fileName, link.slug, url, link.destination_url || "", pName]);
         setProgress(Math.round(((i + 1) / targetLinks.length) * 90));
       }
 
-      folder.file("manifiesto.csv", manifest.map(row => row.map(csvCell).join(",")).join("\n") + "\n");
+      folder.file("manifiesto.xlsx", excelManifest(manifest), { date: exportDate });
       const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } }, meta => {
         setProgress(Math.max(90, Math.round(90 + meta.percent * 0.1)));
       });
       const href = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = href; a.download = `${folderName}-${format}.zip`; document.body.appendChild(a); a.click(); a.remove();
+      a.href = href;
+      a.download = `${folderName}-${format}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
       setTimeout(() => URL.revokeObjectURL(href), 1000);
       setProgress(100);
       toast(`${targetLinks.length} QRs preparados en ZIP`);
@@ -165,12 +189,14 @@ export default function BulkDownloadModal({ links, filteredLinks, selectedSlugs,
     } finally { setWorking(false); }
   };
 
+  const previewFolder = `${baseFolderName}_AAAA-MM-DD_HH-mm`;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={working ? undefined : onClose}>
       <div className="card w-full max-w-lg" onClick={e => e.stopPropagation()}>
         <div className="p-5 border-b border-gray-100">
           <h2 className="font-bold text-gray-900">Descargar QRs por lote</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Genera un ZIP organizado con los QR y su manifiesto CSV.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Genera un ZIP fechado y organizado con los QR y su manifiesto Excel.</p>
         </div>
 
         <div className="p-5 space-y-4">
@@ -214,7 +240,7 @@ export default function BulkDownloadModal({ links, filteredLinks, selectedSlugs,
           </div>
 
           <div className="rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-600">
-            <strong>{targetLinks.length}</strong> QR se incluirán en <strong>{folderName}-{format}.zip</strong> junto con <strong>manifiesto.csv</strong>.
+            <strong>{targetLinks.length}</strong> QR se incluirán en una carpeta fechada como <strong>{previewFolder}</strong>, junto con <strong>manifiesto.xlsx</strong>.
           </div>
 
           {working && (
