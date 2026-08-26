@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
+import { api } from "../utils/api.js";
 
-const WORKER = "https://qr.intaprd.com";
+const CURRENT_QR_ORIGIN = "https://qr.intaprd.com";
 const QUIET = 4;
 
 function safeStyle(styleJson) {
@@ -110,9 +111,22 @@ export default function QRDownloadModal({ slug, styleJson, onClose }) {
   const [error, setError] = useState("");
   const style = safeStyle(styleJson);
   const safeSlug = typeof slug === "string" ? slug.trim() : String(slug || "");
-  const url = `${WORKER}/${safeSlug}`;
+  const [url, setUrl] = useState(`${CURRENT_QR_ORIGIN}/${safeSlug}`);
   const dotColor = style.dotColor || "#0c4a6e";
   const bgColor = style.bgColor || "#ffffff";
+
+  useEffect(() => {
+    let active = true;
+    api.get(`/api/links/${safeSlug}/identity`)
+      .then((data) => {
+        if (active && data?.public_url) setUrl(data.public_url);
+      })
+      .catch(() => {
+        // Compatibilidad durante rollout: si identity aun no existe,
+        // el modal sigue funcionando con el origen actual.
+      });
+    return () => { active = false; };
+  }, [safeSlug]);
 
   const preview = useMemo(() => {
     try { return vectorSvg(url, dotColor, bgColor); }
