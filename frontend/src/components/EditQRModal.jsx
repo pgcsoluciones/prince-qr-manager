@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../utils/api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import QRStyler from "./QRStyler.jsx";
 import CampaignConfig from "./CampaignConfig.jsx";
 import { toast } from "./Toast.jsx";
+
+const CURRENT_QR_ORIGIN = "https://qr.intaprd.com";
 
 export default function EditQRModal({ link, projects, onClose, onSaved }) {
   const { user } = useAuth();
@@ -14,6 +16,7 @@ export default function EditQRModal({ link, projects, onClose, onSaved }) {
 
   const [destination, setDestination] = useState(link.destination_url);
   const [projectId, setProjectId]     = useState(link.project_id || "");
+  const [publicUrl, setPublicUrl]     = useState(`${CURRENT_QR_ORIGIN}/${link.slug}`);
   const [style, setStyle]             = useState({
     dotColor: "#0c4a6e", accentColor: "#0ea5e9", bgColor: "#ffffff",
     dotStyle: "rounded", cornerStyle: "extra-rounded", ...existingStyle,
@@ -31,6 +34,19 @@ export default function EditQRModal({ link, projects, onClose, onSaved }) {
 
   const [saving, setSaving] = useState(false);
   const [tab, setTab]       = useState("url");
+
+  useEffect(() => {
+    let active = true;
+    api.get(`/api/links/${link.slug}/identity`)
+      .then((data) => {
+        if (active && data?.public_url) setPublicUrl(data.public_url);
+      })
+      .catch(() => {
+        // Compatibilidad durante rollout: si el backend aun no expone identity,
+        // se mantiene el origen actual sin bloquear la edicion.
+      });
+    return () => { active = false; };
+  }, [link.slug]);
 
   const save = async () => {
     if (!destination) return;
@@ -90,6 +106,11 @@ export default function EditQRModal({ link, projects, onClose, onSaved }) {
           {tab === "url" && (
             <div className="space-y-4">
               <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">URL pública del QR</label>
+                <input type="url" className="input bg-slate-50 text-slate-500" value={publicUrl} readOnly />
+                <p className="mt-1 text-[11px] text-slate-400">Esta dirección identifica el QR impreso y no cambia al editar el destino.</p>
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">URL de destino</label>
                 <input type="url" className="input" placeholder="https://..."
                   value={destination} onChange={(e) => setDestination(e.target.value)} />
@@ -120,7 +141,7 @@ export default function EditQRModal({ link, projects, onClose, onSaved }) {
           )}
 
           {tab === "design" && (
-            <QRStyler url={destination} style={style} onChange={setStyle} />
+            <QRStyler url={publicUrl} style={style} onChange={setStyle} />
           )}
         </div>
 
