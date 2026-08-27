@@ -77,6 +77,16 @@ export default {
       });
     }
 
+    // Seguridad del Worker temporal: Preview no permite mutaciones de API.
+    // Comparte bindings reales únicamente para verificaciones de lectura.
+    if (
+      env.ENVIRONMENT === "preview" &&
+      path.startsWith("/api/") &&
+      ["POST", "PUT", "PATCH", "DELETE"].includes(method)
+    ) {
+      return json({ ok: false, error: "Preview de solo lectura" }, 405);
+    }
+
     const identityMatch = path.match(/^\/api\/links\/([^/]+)\/identity$/);
     if (identityMatch && method === "GET") {
       const slug = decodeURIComponent(identityMatch[1]);
@@ -119,6 +129,8 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
+    // El Worker temporal de Preview no ejecuta tareas programadas contra recursos reales.
+    if (env.ENVIRONMENT === "preview") return;
     if (typeof coreWorker.scheduled === "function") {
       return coreWorker.scheduled(event, env, ctx);
     }
