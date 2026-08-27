@@ -77,12 +77,14 @@ export default {
       });
     }
 
-    // Seguridad del Worker temporal: Preview no permite mutaciones de API.
-    // Comparte bindings reales únicamente para verificaciones de lectura.
+    // Seguridad del Worker temporal: Preview permite autenticarse para navegar,
+    // pero bloquea las demás mutaciones de API.
+    const isPreviewLogin = env.ENVIRONMENT === "preview" && path === "/api/auth/login" && method === "POST";
     if (
       env.ENVIRONMENT === "preview" &&
       path.startsWith("/api/") &&
-      ["POST", "PUT", "PATCH", "DELETE"].includes(method)
+      ["POST", "PUT", "PATCH", "DELETE"].includes(method) &&
+      !isPreviewLogin
     ) {
       return json({ ok: false, error: "Preview de solo lectura" }, 405);
     }
