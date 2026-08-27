@@ -61,6 +61,22 @@ export default {
     const path = url.pathname;
     const method = request.method;
 
+    // Diagnóstico temporal de Preview: solo lectura y solo cuando ENVIRONMENT=preview.
+    // Permite comprobar la identidad legacy sin exponer ni modificar el destino.
+    const previewIdentityMatch = path.match(/^\/__preview\/identity\/([^/]+)$/);
+    if (env.ENVIRONMENT === "preview" && previewIdentityMatch && method === "GET") {
+      const slug = decodeURIComponent(previewIdentityMatch[1]);
+      const legacyRaw = await env.QR_LINKS.get(slug);
+      const isLegacy = Boolean(legacyRaw);
+      const origin = isLegacy ? LEGACY_QR_ORIGIN : CURRENT_QR_ORIGIN;
+      return json({
+        ok: true,
+        slug,
+        is_legacy: isLegacy,
+        public_url: `${origin}/${slug}`,
+      });
+    }
+
     const identityMatch = path.match(/^\/api\/links\/([^/]+)\/identity$/);
     if (identityMatch && method === "GET") {
       const slug = decodeURIComponent(identityMatch[1]);
